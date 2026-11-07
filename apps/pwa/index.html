@@ -45,6 +45,13 @@
       .qr canvas { display: block; }
       .hint { margin: 0; color: var(--fg-2); max-width: 28ch; }
       .hint b { color: var(--fg); font-weight: 500; }
+      /* Enter a code to join another table from this phone: the page reopens as a Peer. */
+      .enter { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+      .enter input { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; min-width: 0; letter-spacing: 0.18em; text-transform: uppercase; }
+      .enter input::placeholder { color: var(--fg-2); letter-spacing: normal; text-transform: none; }
+      .enter button { padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; font-weight: 600; transition: background 120ms; }
+      .enter button:active { background: var(--line); }
+      @media (hover: hover) { .enter button:hover { background: var(--line); } }
       .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
       .seg button { padding: 10px 0; color: var(--fg-2); transition: background 120ms, color 120ms; }
       .seg button + button { border-left: 1px solid var(--line); }

@@ -17,6 +17,8 @@ const APP_ID = 'mobilegameconnect';
 const MATCH_CHANNEL = 'match';
 // No 0/O/1/I/L: codes stay readable when typed by hand.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+/** sessionStorage: the room this tab hosts; a reloaded Host keeps its code, so its Peers find it again. */
+const HOST_ROOM_KEY = 'mgc.hostRoom';
 /** The Games the Host can start (its HUD picks the first until told otherwise); every Device runs the one its lobby names. */
 const GAMES = [pong, pass];
 
@@ -30,6 +32,13 @@ function newRoomCode(): string {
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
 }
 
+/** The code this tab hosts: the one it hosted before a reload, else a new one. */
+function hostRoomCode(): string {
+  const code = sessionStorage.getItem(HOST_ROOM_KEY) ?? newRoomCode();
+  sessionStorage.setItem(HOST_ROOM_KEY, code);
+  return code;
+}
+
 /**
  * Transport → Session → lobby → Match → lobby. The Host's Start freezes a
  * Match in the lobby; every Device in it runs its part through the SDK, the
@@ -40,7 +49,7 @@ async function start(): Promise<void> {
   const deviceId = await claimDeviceId();
   const self = deviceInfo(deviceId);
   const room = new URLSearchParams(location.search).get('room')?.toUpperCase();
-  const code = room ?? newRoomCode();
+  const code = room ?? hostRoomCode();
   const transport = new TrysteroTransport({ appId: APP_ID, roomId: code });
   const session = room ? joinSession(transport, self) : hostSession(transport, self);
   const lobby = openLobby(session, self.pxPerMm, claimPlayerId(deviceId));

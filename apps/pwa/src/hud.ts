@@ -138,6 +138,10 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
       <div class="join">
         <div class="qr"></div>
         <p class="hint">Scan to join, or open <b>${esc(joinUrl.host)}</b> and enter the code.</p>
+        <form class="enter" aria-label="Join another table">
+          <input name="room" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="4" placeholder="Code" aria-label="Table code" />
+          <button type="submit">Join</button>
+        </form>
       </div>
       <div class="seg games" role="radiogroup" aria-label="Game">
         ${games.map((g, i) => `<button type="button" role="radio" data-g="${i}">${esc(g.name)}</button>`).join('')}
@@ -180,6 +184,18 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     barAction.textContent = open ? 'Hide' : 'Setup';
   };
   bar.addEventListener('click', () => setOpen(!('open' in root.dataset)));
+  // Joining a table means leaving this one: the page reopens as a Peer of that room.
+  const enter = root.querySelector<HTMLFormElement>('.enter')!;
+  const roomInput = enter.elements.namedItem('room') as HTMLInputElement;
+  roomInput.addEventListener('input', () => {
+    roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  });
+  enter.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const room = roomInput.value;
+    if (room.length === 0) return;
+    location.assign(`?room=${room}`);
+  });
   /** The Game Start starts. */
   let game = games[0]!;
   gameSeg.addEventListener('click', (e) => {

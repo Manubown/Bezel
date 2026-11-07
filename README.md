@@ -14,7 +14,7 @@ pnpm typecheck
 ```
 
 1. Open the printed `https://<LAN-ip>:5173/` on the host phone. The dev cert is self-signed; accept the warning once.
-2. Scan the QR on the host with the other phones (or open `/?room=CODE`).
+2. Scan the QR on the host with the other phones, or open the same address on them and type the host's code into the "Code" field of the setup sheet (or open `/?room=CODE`). A reloaded host keeps its code.
 3. All phones need internet for signaling (public Nostr relays via Trystero); the game data itself flows phone-to-phone over WebRTC on the local network.
 
 ## Layout
