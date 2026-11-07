@@ -10,6 +10,8 @@ export interface Env {
   mono(): number;
   /** Calls `fn` every `ms`; returns the cancel. */
   every(ms: number, fn: () => void): () => void;
+  /** Calls `fn` once, `ms` from now; returns the cancel. */
+  after(ms: number, fn: () => void): () => void;
 }
 
 export const REAL_ENV: Env = {
@@ -18,5 +20,9 @@ export const REAL_ENV: Env = {
   every(ms, fn) {
     const id = setInterval(fn, ms);
     return () => clearInterval(id);
+  },
+  after(ms, fn) {
+    const id = setTimeout(fn, ms);
+    return () => clearTimeout(id);
   },
 };

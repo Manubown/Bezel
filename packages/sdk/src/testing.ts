@@ -61,15 +61,18 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
   const pxPerMm = o.pxPerMm ?? 6;
 
   let clock = 0;
+  /** `every` 0: fires once. */
   const timers: { every: number; due: number; fn: () => void; live: boolean }[] = [];
+  const schedule = (every: number, ms: number, fn: () => void): (() => void) => {
+    const timer = { every, due: clock + ms, fn, live: true };
+    timers.push(timer);
+    return () => void (timer.live = false);
+  };
   const env: Env = {
     wall: () => clock,
     mono: () => clock,
-    every(ms, fn) {
-      const timer = { every: ms, due: clock + ms, fn, live: true };
-      timers.push(timer);
-      return () => void (timer.live = false);
-    },
+    every: (ms, fn) => schedule(ms, ms, fn),
+    after: (ms, fn) => schedule(0, ms, fn),
   };
   const frames = new SteppedFrames();
 
@@ -126,7 +129,8 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
       const next = timers.filter((t) => t.live && t.due <= to).sort((a, b) => a.due - b.due)[0];
       if (!next) break;
       clock = next.due;
-      next.due += next.every;
+      if (next.every > 0) next.due += next.every;
+      else next.live = false;
       next.fn();
     }
     clock = to;

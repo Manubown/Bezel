@@ -13,6 +13,7 @@ export interface Frame {
  * Hi-DPI aware requestAnimationFrame loop; `draw` gets a context reset to CSS px.
  * The canvas is sized to the visual viewport: iOS Safari lays out `position: fixed`
  * against the large viewport, so `height: 100%` would extend under the bottom toolbar.
+ * Like the SDK's paint loop, it requests no frames while the page is hidden.
  */
 export function startCanvasLoop(canvas: HTMLCanvasElement, draw: (f: Frame) => void): () => void {
   const ctx = canvas.getContext('2d');
@@ -34,13 +35,23 @@ export function startCanvasLoop(canvas: HTMLCanvasElement, draw: (f: Frame) => v
   (vv ?? window).addEventListener('resize', resize);
 
   const tick = () => {
+    raf = 0;
+    if (document.hidden) return; // `visibilitychange` restarts it
     ctx.setTransform(frame.dpr, 0, 0, frame.dpr, 0, 0);
     draw(frame);
     raf = requestAnimationFrame(tick);
   };
+  const visibility = () => {
+    if (document.hidden) {
+      cancelAnimationFrame(raf);
+      raf = 0;
+    } else if (raf === 0) raf = requestAnimationFrame(tick);
+  };
+  document.addEventListener('visibilitychange', visibility);
   raf = requestAnimationFrame(tick);
   return () => {
     cancelAnimationFrame(raf);
+    document.removeEventListener('visibilitychange', visibility);
     (vv ?? window).removeEventListener('resize', resize);
   };
 }

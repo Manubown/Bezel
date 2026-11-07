@@ -70,6 +70,14 @@
       .go .end { border: 1px solid var(--line); }
       .reason { margin: 0; color: var(--wait); min-height: 1.4em; }
       .reason:empty { display: none; }
+      /* The game log: faults, ctx.log lines and closes. The newest rides on the folded bar while a Match runs. */
+      .sheet .bar-log, .log { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .sheet .bar-log { grid-column: 1 / -1; margin-top: -6px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .log { list-style: none; margin: 0; padding: 8px 10px; display: grid; gap: 4px; max-height: 10.5em; overflow-y: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+      .log li { display: grid; grid-template-columns: 6ch 1fr; gap: 8px; }
+      .log .log-kind { color: var(--fg-2); }
+      .log .log-text { overflow-wrap: anywhere; }
+      .log .log-fault .log-kind, .sheet .bar-log.log-fault { color: var(--wait); }
 
       /* Peer: one slim strip at the top. */
       .strip { position: fixed; top: 0; left: 0; right: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: baseline; padding: calc(10px + env(safe-area-inset-top, 0)) 14px 14px; background: linear-gradient(var(--bg) 55%, transparent); pointer-events: none; }
@@ -77,7 +85,7 @@
       .strip .state { grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-      /* The last Match's result, over the lobby on every phone until tapped; and a paused Match's notice, which touches pass through. */
+      /* How the last Match closed (its result, or why it stopped), over the lobby on every phone until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */
       .result, .pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(84vw, 340px); padding: 22px 20px 16px; background: var(--raise); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); text-align: center; }
       .result { cursor: pointer; }
       .pause { padding-bottom: 20px; pointer-events: none; }

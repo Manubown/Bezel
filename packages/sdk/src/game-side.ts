@@ -5,13 +5,16 @@ import { REAL_ENV, type Env } from './env';
 import type { Frame, Game, HostContext, HostHandlers, ViewContext, ViewHandlers } from './game';
 import { assertJson } from './json';
 import type { Input, JsonValue, MatchInfo, RawInput } from './types';
-import { WIRE_VERSION, type Down, type Up } from './wire';
+import { WIRE_VERSION, type Down, type Fault, type Up } from './wire';
 
 /** The game's end of a link. */
 export interface GamePort {
   post(f: Up): void;
   onFrame(h: (f: Down) => void): void;
 }
+
+/** `draw` throws on this many frames in a row: the view stops painting and its link closes. */
+export const DRAW_FAULTS_TO_CLOSE = 10;
 
 type CloseFrame = Extract<Down, { t: 'close' }>;
 type ViewSelf = Extract<Down, { t: 'init'; side: 'view' }>['self'];
@@ -66,13 +69,24 @@ abstract class GameSide {
     else this.port.post(f);
   }
 
-  /** Runs game code; a throw is reported as a `fault` frame. */
-  protected guard(where: string, run: () => void): void {
+  /**
+   * Runs game code; a throw is reported as a `fault` frame, `fatal` when this
+   * side cannot go on without what `run` was to set up. True if it returned.
+   */
+  protected guard(where: string, run: () => void, fatal = false): boolean {
+    const thrown = this.attempt(run);
+    if (thrown) this.post(fault(`${this.side}.${where}`, thrown.error, fatal));
+    return !thrown;
+  }
+
+  /** Runs game code, holding what it posts until it returns. Returns what it threw, if anything. */
+  protected attempt(run: () => void): { error: unknown } | undefined {
     this.depth++;
     try {
       run();
-    } catch (e) {
-      this.outbox.push(fault(`${this.side}.${where}`, e));
+      return undefined;
+    } catch (error) {
+      return { error };
     } finally {
       if (--this.depth === 0) {
         const out = this.outbox;
@@ -80,6 +94,11 @@ abstract class GameSide {
         for (const f of out) this.post(f);
       }
     }
+  }
+
+  /** `ctx.log`: never throws into the game. */
+  protected log(args: readonly unknown[]): void {
+    this.post({ v: 1, t: 'log', args: args.map(logArg) });
   }
 
   protected abstract start(f: Extract<Down, { t: 'init' }>): void;
@@ -107,7 +126,7 @@ class HostSide extends GameSide {
   private handlers: HostHandlers<JsonValue> = {};
   /** Shared time of the step being ticked; stamps what `tick` publishes. */
   private tickNow: number | undefined;
-  /** Set by `end`: frames already in flight run no handler, and `publish` is dropped. */
+  /** Set by `end`: frames already in flight run no handler. */
   private ended = false;
 
   constructor(
@@ -122,25 +141,25 @@ class HostSide extends GameSide {
     const ctx: HostContext<JsonValue, JsonValue> = {
       match: f.match,
       now: () => this.clock.now(),
+      // After `end` these still go out: the host runtime is the one that rejects them.
       publish: (state, to) => {
-        if (this.ended) return;
         assertJson(state, 'publish: state');
         const at = this.tickNow ?? this.clock.now();
         this.post(to === undefined ? { v: 1, t: 'publish', state, at } : { v: 1, t: 'publish', state, to, at });
       },
       end: (result) => {
-        if (this.ended) return;
         assertJson(result, 'end: result');
         this.ended = true;
         this.post({ v: 1, t: 'end', result });
       },
+      log: (...args) => this.log(args),
     };
-    this.guard('factory', () => {
-      this.handlers = this.game.host(ctx);
-    });
+    this.guard('factory', () => (this.handlers = handlersOf(this.game.host(ctx), 'host')), true);
   }
 
   protected frame(f: Exclude<Down, { t: 'init' | 'clock' | 'close' }>): void {
+    // A refusal changes nothing here: the host runtime already logged it.
+    if (f.t === 'reject') return;
     if (f.t === 'input') {
       for (const i of f.inputs) {
         if (this.ended) return;
@@ -175,8 +194,8 @@ class ViewSide extends GameSide {
   private latest: { state: JsonValue; t: number } | undefined;
   private root: HTMLElement | undefined;
   private sender: Pick<Input, 'deviceId' | 'role'> | undefined;
-  /** The paint loop behind `draw`: stopped while paused, so the canvas keeps its last frame. */
-  private painter = { start: (): void => {}, stop: (): void => {} };
+  /** The paint loop behind `draw`: it runs while not paused and not hidden, until closed. */
+  private painter = { pause: (): void => {}, resume: (): void => {}, close: (): void => {} };
   private stopCapture = (): void => {};
   /** Captured since the last animation frame, in order; at most one move per pointer. */
   private pending: RawInput[] = [];
@@ -215,16 +234,16 @@ class ViewSide extends GameSide {
       root,
       now: () => this.clock.now(),
       latest: () => this.latest,
+      log: (...args) => this.log(args),
     };
-    this.guard('factory', () => {
-      this.handlers = this.game.view(ctx);
-    });
+    // Without handlers there is nothing to run: the platform closes this view.
+    if (!this.guard('factory', () => (this.handlers = handlersOf(this.game.view(ctx), 'view')), true)) return;
     if (!win) {
-      if (this.handlers.draw) this.post(fault('view.draw', new Error('the view root is not in a window')));
+      if (this.handlers.draw) this.post(fault('view.draw', new Error('the view root is not in a window'), true));
       return;
     }
     if (this.handlers.input !== 'off') this.capture(win, root, self, surface);
-    if (this.handlers.draw) this.draw(win, root, match, self, surface);
+    if (this.handlers.draw) this.draw(doc, win, root, match, self, surface);
   }
 
   protected frame(f: Exclude<Down, { t: 'init' | 'clock' | 'close' }>): void {
@@ -233,16 +252,16 @@ class ViewSide extends GameSide {
       this.guard('onState', () => this.handlers.onState?.(f.state, f.at));
     } else if (f.t === 'pause') {
       // Input is still captured and sent while paused: the host drops it.
-      this.painter.stop();
+      this.painter.pause();
       this.guard('onPause', () => this.handlers.onPause?.(f.reason));
     } else if (f.t === 'resume') {
       this.guard('onResume', () => this.handlers.onResume?.(f.now));
-      this.painter.start();
+      this.painter.resume();
     }
   }
 
   protected stop(close: CloseFrame | undefined): void {
-    this.painter.stop();
+    this.painter.close();
     this.stopCapture();
     if (close) {
       const r = close.result === undefined ? { reason: close.reason } : { reason: close.reason, result: close.result };
@@ -321,19 +340,32 @@ class ViewSide extends GameSide {
     this.post({ v: 1, t: 'input', inputs });
   }
 
-  /** The SDK-owned canvas and animation loop behind `draw`. */
-  private draw(win: Window, root: HTMLElement, match: MatchInfo, self: ViewSelf, surface: Surface | undefined): void {
-    const canvas = root.ownerDocument.createElement('canvas');
+  /**
+   * The SDK-owned canvas and animation loop behind `draw`. The loop runs while
+   * the Match is not paused and the page is not hidden. A frame whose `draw`
+   * throws is skipped (the first throw of a run is reported); on the tenth in a
+   * row the loop stops for good and a fatal fault asks the platform to close
+   * this view.
+   */
+  private draw(doc: Document, win: Window, root: HTMLElement, match: MatchInfo, self: ViewSelf, surface: Surface | undefined): void {
+    const canvas = doc.createElement('canvas');
     canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
     root.prepend(canvas);
     const g = canvas.getContext('2d');
     if (!g) {
-      this.post(fault('view.draw', new Error('Canvas2D is unavailable')));
+      this.post(fault('view.draw', new Error('Canvas2D is unavailable'), true));
       return;
     }
     const place = { bounds: match.bounds, screenMm: self.screenMm, ...(self.tile && { tile: self.tile }) };
     let raf = 0;
+    let paused = false;
+    /** Closed, or `draw` failed too often: the loop never runs again. */
+    let done = false;
+    /** `draw` throws in a row. */
+    let failing = 0;
     const paint = (): void => {
+      raf = 0;
+      if (doc.hidden) return; // `visibilitychange` restarts the loop
       raf = win.requestAnimationFrame(paint);
       // Input captured since the last frame leaves now, so this frame's draw already sees its echo.
       this.flushInput();
@@ -350,24 +382,75 @@ class ViewSide extends GameSide {
       const now = this.clock.now();
       const latest = this.latest;
       const f: Frame<JsonValue> = { ctx: g, now, state: latest?.state, t: latest ? latest.t : now, ...place };
-      this.guard('draw', () => this.handlers.draw?.(f));
+      const thrown = this.attempt(() => this.handlers.draw?.(f));
       g.restore();
+      if (!thrown) failing = 0;
+      else if (++failing >= DRAW_FAULTS_TO_CLOSE) {
+        done = true;
+        sync();
+        this.post(fault('view.draw', thrown.error, true, `threw on ${failing} frames in a row`));
+      } else if (failing === 1) this.post(fault('view.draw', thrown.error));
     };
-    this.painter = {
-      start() {
-        if (raf === 0) raf = win.requestAnimationFrame(paint);
-      },
-      stop() {
+    /** Requests or cancels the next frame to match the state. */
+    const sync = (): void => {
+      const run = !done && !paused && !doc.hidden;
+      if (run && raf === 0) raf = win.requestAnimationFrame(paint);
+      else if (!run && raf !== 0) {
         win.cancelAnimationFrame(raf);
         raf = 0;
+      }
+    };
+    doc.addEventListener('visibilitychange', sync);
+    this.painter = {
+      pause() {
+        paused = true;
+        sync();
+      },
+      resume() {
+        paused = false;
+        sync();
+      },
+      close() {
+        done = true;
+        sync();
+        doc.removeEventListener('visibilitychange', sync);
       },
     };
-    this.painter.start();
+    sync();
   }
 }
 
-function fault(where: string, e: unknown): Up {
+/** A factory's return value, if it is a handlers record. */
+function handlersOf<H extends object>(h: H, side: 'host' | 'view'): H {
+  if (h === null || typeof h !== 'object') throw new TypeError(`the ${side} factory returned ${h === null ? 'null' : typeof h}, not handlers`);
+  return h;
+}
+
+/** `note` is appended to the error's message (`draw` says how often it threw). */
+function fault(where: string, e: unknown, fatal = false, note?: string): Fault {
   const err = e instanceof Error ? e : undefined;
-  const message = err ? err.message : String(e);
-  return err?.stack ? { v: 1, t: 'fault', where, message, stack: err.stack } : { v: 1, t: 'fault', where, message };
+  const said = err ? err.message : text(e);
+  const f: Fault = { v: 1, t: 'fault', where, message: note ? `${said} (${note})` : said };
+  if (err?.stack) f.stack = err.stack;
+  if (fatal) f.fatal = true;
+  return f;
+}
+
+/** A `log` argument: JSON stays JSON, an Error becomes its stack, anything else its text. */
+function logArg(x: unknown): JsonValue {
+  if (x instanceof Error) return x.stack ?? `${x.name}: ${x.message}`;
+  try {
+    assertJson(x, 'log');
+    return x;
+  } catch {
+    return text(x);
+  }
+}
+
+function text(x: unknown): string {
+  try {
+    return String(x);
+  } catch {
+    return Object.prototype.toString.call(x);
+  }
 }

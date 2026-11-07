@@ -159,6 +159,9 @@ export class HeadlessCanvas extends HeadlessElement {
 class HeadlessDocument {
   readonly defaultView: { requestAnimationFrame: SteppedFrames['request']; cancelAnimationFrame: SteppedFrames['cancel']; devicePixelRatio: number };
   readonly canvases: HeadlessCanvas[] = [];
+  /** `document.hidden`: the page is in the background. */
+  hidden = false;
+  private readonly listeners = new Map<string, Set<Listener>>();
 
   constructor(
     readonly screen: HeadlessScreenOptions,
@@ -172,6 +175,17 @@ class HeadlessDocument {
     const canvas = new HeadlessCanvas(this);
     this.canvases.push(canvas);
     return canvas;
+  }
+  addEventListener(type: string, fn: Listener): void {
+    let set = this.listeners.get(type);
+    if (!set) this.listeners.set(type, (set = new Set()));
+    set.add(fn);
+  }
+  removeEventListener(type: string, fn: Listener): void {
+    this.listeners.get(type)?.delete(fn);
+  }
+  dispatch(e: { type: string }): void {
+    for (const fn of [...(this.listeners.get(e.type) ?? [])]) fn(e);
   }
 }
 
@@ -188,6 +202,8 @@ export interface HeadlessScreen {
    * root) and bubbles to the mount.
    */
   pointer(type: PointerType, p: { pointerId: number; x: number; y: number }): void;
+  /** The page goes to the background (`document.hidden`) or comes back, with its `visibilitychange`. */
+  setHidden(hidden: boolean): void;
 }
 
 /** A headless mount: the SDK reaches the window (frames, dpr) and creates its DOM through it. */
@@ -203,6 +219,10 @@ export function headlessScreen(frames: SteppedFrames, screen: HeadlessScreenOpti
       while (target.children.length > 0) target = target.children[target.children.length - 1]!;
       const event = { type, pointerId, clientX: x, clientY: y, target };
       target.dispatch(event);
+    },
+    setHidden(hidden) {
+      doc.hidden = hidden;
+      doc.dispatch({ type: 'visibilitychange' });
     },
   };
 }

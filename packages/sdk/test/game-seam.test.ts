@@ -6,6 +6,20 @@ import { matchFromTiles, matchOf, probeGame, settle, startMatch, step } from './
 /** One fixed step at 50 Hz. */
 const STEP_MS = 20;
 
+/** The Host Device alone, its view's `draw` throwing on frames 1..`inARow`; 20 frames. */
+async function drawThrowing(inARow: number) {
+  const { game, rec } = probeGame({
+    draw(_id, n) {
+      if (n <= inARow) throw new Error(`probe: draw ${n}`);
+    },
+  });
+  const rig = startMatch({ game, match: matchOf({ tiles: ['d0'] }), host: 'd0' });
+  await settle();
+  for (let i = 0; i < 20; i++) await step(rig, STEP_MS);
+  const { events, screen } = rig.devices.get('d0')!;
+  return { events, screen, draws: rec.draws.get('d0')!.length, ticks: rec.ticks.length };
+}
+
 describe('what a game sees across the in-process link (Host Device alone)', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -97,5 +111,44 @@ describe('what a game sees across the in-process link (Host Device alone)', () =
     expect(String(errors[1])).toMatch(/state is a Map/);
     expect(rec.states.get('d0')!.map((s) => s.state)).toEqual([{ n: 1 }]);
     expect(rig.devices.get('d0')!.events).toEqual([{ t: 'started' }]);
+  });
+
+  it('skips each frame whose draw throws and keeps drawing after nine in a row, reporting the run once', async () => {
+    const { events, draws, ticks } = await drawThrowing(9);
+    expect(events).toEqual([{ t: 'started' }, { t: 'fault', where: 'view.draw', message: 'probe: draw 1', stack: expect.any(String) }]);
+    expect(draws).toBe(20);
+    expect(ticks).toBe(20);
+  });
+
+  it('stops the paint loop of a view whose draw throws on ten frames in a row and closes that view alone', async () => {
+    const { events, screen, draws, ticks } = await drawThrowing(10);
+    const last = 'probe: draw 10 (threw on 10 frames in a row)';
+    expect(events).toEqual([
+      { t: 'started' },
+      { t: 'fault', where: 'view.draw', message: 'probe: draw 1', stack: expect.any(String) },
+      { t: 'fault', where: 'view.draw', message: last, stack: expect.any(String) },
+      { t: 'view-closed', reason: 'fault', detail: `view.draw: ${last}` },
+    ]);
+    expect(draws).toBe(10);
+    expect(screen.children).toEqual([]);
+    // The host game is not the view: it ticks on.
+    expect(ticks).toBe(20);
+  });
+
+  it('does not draw while the page is hidden, and draws again once it is back', async () => {
+    const { game, rec } = probeGame({ draw: true });
+    const rig = startMatch({ game, match: matchOf({ tiles: ['d0'] }), host: 'd0' });
+    await settle();
+    for (let i = 0; i < 3; i++) await step(rig, STEP_MS);
+    const { screen } = rig.devices.get('d0')!;
+    expect(rec.draws.get('d0')).toHaveLength(3);
+
+    screen.setHidden(true);
+    for (let i = 0; i < 10; i++) await step(rig, STEP_MS);
+    expect(rec.draws.get('d0')).toHaveLength(3);
+
+    screen.setHidden(false);
+    for (let i = 0; i < 2; i++) await step(rig, STEP_MS);
+    expect(rec.draws.get('d0')).toHaveLength(5);
   });
 });

@@ -1,14 +1,16 @@
 import { REAL_ENV, type Env } from './env';
-import type { CloseReason, DeviceId, Input, MatchInfo, MatchResult, PauseReason, RawInput } from './types';
+import type { CloseReason, DeviceId, Input, JsonValue, MatchInfo, MatchResult, PauseReason, RawInput } from './types';
 import {
   WIRE_VERSION,
   isNetDown,
   isNetUp,
+  isReport,
   type ClockWire,
   type Down,
   type Link,
   type LinkFactory,
   type NetFrame,
+  type RejectOf,
   type Up,
 } from './wire';
 
@@ -31,6 +33,7 @@ export interface MatchOptions {
   authority?: boolean;
 }
 
+/** Nothing a game does throws out of these: its errors arrive as `MatchEvent`s. */
 export interface MatchHandle {
   /** Frames arriving off the Transport; `from` is the Device whose channel carried it. */
   deliver(frame: NetFrame, from: DeviceId): void;
@@ -42,39 +45,63 @@ export interface MatchHandle {
    * `resume`, and ticks restart from the resume's time.
    */
   setPaused(reason: PauseReason | null): void;
+  /** Closes this Device's part; on the Host, the Match on every Device. */
   stop(reason: 'aborted' | 'link-lost'): void;
 }
 
 export type MatchEvent =
+  /** Every link this Device opens is open (on the Host, or its own view already closed). */
   | { t: 'started' }
   /** Again when the reason changes while paused. */
   | { t: 'paused'; reason: PauseReason }
   | { t: 'resumed' }
   | { t: 'ended'; result: MatchResult }
-  | { t: 'closed'; reason: CloseReason; detail?: string }
-  | { t: 'fault'; where: string; message: string };
+  /** This Device's part of the Match is over; nothing follows it. `detail` says why in words. */
+  | { t: 'closed'; reason: CloseReason; detail: string }
+  /**
+   * Host only: its own view closed on its own (its game side faulted, spoke
+   * the wrong version or protocol, or never became ready). The Match goes on.
+   * On a Peer the view is its whole part, so the same failure is `closed`.
+   */
+  | { t: 'view-closed'; reason: CloseReason; detail: string }
+  /** A game handler on this Device threw; `where` is `side.handler`. */
+  | { t: 'fault'; where: string; message: string; stack?: string }
+  /** `ctx.log(...)` on this Device's host game or view, or the host runtime refusing a host game's request. */
+  | { t: 'log'; side: 'host' | 'view'; args: JsonValue[] };
 
 /** Catch-up steps per animation frame before the rest of a stall is dropped. */
 export const MAX_CATCH_UP_STEPS = 5;
 /** Cadence of `clock` frames to the local game sides. */
 export const CLOCK_EVERY_MS = 2000;
+/** A link whose game has not said `ready` this long after it was opened is lost. */
+export const READY_TIMEOUT_MS = 5000;
+/** More than this many faults on one link within `FAULT_WINDOW_MS` close it. */
+export const FAULT_LIMIT = 3;
+export const FAULT_WINDOW_MS = 5000;
 
 type StateFrame = Extract<Down, { t: 'state' }>;
 type PauseFrame = Extract<Down, { t: 'pause' }>;
 type CloseFrame = Extract<Down, { t: 'close' }>;
+
+const ENDED = 'the game ended the Match';
+const STOPPED: Record<'aborted' | 'link-lost', string> = {
+  aborted: 'stopped by the platform',
+  'link-lost': 'the platform lost the connection',
+};
 
 /**
  * Runs one Device's part of a Match: its view on every Device, plus the host
  * side of the Game with `authority`. Both open through `o.link`, so the Host's
  * own Tile is an ordinary view whose frames are cloned like a Peer's. Frames
  * between Devices go through `o.send` / `deliver`; nothing here knows the
- * Transport.
+ * Transport. Only a misuse of `runMatch` itself throws (a Device that is not in
+ * the Match, a mount outside a window).
  */
 export function runMatch(o: MatchOptions): MatchHandle {
   return runMatchWith(o, REAL_ENV);
 }
 
-/** `runMatch` on `env`'s clocks and timer (the test harness's fake ones). */
+/** `runMatch` on `env`'s clocks and timers (the test harness's fake ones). */
 export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   const me = o.match.devices.find((d) => d.deviceId === o.self.deviceId);
   if (!me) throw new Error(`runMatch: Device ${o.self.deviceId} is not in Match ${o.match.matchId}`);
@@ -86,6 +113,8 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   const dtMs = o.match.tickHz > 0 ? 1000 / o.match.tickHz : 0;
 
   let over = false;
+  /** The host game sent `end`: the Match closes once the frames it posted in that turn are answered. */
+  let ending = false;
   let opening = o.authority ? 2 : 1;
   const opened = (): void => {
     if (--opening === 0) o.onEvent({ t: 'started' });
@@ -94,8 +123,6 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
     const shared = o.now();
     return { epochOffset: shared - env.wall(), sentAt: shared };
   };
-  const onFault = (f: Extract<Up, { t: 'fault' }>): void => o.onEvent({ t: 'fault', where: f.where, message: f.message });
-  const fail = (reason: CloseReason, detail: string): void => close({ v: 1, t: 'close', reason }, detail);
 
   /** Set while the Match is paused: the frame that paused it, for a link that opens meanwhile. */
   let pausedBy: PauseFrame | undefined;
@@ -114,21 +141,23 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   // This Device's view. One that becomes ready late starts from the retained
   // states (and the pause, while paused). Its input goes to the host runtime:
   // here on the Host, over the net on a Peer, paused or not.
-  const view: GameLink = new GameLink('view', o.link({ side: 'view', root: o.self.mount }), {
+  let viewOpened = false;
+  const view: GameLink = new GameLink('view', () => o.link({ side: 'view', root: o.self.mount }), env, {
     open() {
       const self = { deviceId: me.deviceId, role: me.role, screenMm: me.screenMm, pxPerMm, ...(me.tile && { tile: me.tile }) };
       view.post({ v: 1, t: 'init', side: 'view', match: o.match, self, clock: clockWire() });
       for (const f of retainedFor(me.deviceId)) view.post(f);
       if (pausedBy) view.post(pausedBy);
+      viewOpened = true;
       opened();
     },
     frame(f) {
-      if (f.t === 'fault') onFault(f);
-      else if (!isNetUp(f)) fail('protocol', `unexpected ${f.t} on the view link`);
+      if (!isNetUp(f)) failView('protocol', `view link: unexpected ${f.t}`);
       else if (o.authority) ingest(f.inputs, me.deviceId);
       else o.send(f);
     },
-    fail,
+    report: (e) => o.onEvent(e),
+    fail: (reason, detail) => failView(reason, detail),
   });
   const show = (f: StateFrame): void => {
     retain(f);
@@ -179,16 +208,21 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
     inbox = [];
   };
   /**
-   * Drops the input not yet delivered and ends every pointer: the host game
-   * gets a `cancel` at `t` (where the pointer last was) for each one it holds
-   * open. Later samples of those pointers are orphans until a new `down`.
+   * Drops the input not yet delivered and ends every pointer (of Device
+   * `only`, if given): the host game gets a `cancel` at `t` (where the pointer
+   * last was) for each one it holds open. Later samples of those pointers are
+   * orphans until a new `down`.
    */
-  const cancelPointers = (t: number): void => {
-    inbox = [];
-    openPointers.clear();
+  const cancelPointers = (t: number, only?: DeviceId): void => {
+    const ends = (d: DeviceId): boolean => only === undefined || d === only;
+    inbox = inbox.filter((i) => !ends(i.deviceId));
     const cancels: Input[] = [];
-    for (const pointers of held.values()) for (const i of pointers.values()) cancels.push({ ...i, phase: 'cancel', t, world: { ...i.world } });
-    held.clear();
+    for (const [d, pointers] of held) {
+      if (!ends(d)) continue;
+      for (const i of pointers.values()) cancels.push({ ...i, phase: 'cancel', t, world: { ...i.world } });
+      held.delete(d);
+    }
+    for (const d of openPointers.keys()) if (ends(d)) openPointers.delete(d);
     if (cancels.length > 0) host?.post({ v: 1, t: 'input', inputs: cancels });
   };
 
@@ -221,8 +255,13 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
     if (to === undefined || to === o.self.deviceId) view.post(frame);
     if (to !== o.self.deviceId) o.send(frame, to);
   };
+  /** Refuses a host game's request: a `reject` to it and a log line to the platform; nothing else changes. */
+  const reject = (of: RejectOf, reason: string): void => {
+    host?.post({ v: 1, t: 'reject', of, reason });
+    o.onEvent({ t: 'log', side: 'host', args: [`${of} rejected: ${reason}`] });
+  };
   const host: GameLink | undefined = o.authority
-    ? new GameLink('host', o.link({ side: 'host' }), {
+    ? new GameLink('host', () => o.link({ side: 'host' }), env, {
         open() {
           host?.post({ v: 1, t: 'init', side: 'host', match: o.match, clock: clockWire() });
           hostOpen = true;
@@ -232,12 +271,19 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
           opened();
         },
         frame(f) {
-          if (f.t === 'publish') publish(f);
-          else if (f.t === 'end') close({ v: 1, t: 'close', reason: 'ended', result: f.result });
-          else if (f.t === 'fault') onFault(f);
-          else fail('protocol', `unexpected ${f.t} on the host link`);
+          if (f.t === 'publish') {
+            if (ending) reject('publish', 'the Match has ended');
+            else publish(f);
+          } else if (f.t === 'end') {
+            if (ending) return reject('end', 'the Match has already ended');
+            ending = true;
+            const { result } = f;
+            // What the host game posted after `end` in the same turn is answered (rejected) before the Match closes.
+            queueMicrotask(() => close('ended', ENDED, result));
+          } else close('protocol', `host link: unexpected ${f.t}`);
         },
-        fail,
+        report: (e) => o.onEvent(e),
+        fail: (reason, detail) => close(reason, detail),
       })
     : undefined;
 
@@ -282,17 +328,32 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   });
 
   /** Closes this Device's part; on the Host, the Match on every Device. */
-  const close = (frame: CloseFrame, detail?: string): void => {
+  const close = (reason: CloseReason, detail: string, result?: MatchResult): void => {
     if (over) return;
     over = true;
-    inbox = [];
     win.cancelAnimationFrame(raf);
     stopClock();
+    const frame: CloseFrame = result === undefined ? { v: 1, t: 'close', reason, detail } : { v: 1, t: 'close', reason, detail, result };
+    // The host game hears every pointer it holds end before it closes.
+    if (o.authority) cancelPointers(o.now());
     host?.close(frame);
     view.close(frame);
     if (o.authority) o.send(frame);
-    if (frame.reason === 'ended') o.onEvent({ t: 'ended', result: frame.result ?? {} });
-    o.onEvent(detail === undefined ? { t: 'closed', reason: frame.reason } : { t: 'closed', reason: frame.reason, detail });
+    if (reason === 'ended') o.onEvent({ t: 'ended', result: result ?? {} });
+    o.onEvent({ t: 'closed', reason, detail });
+  };
+  /**
+   * This Device's view failed. On a Peer that is its whole part. On the Host
+   * only the view closes (its pointers end at the host game) and the Match
+   * goes on for every other Device.
+   */
+  const failView = (reason: CloseReason, detail: string): void => {
+    if (!o.authority) return close(reason, detail);
+    if (over || view.closed) return;
+    cancelPointers(o.now(), me.deviceId);
+    view.close({ v: 1, t: 'close', reason, detail });
+    o.onEvent({ t: 'view-closed', reason, detail });
+    if (!viewOpened) opened();
   };
 
   return {
@@ -310,7 +371,7 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
           pausedBy = undefined;
           view.post({ v: 1, t: 'resume', now: frame.now, clock: clockWire() });
           o.onEvent({ t: 'resumed' });
-        } else close(frame);
+        } else close(frame.reason, frame.detail ?? 'closed by the Host', frame.result);
       }
     },
     setPaused(reason) {
@@ -319,7 +380,7 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
       else resume();
     },
     stop(reason) {
-      close({ v: 1, t: 'close', reason });
+      close(reason, STOPPED[reason]);
     },
   };
 }
@@ -335,20 +396,48 @@ function copyReason(r: PauseReason): PauseReason {
   return r.note === undefined ? { kind: 'platform' } : { kind: 'platform', note: r.note };
 }
 
+interface LinkEvents {
+  /** `ready` came, in the platform's wire version: `init` may go. */
+  open(): void;
+  /** Every later frame but `fault` and `log`. */
+  frame(f: Up): void;
+  /** The game's `fault` or `log`, as this Device's platform event. */
+  report(e: MatchEvent): void;
+  /** The link cannot go on: the runtime closes it, and with the host link the Match. */
+  fail(reason: CloseReason, detail: string): void;
+}
+
 /**
- * The platform's end of one link: waits for `ready` (version-checked) before
- * anything else, then passes frames through until closed. Up frames after
- * close are dropped.
+ * The platform's end of one link, and its close ladder. It waits for `ready`
+ * (the only frame allowed first, in this wire version) for at most
+ * `READY_TIMEOUT_MS` from the moment it is opened, then passes frames through
+ * until closed; Up frames after close are dropped. A link that does not open
+ * or never says `ready` is `link-lost`, a wrong version `version`, an
+ * unexpected or malformed frame `protocol`, and a fatal fault or more than
+ * `FAULT_LIMIT` faults within `FAULT_WINDOW_MS` `fault`.
  */
 class GameLink {
   private link: Link | undefined;
   private phase: 'opening' | 'handshake' | 'open' | 'closed' = 'opening';
+  /** Monotonic times of the faults still within the window. */
+  private readonly faults: number[] = [];
+  private readonly stopWaiting: () => void;
 
   constructor(
     private readonly side: 'host' | 'view',
-    opening: Promise<Link>,
-    private readonly on: { open(): void; frame(f: Up): void; fail(reason: CloseReason, detail: string): void },
+    open: () => Promise<Link>,
+    private readonly env: Env,
+    private readonly on: LinkEvents,
   ) {
+    this.stopWaiting = env.after(READY_TIMEOUT_MS, () => {
+      if (this.phase === 'opening' || this.phase === 'handshake') on.fail('link-lost', `${side} link: no ready within ${READY_TIMEOUT_MS / 1000} s`);
+    });
+    let opening: Promise<Link>;
+    try {
+      opening = open();
+    } catch (e) {
+      opening = Promise.reject(e);
+    }
     opening.then(
       (link) => {
         if (this.phase === 'closed') return link.close();
@@ -362,26 +451,48 @@ class GameLink {
     );
   }
 
+  get closed(): boolean {
+    return this.phase === 'closed';
+  }
+
   post(f: Down): void {
     if (this.phase === 'open') this.link!.post(f);
   }
 
+  /** `f` reaches the game only if it got `init`; a game still loading or handshaking is torn down without one. */
   close(f: CloseFrame): void {
     if (this.phase === 'closed') return;
     if (this.phase === 'open') this.link!.post(f);
     this.phase = 'closed';
+    this.stopWaiting();
     this.link?.close();
   }
 
   private receive(f: Up): void {
+    if (this.phase === 'closed') return;
+    const { side } = this;
+    if (typeof f !== 'object' || f === null || typeof f.t !== 'string') return this.on.fail('protocol', `${side} link: a frame without a type`);
     if (this.phase === 'handshake') {
-      if (f.t !== 'ready' || f.side !== this.side) return this.on.fail('protocol', `expected ready on the ${this.side} link, got ${f.t}`);
-      if (f.v !== WIRE_VERSION) return this.on.fail('version', `game speaks wire v${f.v}, platform v${WIRE_VERSION}`);
+      if (f.t !== 'ready' || f.side !== side) return this.on.fail('protocol', `${side} link: expected ready, got ${f.t}${f.t === 'ready' ? ` from the ${String(f.side)} side` : ''}`);
+      if (f.v !== WIRE_VERSION) return this.on.fail('version', `${side} link: the game speaks wire v${String(f.v)}, the platform v${WIRE_VERSION}`);
+      this.stopWaiting();
       this.phase = 'open';
       return this.on.open();
     }
+    if (f.v !== WIRE_VERSION || f.t === 'ready') return this.on.fail('protocol', `${side} link: unexpected ${f.t}`);
+    if (f.t !== 'fault' && f.t !== 'log') return this.on.frame(f);
+    if (!isReport(f)) return this.on.fail('protocol', `${side} link: malformed ${(f as Up).t}`);
+    if (f.t === 'log') return this.on.report({ t: 'log', side, args: f.args });
+
+    const { where, message, stack } = f;
+    this.on.report(stack === undefined ? { t: 'fault', where, message } : { t: 'fault', where, message, stack });
     if (this.phase !== 'open') return;
-    if (f.v !== WIRE_VERSION || f.t === 'ready') return this.on.fail('protocol', `unexpected ${f.t} on the ${this.side} link`);
-    this.on.frame(f);
+    if (f.fatal) return this.on.fail('fault', `${where}: ${message}`);
+    const now = this.env.mono();
+    this.faults.push(now);
+    while (this.faults[0]! <= now - FAULT_WINDOW_MS) this.faults.shift();
+    if (this.faults.length > FAULT_LIMIT) {
+      this.on.fail('fault', `${this.faults.length} faults within ${FAULT_WINDOW_MS / 1000} s, the last ${where}: ${message}`);
+    }
   }
 }

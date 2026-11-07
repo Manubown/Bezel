@@ -29,7 +29,8 @@ export type Shared =
   | { v: 1; t: 'pause'; reason: PauseReason; now: number }
   /** `now`: shared time of the resume, where ticks restart; `clock` re-anchors the game side's clock. */
   | { v: 1; t: 'resume'; now: number; clock: ClockWire }
-  | { v: 1; t: 'close'; reason: CloseReason; result?: MatchResult };
+  /** `detail`: why, in words, for the platform's overlay; games see only `reason` and `result`. */
+  | { v: 1; t: 'close'; reason: CloseReason; detail?: string; result?: MatchResult };
 
 export type HostDown =
   | Shared
@@ -37,7 +38,12 @@ export type HostDown =
   /** `n` strictly +1; `now` non-decreasing. */
   | { v: 1; t: 'tick'; n: number; dt: number; now: number }
   /** Stamped by the host runtime; in arrival order, so ordered per Device. */
-  | { v: 1; t: 'input'; inputs: Input[] };
+  | { v: 1; t: 'input'; inputs: Input[] }
+  /** The host runtime refused a request; nothing changed. It also reports a `log` line to the platform. */
+  | { v: 1; t: 'reject'; of: RejectOf; reason: string };
+
+/** What a `reject` refuses: the host Up frame it answers. */
+export type RejectOf = 'publish' | 'set-holder' | 'timer' | 'end';
 
 export type ViewDown =
   | Shared
@@ -45,10 +51,19 @@ export type ViewDown =
   /** `at` is the host time of `state`; `to` is set when the state was published to this Device alone. */
   | { v: 1; t: 'state'; state: JsonValue; at: number; to?: DeviceId };
 
-export type Fault = { v: 1; t: 'fault'; where: string; message: string; stack?: string };
+/**
+ * A game handler threw; `where` is `side.handler`. `fatal`: the game side
+ * cannot go on (its factory threw, or `draw` threw on 10 frames in a row) and
+ * the platform closes that link.
+ */
+export type Fault = { v: 1; t: 'fault'; where: string; message: string; stack?: string; fatal?: true };
+
+/** `ctx.log(...)`: each argument as JSON where it is JSON, else as text. */
+export type Log = { v: 1; t: 'log'; args: JsonValue[] };
 
 export type HostUp =
   | Fault
+  | Log
   /** The first frame on any link; `v` is whatever the game speaks. */
   | { v: number; t: 'ready'; side: 'host'; sdk: string }
   | { v: 1; t: 'publish'; state: JsonValue; to?: DeviceId; at: number }
@@ -56,6 +71,7 @@ export type HostUp =
 
 export type ViewUp =
   | Fault
+  | Log
   | { v: number; t: 'ready'; side: 'view'; sdk: string }
   /** One per view per animation frame at most; moves coalesced to one per pointer. */
   | { v: 1; t: 'input'; inputs: RawInput[] };
@@ -78,7 +94,9 @@ export function isNetDown(f: unknown): f is NetDown {
   if (r['t'] === 'state') return 'state' in r && typeof r['at'] === 'number' && (r['to'] === undefined || typeof r['to'] === 'string');
   if (r['t'] === 'pause') return Number.isFinite(r['now']) && isPauseReason(r['reason']);
   if (r['t'] === 'resume') return Number.isFinite(r['now']) && isClockWire(r['clock']);
-  if (r['t'] === 'close') return typeof r['reason'] === 'string' && CLOSE_REASONS.includes(r['reason']);
+  if (r['t'] === 'close') {
+    return typeof r['reason'] === 'string' && CLOSE_REASONS.includes(r['reason']) && (r['detail'] === undefined || typeof r['detail'] === 'string');
+  }
   return false;
 }
 
@@ -118,5 +136,18 @@ export function isRawInput(i: unknown): i is RawInput {
     w !== null &&
     Number.isFinite(w['x']) &&
     Number.isFinite(w['y'])
+  );
+}
+
+/** True if `f` is a `fault` or `log` frame with the fields its type promises (a game side's frames are checked like the net's). */
+export function isReport(f: Up): f is Fault | Log {
+  const r = f as unknown as Record<string, unknown>;
+  if (r['t'] === 'log') return Array.isArray(r['args']);
+  return (
+    r['t'] === 'fault' &&
+    typeof r['where'] === 'string' &&
+    typeof r['message'] === 'string' &&
+    (r['stack'] === undefined || typeof r['stack'] === 'string') &&
+    (r['fatal'] === undefined || r['fatal'] === true)
   );
 }

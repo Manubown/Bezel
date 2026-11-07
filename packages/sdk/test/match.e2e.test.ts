@@ -130,7 +130,7 @@ describe('a Match over the in-memory hub: Host + 3 Peers', () => {
     expect(rec.ticks).toHaveLength(3);
     for (const id of DEVICES) {
       const { events, screen } = rig.devices.get(id)!;
-      expect(events, id).toEqual([{ t: 'started' }, { t: 'ended', result }, { t: 'closed', reason: 'ended' }]);
+      expect(events, id).toEqual([{ t: 'started' }, { t: 'ended', result }, { t: 'closed', reason: 'ended', detail: 'the game ended the Match' }]);
       expect(rec.states.get(id)!.map((s) => s.state.n), id).toEqual([1, 2, 3]);
       expect(screen.children, id).toEqual([]);
     }

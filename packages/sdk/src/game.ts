@@ -6,6 +6,12 @@ import type { CloseReason, DeviceId, Input, JsonValue, Manifest, MatchInfo, Matc
  * once per Device, the Host included. Each factory is the init: it receives
  * its context and returns its handlers, which run only after it returned.
  * `S` is the published state, `M` the view→host message type.
+ *
+ * Faults: a handler that throws is reported to the platform (a `fault` event
+ * on that Device) and the Game goes on; more than three in five seconds close
+ * that side. A factory that throws closes its side at once: the host's closes
+ * the Match, a view's only that view. A throw in `draw` skips the frame; ten
+ * frames in a row close that view.
  */
 export interface GameSpec<S extends JsonValue, M extends JsonValue> {
   manifest: Manifest;
@@ -32,8 +38,15 @@ export interface HostContext<S extends JsonValue, M extends JsonValue> {
    * (broadcast and per Device) on resume.
    */
   publish(state: S, to?: DeviceId): void;
-  /** Ends the Match on every Device with `result`. Afterwards `publish` is dropped and only `dispose` still runs. */
+  /**
+   * Ends the Match on every Device with `result`. Afterwards only `dispose`
+   * still runs. Nothing published after it reaches a view: a `publish` or a
+   * second `end` made in the same turn is rejected with a log line on the
+   * Host, and once the Match has closed they are dropped.
+   */
   end(result: MatchResult): void;
+  /** Reaches the Host platform's console and HUD: JSON values as they are, anything else as text. Never throws. */
+  log(...args: unknown[]): void;
 }
 
 export interface HostHandlers<M extends JsonValue> {
@@ -73,10 +86,16 @@ export interface ViewContext<S extends JsonValue, M extends JsonValue> {
   now(): number;
   /** Last applied state and its host time. */
   latest(): { state: S; t: number } | undefined;
+  /** Reaches this Device's platform console (and the HUD on the Host): JSON values as they are, anything else as text. Never throws. */
+  log(...args: unknown[]): void;
 }
 
 export interface ViewHandlers<S extends JsonValue, M extends JsonValue> {
-  /** Called on every animation frame with the SDK-owned canvas, except while paused; see `Frame`. */
+  /**
+   * Called on every animation frame with the SDK-owned canvas, except while
+   * paused or while the page is hidden; see `Frame`. A throw skips that frame;
+   * ten in a row close this view.
+   */
   draw?(f: Frame<S>): void;
   onState?(state: S, t: number): void;
   /** This Device's own input, as it leaves for the host: local echo for prediction. */

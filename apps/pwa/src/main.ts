@@ -2,11 +2,14 @@ import { TrysteroTransport, hostSession, joinSession } from '@mgc/core';
 import pong from '@mgc/pong';
 import { inProcessLink, runMatch, type MatchHandle, type MatchInfo, type MatchResult, type NetFrame } from '@mgc/sdk';
 import { claimDeviceId, claimPlayerId, deviceInfo } from './device';
+import { LOG_LINES, logLineOf } from './gamelog';
 import { openHud, type Play } from './hud';
 import { openLobby } from './lobby';
 import { describePause, pauseOnDeviceLoss } from './pause';
 import { drawMetronome, startCanvasLoop } from './metronome';
+import { describeClose } from './result';
 import { drawPreview } from './scene';
+import { keepAwakeOnTouch } from './wake';
 
 const APP_ID = 'mobilegameconnect';
 /** Match frames between Devices; the SDK never sees the channel. */
@@ -27,14 +30,6 @@ function newRoomCode(): string {
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
 }
 
-function keepAwakeOnFirstTap(): void {
-  const request = () => {
-    navigator.wakeLock?.request('screen').catch(() => undefined);
-    window.removeEventListener('pointerdown', request);
-  };
-  window.addEventListener('pointerdown', request);
-}
-
 /**
  * Transport → Session → lobby → Match → lobby. The Host's Start freezes a
  * Match in the lobby; every Device in it runs its part through the SDK, the
@@ -42,7 +37,6 @@ function keepAwakeOnFirstTap(): void {
  * back in the lobby. A Device that joins meanwhile waits there.
  */
 async function start(): Promise<void> {
-  keepAwakeOnFirstTap();
   const deviceId = await claimDeviceId();
   const self = deviceInfo(deviceId);
   const room = new URLSearchParams(location.search).get('room')?.toUpperCase();
@@ -52,18 +46,30 @@ async function start(): Promise<void> {
   const lobby = openLobby(session, self.pxPerMm, claimPlayerId(deviceId));
   const host = () => session.roster()[0]?.info.deviceId;
 
-  const play: Play = { running: false, paused: undefined, last: undefined };
+  const play: Play = { running: false, paused: undefined, stopped: undefined, last: undefined, log: [] };
   /** The Match running on this Device. */
   let current: { matchId: string; handle: MatchHandle } | undefined;
   /** A Device runs a Match once: after it closed here, it is not rejoined, unless it closed because the Session dropped. */
   let joined: string | undefined;
   const hud = await openHud(hudRoot, { session, lobby, code, game: GAME.manifest, play, abort: () => current?.handle.stop('aborted') });
+  /** At most one HUD render per animation frame for the game log: a game may log on every frame. */
+  let logRender = 0;
+  const renderLog = (): void => {
+    logRender ||= requestAnimationFrame(() => {
+      logRender = 0;
+      hud.render();
+    });
+  };
 
   const begin = (match: MatchInfo): void => {
     joined = match.matchId;
     play.running = true;
     play.paused = undefined;
+    play.stopped = undefined;
+    play.log = [];
     gameLayer.hidden = false;
+    // The screen stays on from the Match's first touch until it closes.
+    const sleep = keepAwakeOnTouch();
     let result: MatchResult | undefined;
     // Who sits where as this Device joins the Match: a pause names the lost Device's Player.
     const seated = new Map(
@@ -81,18 +87,32 @@ async function start(): Promise<void> {
       // A Peer's frames are for the Host alone; the Host's go where its runtime says.
       send: (frame, to) => session.send(MATCH_CHANNEL, frame, session.role === 'host' ? to : host()),
       onEvent: (e) => {
-        if (e.t === 'fault') console.warn(`${GAME.manifest.name}: fault in ${e.where}: ${e.message}`);
+        const name = GAME.manifest.name;
+        if (e.t === 'fault') console.warn(`${name}: fault in ${e.where}: ${e.message}`, ...(e.stack ? [`\n${e.stack}`] : []));
+        if (e.t === 'log') console.log(`${name} ${e.side}:`, ...e.args);
+        if (e.t === 'view-closed' || e.t === 'closed') console.info(`${name}: ${e.t === 'closed' ? 'match' : 'this phone’s view'} closed (${e.reason}): ${e.detail}`);
+        const line = logLineOf(e);
+        if (line) play.log = [...play.log, line].slice(-LOG_LINES);
         if (e.t === 'ended') result = e.result;
         if (e.t === 'paused' || e.t === 'resumed') {
           play.paused = e.t === 'paused' ? describePause(match, e.reason, seated) : undefined;
           hud.render();
         }
-        if (e.t !== 'closed' || current?.matchId !== match.matchId) return;
+        if (e.t === 'view-closed') {
+          play.stopped = { headline: 'The game stopped on this phone', detail: `${describeClose(e.reason, e.detail).headline} · the match goes on for the others` };
+          hud.render();
+        }
+        if (e.t !== 'closed' || current?.matchId !== match.matchId) {
+          if (line) renderLog();
+          return;
+        }
         unfollow();
+        sleep();
         current = undefined;
         play.running = false;
         play.paused = undefined;
-        play.last = { reason: e.reason, players: match.players, ...(result && { result }) };
+        play.stopped = undefined;
+        play.last = { reason: e.reason, detail: e.detail, players: match.players, ...(result && { result }) };
         gameLayer.hidden = true;
         lobby.close(); // the Host's reopens the lobby on every Device; on a Peer, a no-op
         hud.render();

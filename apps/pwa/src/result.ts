@@ -1,4 +1,4 @@
-import type { MatchResult, Player, PlayerId } from '@mgc/sdk';
+import type { CloseReason, MatchResult, Player, PlayerId } from '@mgc/sdk';
 
 /**
  * A Match result in Player names: who won, and everyone's points in finishing
@@ -14,4 +14,20 @@ export function describeResult(players: readonly Player[], result: MatchResult):
   if (first === undefined) return { headline: 'Match over', detail };
   const draw = !ranking && second !== undefined && scores?.[first] === scores?.[second];
   return { headline: draw ? 'Draw' : `${name(first)} wins`, detail };
+}
+
+/** What every phone says about a close that has no result; `detail` (the runtime's words) unless the reason says it all. */
+const CLOSED: Record<CloseReason, { headline: string; detail?: string }> = {
+  ended: { headline: 'Match over' },
+  aborted: { headline: 'Match stopped', detail: 'Ended from the host phone' },
+  fault: { headline: 'The game crashed' },
+  version: { headline: 'Game version mismatch' },
+  protocol: { headline: 'The game broke the protocol' },
+  'link-lost': { headline: 'Connection lost' },
+};
+
+/** A Match that closed without a result: why, in words. */
+export function describeClose(reason: CloseReason, detail: string): { headline: string; detail: string } {
+  const said = CLOSED[reason];
+  return { headline: said.headline, detail: said.detail ?? detail };
 }
