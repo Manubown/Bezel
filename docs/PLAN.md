@@ -64,7 +64,12 @@ packages/layout/     shape templates, swipe-alignment solver, world transforms
 packages/sdk/        game API types, GameHost/GameView contexts, in-process bridge (M2) + postMessage bridge (M3), input capture, Surface re-export; depends on layout only
 games/pong/          reference game
 games/pass/          reference game for a Controller passed between Players (Holders, timers, event-driven host)
-games/_template/     starter for community games
+games/_template/     starter for community games; `pnpm new-game <slug> "<Name>"` copies it
+games/tap-race/      tutorial game (docs/guide/your-first-game.md): timers, seats, bots, event-driven host
+games/snake/         tick-driven world over any template, rotated Tiles, state-size measurements
+games/quiz/          one board Tile + Controllers with DOM views, targeted publish, Holders
+games/air-hockey/    2D paddles, prediction, rotation verified headless
+games/breakout/      grid template, large change-only state, fan-out measurements
 docs/                this plan, ADRs (docs/adr), agent config (docs/agents)
 ```
 
@@ -92,3 +97,4 @@ docs/                this plan, ADRs (docs/adr), agent config (docs/agents)
 
 1. Done 2026-11-07 on two iPhones (see M0/M1 rows). Still open: an Android phone, and re-check the bottom edge after the `visualViewport` fix.
 2. Done 2026-11-07: `/setup-matt-pocock-skills`, `/grill-with-docs` on the SDK seam → `GLOSSARY.md` + ADR-0001…0005, §4 rewritten; `git init` + initial commit; `/codebase-design` design-it-twice on `packages/sdk` → `docs/sdk-design.md` (prerequisites in §8 there: decouple `layout` from `core`, `deviceId` in `core`). Still to do before M2: `/setup-ts-deep-modules`, then `/to-spec` → `/to-tickets` for M2–M5. UI/UX: `/impeccable init` (PRODUCT.md) then new-work for the committed visual world; the current look is M0/M1 scaffolding, not a design decision.
+3. Done 2026-11-07 (`.scratch/dev-onboarding`): `games/_template` + `pnpm new-game`, automatic Game discovery (`apps/pwa/src/games.ts`), whole-workspace `typecheck`, `docs/guide/` (getting started, tutorial, concepts, testing, phones, troubleshooting, API). Five Games built in parallel on the SDK with a friction log each (`.scratch/<slug>/friction.md`); the clear-cut findings are fixed (`.scratch/sdk-friction-1/issues/01`), the ones needing a decision are ranked in `.scratch/sdk-friction-1/spec.md` Part B: who is a Player (B1), rotated Tiles in the lobby (B2), the Host's HUD bar over its Tile (B3), rejoin replay (B4). Then M3.

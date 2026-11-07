@@ -56,6 +56,9 @@
       .seg button { padding: 10px 0; color: var(--fg-2); transition: background 120ms, color 120ms; }
       .seg button + button { border-left: 1px solid var(--line); }
       .seg button[aria-checked="true"] { background: var(--fg); color: var(--bg); font-weight: 500; }
+      /* The Game row grows with games/: it scrolls sideways instead of squeezing. */
+      .seg.games { grid-auto-columns: max-content; overflow-x: auto; scrollbar-width: none; }
+      .seg.games button { padding: 10px 14px; white-space: nowrap; }
       .roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
       .roster li { display: grid; grid-template-columns: 28px 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
       .roster li:first-child { border-top: 0; }

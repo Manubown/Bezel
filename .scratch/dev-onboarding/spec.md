@@ -1,6 +1,6 @@
 # Developer onboarding — the first games, and the path other developers walk
 
-Status: ready-for-agent
+Status: resolved
 Created: 2026-11-07
 
 ## Problem Statement

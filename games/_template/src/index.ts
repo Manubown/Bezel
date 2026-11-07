@@ -24,7 +24,7 @@ export type TemplateState = {
 export type TemplateMessage = never;
 
 /**
- * Tap: the smallest complete Game. Every Player taps their own Tile; the host
+ * Taps: the smallest complete Game. Every Player taps their own Tile; the host
  * counts, every Tile shows the counts and a ring where the last finger came
  * down; the first to `TEMPLATE.tapsToWin` wins.
  *

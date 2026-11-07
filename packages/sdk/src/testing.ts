@@ -1,7 +1,7 @@
 import { Surface, type Vec2 } from '@mgc/layout';
 import type { Env } from './env';
 import type { Game, ViewContext } from './game';
-import { headlessScreen, SteppedFrames, type HeadlessScreen } from './headless';
+import { headlessScreen, SteppedFrames, type CanvasOp, type HeadlessScreen } from './headless';
 import { linkInProcess } from './in-process';
 import { runMatchWith, type MatchEvent, type MatchHandle } from './match';
 import type { DeviceId, Input, JsonValue, MatchInfo, MatchResult, PauseReason } from './types';
@@ -22,15 +22,27 @@ export interface TestMatch<S extends JsonValue = JsonValue> {
   /**
    * Advances the fake clock by `ms`, one animation frame per fixed step (60 per
    * second without one), and lets every frame's frames land before the next.
+   * Views draw in the same frame batch as the host step, possibly before that
+   * step's publish lands: read `drawn` after one more frame. Four Devices run at
+   * roughly 6–12× real time; give a long Match a test timeout.
    */
   tick(ms: number): Promise<void>;
   /**
    * A pointer event on `deviceId`'s view at `at` (a Tile: world mm; a
-   * Controller: its screen mm), on its topmost element (the SDK's capture, or
-   * a DOM view's own button), then one animation frame at the current time:
-   * it reaches the host game before the next tick (at once when event-driven).
+   * Controller: its screen mm), on the last element the view appended to its
+   * root (else the SDK's capture), whatever the position, then one animation
+   * frame at the current time: it reaches the host game before the next tick
+   * (at once when event-driven). `at` is not checked against the Device's screen.
    */
   input(deviceId: DeviceId, phase: Input['phase'], at: Vec2, pointerId?: number): Promise<void>;
+  /** `deviceId`'s view `send`s `msg` to the host game, then everything it set off lands. */
+  send(deviceId: DeviceId, msg: JsonValue): Promise<void>;
+  /**
+   * What `deviceId`'s view drew in its last frame: every canvas call as
+   * `[name, ...args]` (a property write as `['fillStyle=', value]`), after the
+   * SDK's own clear and world transform. Empty before the first frame.
+   */
+  drawn(deviceId: DeviceId): readonly CanvasOp[];
   /**
    * The Host platform's `setPaused`, as on a Device's loss (a reason) and
    * return (`null`), then everything it set off. Time does not move.
@@ -164,6 +176,13 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
       frames.fire(clock);
       await settle();
     },
+    async send(deviceId, msg) {
+      const view = views.get(deviceId);
+      if (!view) throw new Error(`createTestMatch: no view on ${deviceId}`);
+      view.send(msg);
+      await settle();
+    },
+    drawn: (deviceId) => device(deviceId).screen.canvases[0]?.context.ops ?? [],
     async setPaused(reason) {
       device(hostId).handle.setPaused(reason);
       await settle();
@@ -196,3 +215,5 @@ function settle(): Promise<void> {
     port2.postMessage(null);
   });
 }
+
+export type { CanvasOp } from './headless';

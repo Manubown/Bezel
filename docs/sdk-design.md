@@ -11,9 +11,9 @@ Everything crossing the seam is `JsonValue` (not merely clone-safe: the same pay
 ```ts
 type DeviceId = string; type PlayerId = string;
 type JsonValue = null | boolean | number | string | JsonValue[] | { [k: string]: JsonValue };
-interface Vec2 { x: number; y: number }            // re-exported from @mgc/layout
-interface Rect { x: number; y: number; w: number; h: number }
-interface Tile extends Rect { deviceId: DeviceId; rot: number }   // rot radians, clockwise about (x,y)
+type Vec2 = { x: number; y: number }               // re-exported from @mgc/layout; type aliases, so they are JsonValue
+type Rect = { x: number; y: number; w: number; h: number }
+type Tile = Rect & { deviceId: DeviceId; rot: number }   // x,y: the screen's top-left corner in the World; w,h: the screen's own size; rot radians, clockwise about (x,y). Not the world box when rot ≠ 0
 interface Player { playerId: PlayerId; name: string;
                    deviceId?: DeviceId;    // the Device that seats this Player (Pong: an outer Tile); never on a bot
                    bot?: true }            // a bot: no Device, the host game plays it; only if the manifest has `bots`
@@ -70,10 +70,10 @@ interface ViewContext<S, M> {
   readonly match: MatchInfo;
   readonly deviceId: DeviceId; readonly role: 'tile' | 'controller';
   readonly tile?: Tile; readonly surface?: Surface;   // tile only; Surface re-exported from @mgc/layout
-  readonly screenMm: Vec2; readonly dpr: number;
+  readonly screenMm: Vec2; readonly pxPerMm: number; readonly dpr: number;   // pxPerMm: for DOM sized in mm (CSS mm is not physical on phones)
   readonly root: HTMLElement;                      // SDK-owned element the view may fill (DOM UIs)
   now(): number;
-  latest(): { state: S; t: number } | undefined;   // last applied state and its host time
+  latest(): { state: S; t: number } | undefined;   // last applied state of either kind (broadcast or to this Device) and its host time
   holder(controller?: DeviceId): PlayerId | null; // that Controller's Holder (default: this Device; a Tile's own: null)
   send(msg: M): void;
   log(...args: unknown[]): void }
@@ -95,7 +95,7 @@ interface Frame<S> {
 
 Rules a game author must know:
 - Handlers run only after the factory returned; async setup must be lazy inside handlers.
-- `publish` is never coalesced or rate-limited: the game owns the wire rate (host upload = (N−1) × publish rate, ADR-0002). A targeted `publish(s, to)` is retained per Device separately from the broadcast.
+- `publish` is never coalesced or rate-limited: the game owns the wire rate (host upload = (N−1) × publish rate, ADR-0002; every frame also carries ~235 B of transport envelope, measured by Snake). The state is copied at the call: a mutation after `publish` in the same handler is not sent. A targeted `publish(s, to)` is retained per Device separately from the broadcast, but a view's `latest()` is simply the last state it applied of either kind: a view that needs both keeps its own from `onState`.
 - Extrapolation/prediction is the game's (ADR-0003); `Frame.t` and `latest()` make it one line.
 - Pause (shipped in M2 06): between `onPause` and `onResume` the host gets no `tick` and no input, and views do not `draw` (the canvas keeps its last frame). A `publish` while paused is retained, not sent; on resume every view gets the retained states, then `onResume(now)`. The host game gets its `resume` first, so state it publishes in `onResume` follows the retained states. `onPause` comes again with the new reason if the reason changes while paused. A view that started during the pause (a reloaded phone) gets `onResume` without `onPause`. States stamped before the resume's `now` describe the paused moment, so a view extrapolates from `max(t, now)` (Pong does).
 - `Input.t` is not monotone across Devices (clock error ≤ 5 ms); never sort inputs by `t` across Devices.
@@ -133,7 +133,8 @@ type MatchEvent = { t: 'started' } | { t: 'paused'; reason: PauseReason } | { t:
   | { t: 'fault'; where: string; message: string; stack?: string }
   | { t: 'log'; side: 'host' | 'view'; args: JsonValue[] };
 export function inProcessLink(load: () => Promise<{ default: Game }>): LinkFactory;   // M2 + tests
-export function iframeLink(entries: { host: string; view: string }): LinkFactory;     // M3
+// M3, not implemented: `@mgc/sdk` does not export it yet.
+// export function iframeLink(entries: { host: string; view: string }): LinkFactory;
 ```
 
 `authority: true` makes `runMatch` open a host link *and* a view link through the same factory: the Host's own Tile is an ordinary view whose frames are cloned like a Peer's. `send`/`deliver` are closures: `@mgc/sdk` never sees `Transport` or `PeerId`; `PeerId ↔ DeviceId` is `@mgc/core`'s (see §8). `MatchInfo` does not name the Host, so a Peer's runtime never addresses it: every frame a Peer sends (its view's `input`, later `send`) is for the Host, and the platform delivers it there (`apps/pwa` sends to `roster()[0]`). The Host takes `NetUp` frames from any Match Device and ignores `NetDown`; a Peer takes only `NetDown`.
@@ -236,7 +237,7 @@ Clock: `epochOffset = shared.now() − Date.now()` at send. The game-side runtim
 
 ```ts
 import { defineGame, type MatchInfo, type Player, type Vec2 } from '@mgc/sdk';
-const R = 9, PAD = { w: 10, h: 110, inset: 14 }, SPEED = 520, WIN = 7;                // mm, mm/s
+const R = 3.5, PAD = { w: 4, h: 30, inset: 6 }, SPEED = 150, WIN = 7;                 // mm, mm/s: PONG.ball, .paddle, .speed, .win
 const BOT = { speed: 160, aimError: 20 };                                              // mm/s, mm
 type S = { ball: Vec2 & { vx: number; vy: number }; pads: [number, number]; score: [number, number] };
 type M = never;
@@ -313,7 +314,7 @@ export default defineGame<S, M>({
 });
 ```
 
-Every view draws the whole World; its Tile transform clips it. No canvas, DPR, rAF, pointer, px→mm, clock, pause, or link code in the game. (The shipped `games/pong` is this sketch with phone-sized geometry, a short rest before each serve, return angles from where the ball meets the paddle, and its constants exported as `PONG` for its tests, the bot's as `PONG.bot = { speed, aimError }`. Its randoms come from the Match seed, the bot's aim from a stream of its own so the serves are the same with or without a bot. A bot waits centred while the ball rests before a serve, aims a serve exactly and every returned shot off by up to `aimError`, so it loses a rally now and then. The view draws each side's score on its outer Tile (on a lone Tile, each over its own half) with a small "BOT" under a bot's. It also records `onResume(now)` and extrapolates from `max(t, now)`, so the paused ball is not thrown forward by the pause's length for a frame.)
+Every view draws the whole World; its Tile transform clips it. No canvas, DPR, rAF, pointer, px→mm, clock, pause, or link code in the game. (The shipped `games/pong` is this sketch with the same sizes and speeds, plus a short rest before each serve (`PONG.serveWait`), return angles from where the ball meets the paddle, a speed-up on every return (`PONG.speedUp`, up to `PONG.maxSpeed`), and its constants exported as `PONG` for its tests, the bot's as `PONG.bot = { speed, aimError }`. Its randoms come from the Match seed, the bot's aim from a stream of its own so the serves are the same with or without a bot. A bot waits centred while the ball rests before a serve, aims a serve exactly and every returned shot off by up to `aimError`, so it loses a rally now and then. The view draws each side's score on its outer Tile (on a lone Tile, each over its own half) with a small "BOT" under a bot's. It also records `onResume(now)` and extrapolates from `max(t, now)`, so the paused ball is not thrown forward by the pause's length for a frame.)
 
 Touch presence (seats-and-bots 03), Pong's own logic over the plain `onInput`: transport leave detection takes 10–13 s, so a human must keep touching. A human side is present while a pointer is down on its Device's Tile (from its `down` to its `up` or `cancel`) or while its last touch reached the host less than `PONG.presence.holdMs` (5000 ms, `ctx.now()` against the step's `now`) ago; a bot's side always is, and a Device that seats no side counts for nobody. Each `tick`, after the bots have moved, lists the human sides that are not present in `PongState.hold`; while any is listed the host publishes and returns, so the ball stays where it is, its serve rest does not run and nothing scores, while the paddles still follow their fingers and a bot settles toward its goal. The first serve waits the same way until every human has touched (`started` is false until play first runs). The step after a listed side's touch plays on from where the ball stopped, without a re-serve. Every view draws the hold from the state alone: it does not extrapolate a held ball, and on every Tile it shades a band with "<name>, touch your screen" for each listed side ("<name>, touch to start" before the first serve). The platform's device-lost pause is separate and unchanged; its synthetic `cancel`s count as the last touch, so after a pause longer than `holdMs` play holds until every human touches again.
 
@@ -321,28 +322,35 @@ Touch presence (seats-and-bots 03), Pong's own logic over the plain `onInput`: t
 
 Pass the phone: one Device is a Controller, the rest Tiles. The manifest says `controllers: { min: 1, max: 1 }` and `tickHz: 0`, and the host has no `tick`. The host factory hands the Controller to the first Player (`setHolder`) and arms `timer('turn', 5000)`; each `onTimer('turn')` hands it to the next Player, and after three rounds `end`s with the taps as scores. The Controller's view is DOM: `input: 'off'` and a `mount(root)` that fills the root with one button whose `pointerdown` calls `send('tap')`; it relabels itself on `onHolder` and `onState` from `holder()` and `latest()`. The host's `onMessage(msg, from)` credits `from.playerId`, the Player who held the Controller when the tap reached the Host, and `ctx.log`s it (`"Ann tapped (1)"`), as `onHolder` logs each handover. A pause freezes the turn's timer; the host's `onPause`/`onResume` move the published turn end by the paused time. The Tiles `draw` whose turn it is, the seconds left and the taps, each on its own Tile.
 
-### `apps/pwa` call site (Host Device; a Peer is the same minus `authority`)
+### `apps/pwa` call site (`apps/pwa/src/main.ts`; every Device runs it, `authority` on the Host)
 
 ```ts
+import { GAMES } from './games';                            // every games/*/src/index.ts, found by import.meta.glob (games.ts)
+const host = () => session.roster()[0]?.info.deviceId;
+const game = GAMES.find((g) => g.manifest.id === lobby.game);   // the Game the Host started; none here: this phone sits the Match out
 const handle = runMatch({
-  link: inProcessLink(() => import('@mgc/pong')),          // M3: iframeLink({ host: '/games/pong/host.html', view: '/games/pong/view.html' })
-  match,                                                    // frozen by the lobby, sent to Peers on the existing layout channel
-  self: { deviceId: session.deviceId, pxPerMm: info.pxPerMm, mount: stage },
+  link: inProcessLink(() => Promise.resolve({ default: game })),   // M3: an iframe adapter (not implemented)
+  match,                                                    // frozen by the lobby, sent to Peers on the lobby channel
+  self: { deviceId, pxPerMm: self.pxPerMm, mount: gameLayer },     // gameLayer: the positioned #game element over the stage
   now: () => session.clock.now(),
-  send: (frame, to) => session.sendTo(MATCH_CHANNEL, frame, to),   // core maps DeviceId → PeerId
-  onEvent: (e) => hud.render(e),
-  authority: true,
+  // A Peer's frames are for the Host alone; the Host's go where its runtime says. Core maps DeviceId → PeerId.
+  send: (frame, to) => session.send(MATCH_CHANNEL, frame, session.role === 'host' ? to : host()),
+  onEvent: (e) => { /* console, game log, pause and close cards: see below */ },
+  authority: session.role === 'host',
 });
-session.onMessage(MATCH_CHANNEL, (frame, fromDeviceId) => handle.deliver(frame as NetFrame, fromDeviceId));
+session.onMessage(MATCH_CHANNEL, (data, from) => {
+  // Down frames originate on the Host only; the runtimes check what they take.
+  if (current && (session.role === 'host' || from === host())) current.handle.deliver(data as NetFrame, from);
+});
 // Host: pause on the loss of a Match Device; resume once every lost one is back *and* synced (apps/pwa/src/pause.ts).
-const unfollow = pauseOnDeviceLoss(session, match, handle);
+if (session.role === 'host') unfollow = pauseOnDeviceLoss(session, match, handle);
 ```
 
 As shipped, `apps/pwa` does not resume on the bare `onDeviceBack`. A returning phone is usually a new page. It starts its `runMatch` only once its Session is `ready`, so that the Match runs on the Host's clock, and its Session gets `ready` only after `onDeviceBack` has fired on the Host. Resuming at `onDeviceBack` would send the retained states to a page that has no `runMatch` yet, and the Host would play on while that phone shows nothing. So the Host resumes on the roster change that reports the returning Device synced. By then the new page runs its part, gets the retained states, then `resume`. With several Devices lost, the pause names the first one still missing.
 
 As shipped (M2 07), `apps/pwa`'s `onEvent` writes `fault` (with its stack) and `log` events to the console and keeps them, with every close, as the game log the Host's HUD shows (`gamelog.ts`); `closed` puts its reason on a card on every phone (`describeClose`, or the result when the Game ended it) and returns to the lobby; the Host's `view-closed` shows a notice over its empty Tile while the Match goes on. Each Device holds a screen wake lock from its first touch in a Match until the Match closes (`wake.ts`).
 
-As shipped (M2 08), the Host's sheet picks the Game (`GAMES = [pong, pass]` in `main.ts`) and marks Devices as Controllers (`lobby.setRole`). The lobby state carries the started Game's manifest id (`lobby.game`), and every Device runs the module with that id, so the Peers load what the Host started.
+As shipped (M2 08), the Host's sheet picks the Game and marks Devices as Controllers (`lobby.setRole`). The lobby state carries the started Game's manifest id (`lobby.game`), and every Device runs the module with that id, so the Peers load what the Host started. Since dev-onboarding 01 the list is `GAMES` from `apps/pwa/src/games.ts`: every `games/*/src/index.ts` default export, found by `import.meta.glob`, `games/_template` left out, sorted by manifest `name`; a module that does not default-export a Game, or two Games with one manifest `id`, throw when the page loads.
 
 ## 7. What the seam hides
 
@@ -353,14 +361,14 @@ Clock transport and monotone re-derivation; pointer capture (`touch-action: none
 | Dependency | Category | Treatment |
 |---|---|---|
 | `@mgc/layout` `Surface`/`Vec2`/`Rect` | in-process | direct dependency, re-exported; no adapter |
-| game ↔ platform link | remote-but-owned | **real seam**: `Link` + `inProcessLink` (M2 production and test adapter) + `iframeLink` (M3) |
+| game ↔ platform link | remote-but-owned | **real seam**: `Link` + `inProcessLink` (M2 production and test adapter) + an iframe adapter (M3, not implemented) |
 | cross-Device transport, roster, `PeerId ↔ DeviceId` | the platform's | **no port**: `send`/`deliver` closures on `MatchOptions`/`MatchHandle` |
 | shared clock | data | `now()` in, `ClockWire` across the link |
-| DOM / rAF / pointer events | local-substitutable | used directly; headless tests take the `mount`-less path with a stepped rAF |
+| DOM / rAF / pointer events | local-substitutable | used directly; `runMatch` needs a `mount` in a window (it throws `runMatch: mount is not in a window` otherwise), so tests mount every view on `headlessScreen().mount` (`packages/sdk/src/headless.ts`: stepped animation frames, elements that take listeners, recording canvases) |
 
 **Prerequisites in existing packages (part of M2):**
 - `@mgc/layout` must stop depending on `@mgc/core`: `DeviceSize.id: string`; move `channel.ts` (`publishLayout`/`subscribeLayout`, the only `Transport` user) into `apps/pwa`.
-- `@mgc/core` owns Device identity: `DeviceInfo.deviceId` (persisted UUID), `HostSession` keeps `PeerId ↔ DeviceId` and rebinds a returning Device to its new `PeerId`; the pwa gets `session.sendTo(channel, data, deviceId)` / `onMessage(channel, (data, fromDeviceId))` / `onDeviceLost` / `onDeviceBack`. `@mgc/sdk` is reachable only through these closures and never imports `@mgc/core` at runtime.
+- `@mgc/core` owns Device identity: `DeviceInfo.deviceId` (persisted UUID), `HostSession` keeps `PeerId ↔ DeviceId` and rebinds a returning Device to its new `PeerId`; the pwa gets `session.send(channel, data, to?: DeviceId)` / `onMessage(channel, (data, fromDeviceId))` / `onDeviceLost` / `onDeviceBack`. `@mgc/sdk` is reachable only through these closures and never imports `@mgc/core` at runtime.
 
 **Tests at the interface.**
 1. *Link conformance*: a table of frame sequences replayed against both adapters asserting identical game-visible effects; proves M2 ≡ M3.

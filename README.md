@@ -2,7 +2,9 @@
 
 Open-source platform that turns a group of phones lying together on a table into one shared play surface. Phones join by scanning a QR code; one phone is the host and owns the clock and game state; games plug in as web bundles.
 
-Status: **M0** — two or more phones join a room over WebRTC and share a synchronized clock (visible as a metronome). See `docs/PLAN.md` for the roadmap.
+Status: **M2 done, seven Games** — phones join over WebRTC, share a clock and a millimetre Layout, and run Games built on `@mgc/sdk` in-process: Pong, Pass, Tap Race, Snake, Quiz, Air Hockey, Breakout. Next: M3 (sandboxed Game bundles). See `docs/PLAN.md` for the roadmap and `.scratch/sdk-friction-1/spec.md` for what building the Games taught us.
+
+**Developers:** to build a Game, start at [`docs/guide/README.md`](docs/guide/README.md).
 
 ## Run
 
@@ -26,9 +28,12 @@ To build the same thing yourself: `BASE_PATH=/Bezel/ pnpm build` (the sub-path t
 ## Layout
 
 ```
-apps/pwa/        host + peer PWA (Canvas2D)
+apps/pwa/        host + peer PWA: lobby, HUD, runs the picked Game on every phone; finds Games in games/* by itself
 packages/core/   transport (WebRTC via Trystero, in-memory for tests), clock sync, sessions
-docs/PLAN.md     research, decisions, milestones
+packages/layout/ shape templates, Surface (world mm ↔ screen px)
+packages/sdk/    the Game API (defineGame, runMatch), in-process link, test harness (@mgc/sdk/test)
+games/           one package per Game; games/_template is the starter (pnpm new-game <slug> "<Name>")
+docs/guide/      developer guide; docs/sdk-design.md the SDK contract; docs/PLAN.md research, decisions, milestones
 ```
 
 ## License

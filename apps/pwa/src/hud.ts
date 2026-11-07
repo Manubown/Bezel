@@ -198,12 +198,14 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     if (room.length === 0) return;
     location.assign(`?room=${room}`);
   });
-  /** The Game Start starts. */
-  let game = games[0]!;
+  /** The Game Start starts: the Host's last pick in this tab, else the first by name. */
+  const GAME_KEY = 'mgc.game';
+  let game = games.find((g) => g.id === sessionStorage.getItem(GAME_KEY)) ?? games[0]!;
   gameSeg.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-g]');
     if (!btn) return;
     game = games[Number(btn.dataset['g'])] ?? game;
+    sessionStorage.setItem(GAME_KEY, game.id);
     refusal = '';
     render();
   });

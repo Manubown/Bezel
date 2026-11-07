@@ -155,7 +155,9 @@ class HostSide extends GameSide {
       publish: (state, to) => {
         assertJson(state, 'publish: state');
         const at = this.tickNow ?? this.clock.now();
-        this.post(to === undefined ? { v: 1, t: 'publish', state, at } : { v: 1, t: 'publish', state, to, at });
+        // Frames posted inside a handler wait for it to return: copy now, so a later mutation is not what gets sent.
+        const copy = structuredClone(state);
+        this.post(to === undefined ? { v: 1, t: 'publish', state: copy, at } : { v: 1, t: 'publish', state: copy, to, at });
       },
       setHolder: (controller, playerId) => {
         if (!this.ended && holderRefusal(match, controller, playerId) === undefined) this.holders.set(controller, playerId);
@@ -261,6 +263,7 @@ class ViewSide extends GameSide {
       role: self.role,
       ...(tile && surface && { tile, surface }),
       screenMm: self.screenMm,
+      pxPerMm: self.pxPerMm,
       get dpr() {
         return win?.devicePixelRatio || 1;
       },

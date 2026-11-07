@@ -47,7 +47,7 @@ export default defineGame<PassState, PassMessage>({
     const taps: Record<PlayerId, number> = Object.fromEntries(players.map((p) => [p, 0]));
     let turn = 0;
     let turnEndsAt = 0;
-    let pausedAt = 0;
+    let pausedAt: number | undefined;
     const snapshot = (): PassState => ({ holder: ctx.holderOf(controller), turnEndsAt, taps: { ...taps }, turn });
     /** The next turn: the Controller to the next Player, or the end once every Player had every round. */
     const pass = (): void => {
@@ -81,12 +81,14 @@ export default defineGame<PassState, PassMessage>({
       onHolder(_controller, playerId) {
         ctx.log(playerId === null ? 'nobody holds the Controller' : `${nameOf(match, playerId)} holds the Controller`);
       },
-      // The turn's timer froze with the pause; its end moves on by the paused time.
+      // The turn's timer froze with the pause; its end moves on by the paused time. `onPause` comes
+      // again when the reason changes while paused: the first call marks the start.
       onPause() {
-        pausedAt = ctx.now();
+        pausedAt ??= ctx.now();
       },
       onResume(now) {
-        turnEndsAt += now - pausedAt;
+        turnEndsAt += now - (pausedAt ?? now);
+        pausedAt = undefined;
         ctx.publish(snapshot());
       },
     };

@@ -32,10 +32,12 @@ export interface HostContext<S extends JsonValue, M extends JsonValue> {
   now(): number;
   /**
    * Broadcast `state` to every view, or to Device `to` alone. Never coalesced:
-   * one call, one wire frame. Throws a `TypeError` here if `state` is not plain
-   * JSON. Stamped with the current tick's `now` inside `tick`, else `now()`.
-   * While the Match is paused it is retained, and the views get the last one
-   * (broadcast and per Device) on resume.
+   * one call, one wire frame. The state is copied at the call: what you change
+   * afterwards is not sent. Throws a `TypeError` here if `state` is not plain
+   * JSON (`type` aliases, no `interface`, no `readonly` arrays). Stamped with
+   * the current tick's `now` inside `tick`, else `now()`. While the Match is
+   * paused it is retained, and the views get the last one (broadcast and per
+   * Device) on resume.
    */
   publish(state: S, to?: DeviceId): void;
   /**
@@ -51,16 +53,20 @@ export interface HostContext<S extends JsonValue, M extends JsonValue> {
   /**
    * Calls `onTimer(tag, now)` `delayMs` from now, replacing the timer with the
    * same tag; `null` cancels it. Paused time does not count: a pause freezes
-   * the remaining delay until the resume. A delay that is not a finite
-   * number ≥ 0 is refused with a log line on the Host.
+   * the remaining delay until the resume. The delay runs from when the host
+   * runtime received the request, so a chain of timers re-armed in `onTimer`
+   * drifts by that latency. A delay that is not a finite number ≥ 0 is refused
+   * with a log line on the Host.
    */
   timer(tag: string, delayMs: number | null): void;
   /**
-   * Ends the Match on every Device with `result`. Afterwards only `dispose`
-   * still runs. Nothing published after it reaches a view: a `publish`, a
-   * second `end`, a `setHolder` or a `timer` made in the same turn is
-   * rejected with a log line on the Host, and once the Match has closed they
-   * are dropped.
+   * Ends the Match on every Device with `result`. Views close at once: a
+   * state published together with `end` is never drawn, so a Game that wants
+   * a closing frame publishes it and calls `end` from a timer. Afterwards only
+   * `dispose` still runs. Nothing published after it reaches a view: a
+   * `publish`, a second `end`, a `setHolder` or a `timer` made in the same
+   * turn is rejected with a log line on the Host, and once the Match has
+   * closed they are dropped.
    */
   end(result: MatchResult): void;
   /** Reaches the Host platform's console and HUD: JSON values as they are, anything else as text. Never throws. */
@@ -86,8 +92,10 @@ export interface HostHandlers<M extends JsonValue> {
   onInput?(i: Input): void;
   /**
    * A view's `send(msg)`, in arrival order with input (before the step's
-   * `tick`). `from` is stamped like an input's: the sending Device, and the
-   * Controller's Holder when it was received. Sent while paused: dropped.
+   * `tick`). `msg` is whatever that Device sent, checked to be JSON and
+   * nothing more: validate it. `from` is stamped like an input's: the sending
+   * Device, and the Controller's Holder when it was received. Sent while
+   * paused: dropped.
    */
   onMessage?(msg: M, from: Sender): void;
   /**
@@ -98,9 +106,17 @@ export interface HostHandlers<M extends JsonValue> {
   onHolder?(controller: DeviceId, playerId: PlayerId | null): void;
   /** Timer `tag` elapsed; `now` is the shared time it was due (paused time not counted). */
   onTimer?(tag: string, now: number): void;
-  /** The Match paused: no `tick`, input, message or timer until `onResume`. Called again if the reason changes while paused. */
+  /**
+   * The Match paused: no `tick`, input, message or timer until `onResume`.
+   * Called again if the reason changes while paused, so record the pause's
+   * start once (`pausedAt ??= now()`).
+   */
   onPause?(reason: PauseReason): void;
-  /** The Match resumed at shared time `now`; a game that publishes only on change re-publishes here. */
+  /**
+   * The Match resumed at shared time `now`. The platform re-posts the retained
+   * states to every view by itself; re-publish here only if the pause changes
+   * the state (a deadline moved by the paused time, say).
+   */
   onResume?(now: number): void;
   dispose?(): void;
 }
@@ -114,12 +130,18 @@ export interface ViewContext<S extends JsonValue, M extends JsonValue> {
   readonly surface?: Surface;
   /** This Device's own screen, mm; a Controller's input and `draw` use it (origin top-left). */
   readonly screenMm: Vec2;
+  /** CSS px per mm on this Device, for sizing DOM in mm (CSS `mm` units are not physical on phones). */
+  readonly pxPerMm: number;
   readonly dpr: number;
   /** SDK-owned element the view may fill (DOM UIs); `mount` is handed the same element. */
   readonly root: HTMLElement;
   /** Shared clock, ms. */
   now(): number;
-  /** Last applied state and its host time. */
+  /**
+   * Last applied state and its host time: the last of either kind, broadcast
+   * or published to this Device alone. A view that needs both keeps its own
+   * from `onState`.
+   */
   latest(): { state: S; t: number } | undefined;
   /** Who holds Controller `controller` (default: this Device), as the platform last said; `null` for nobody or a Tile. */
   holder(controller?: DeviceId): PlayerId | null;
@@ -178,7 +200,11 @@ export interface ViewHandlers<S extends JsonValue, M extends JsonValue> {
 }
 
 export interface Frame<S extends JsonValue> {
-  /** Cleared; transformed so 1 unit = 1 mm (world mm on a Tile, screen mm on a Controller). */
+  /**
+   * Cleared; transformed so 1 unit = 1 mm (world mm on a Tile, screen mm on a
+   * Controller); saved before `draw` and restored after, so transforms and
+   * styles set here do not carry over to the next frame.
+   */
   ctx: CanvasRenderingContext2D;
   now: number;
   state: S | undefined;

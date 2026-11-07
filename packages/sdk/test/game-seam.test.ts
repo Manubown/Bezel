@@ -113,6 +113,22 @@ describe('what a game sees across the in-process link (Host Device alone)', () =
     expect(rig.devices.get('d0')!.events).toEqual([{ t: 'started' }]);
   });
 
+  it('sends a publish as the state was at the call, not as the handler left it', async () => {
+    const { game, rec } = probeGame({
+      onTick(ctx, n) {
+        const s = { n, list: [n] };
+        ctx.publish(s);
+        s.n = -1;
+        s.list.push(-1);
+      },
+    });
+    const rig = startMatch({ game, match: matchOf({ tiles: ['d0'] }), host: 'd0' });
+    await settle();
+    await step(rig, STEP_MS);
+
+    expect(rec.states.get('d0')!.map((s) => s.state)).toEqual([{ n: 1, list: [1] }]);
+  });
+
   it('skips each frame whose draw throws and keeps drawing after nine in a row, reporting the run once', async () => {
     const { events, draws, ticks } = await drawThrowing(9);
     expect(events).toEqual([{ t: 'started' }, { t: 'fault', where: 'view.draw', message: 'probe: draw 1', stack: expect.any(String) }]);

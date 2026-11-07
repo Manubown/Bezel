@@ -1,17 +1,9 @@
 import { TEMPLATE_IDS } from './templates';
 
-/** All lengths are millimetres in "world" space unless stated otherwise. */
-export interface Vec2 {
-  x: number;
-  y: number;
-}
+/** All lengths are millimetres in "world" space unless stated otherwise. Type aliases, not interfaces, so they are `JsonValue` and can appear in a Game's state. */
+export type Vec2 = { x: number; y: number };
 
-export interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+export type Rect = { x: number; y: number; w: number; h: number };
 
 /** Physical screen size of one device, derived from CSS px / pxPerMm. */
 export interface DeviceSize {

@@ -1,96 +1,434 @@
-import { defineGame, type DeviceId, type PlayerId } from '@mgc/sdk';
+import { defineGame, type DeviceId, type MatchInfo, type PlayerId } from '@mgc/sdk';
 
 /**
- * Tunables. Keep them in one exported object: tests import it, and a reader
- * sees every number the game depends on in one place.
- * Lengths are world millimetres, times are shared-clock milliseconds.
+ * Tunables, in one place: tests import them. Times are shared-clock milliseconds.
  */
 export const QUIZ = {
-  /** Taps that end the Match. */
-  tapsToWin: 10,
-  /** Radius of the ring drawn where a finger came down. */
-  ring: 6,
+  /** Questions per Match: the first ones of `QUESTIONS` in the Match's seeded order. */
+  questions: 5,
+  /** How long the Holders have to answer a question, ms. */
+  answerMs: 15_000,
+  /** How long the right answer and the scores stay up before the next question, ms. */
+  revealMs: 4000,
+  /** Points for a right answer the moment the question appears. They fall linearly to `slowest` at the deadline. */
+  fastest: 1000,
+  /** Points for a right answer at the deadline. A wrong answer, or none, scores 0. */
+  slowest: 500,
 } as const;
 
-/** The state the host publishes. Plain JSON only: it crosses the wire to every Device. */
-export type QuizState = {
-  /** Taps per Player id. */
-  taps: Record<PlayerId, number>;
-  /** Where the last tap landed, in world mm, and by whom. */
-  last?: { x: number; y: number; playerId: PlayerId };
+/** The built-in questions. `answer` is the index of the right one of the four `choices`. */
+export const QUESTIONS: readonly { text: string; choices: readonly [string, string, string, string]; answer: number }[] = [
+  { text: 'Which planet is called the Red Planet?', choices: ['Venus', 'Mars', 'Jupiter', 'Mercury'], answer: 1 },
+  { text: 'How many legs does a spider have?', choices: ['6', '8', '10', '12'], answer: 1 },
+  { text: 'What is the chemical symbol for gold?', choices: ['Ag', 'Gd', 'Au', 'Go'], answer: 2 },
+  { text: 'Which is the largest ocean?', choices: ['Atlantic', 'Indian', 'Arctic', 'Pacific'], answer: 3 },
+  { text: 'How many minutes are there in a day?', choices: ['1440', '1240', '1640', '960'], answer: 0 },
+  { text: 'Which instrument has 88 keys?', choices: ['Organ', 'Accordion', 'Piano', 'Harp'], answer: 2 },
+  { text: 'What is the capital of Canada?', choices: ['Toronto', 'Ottawa', 'Vancouver', 'Montreal'], answer: 1 },
+  { text: 'Which gas do plants take in from the air?', choices: ['Oxygen', 'Nitrogen', 'Carbon dioxide', 'Helium'], answer: 2 },
+  { text: 'Who painted the Mona Lisa?', choices: ['Leonardo', 'Michelangelo', 'Raphael', 'Donatello'], answer: 0 },
+  { text: 'How many sides does a hexagon have?', choices: ['5', '6', '7', '8'], answer: 1 },
+  { text: 'At how many °F does water freeze?', choices: ['0', '32', '100', '212'], answer: 1 },
+  { text: 'Which is the smallest prime number?', choices: ['0', '1', '2', '3'], answer: 2 },
+];
+
+/** Questions in one Match. */
+const TOTAL = Math.min(QUIZ.questions, QUESTIONS.length);
+
+/** Where a question is: open for answers, or showing the right one. */
+export type Phase = 'ask' | 'reveal';
+
+/** The board's state, published to every Device: only what everybody may know. */
+export type BoardState = {
+  kind: 'board';
+  phase: Phase;
+  /** The question's place in this Match, from 0. */
+  round: number;
+  question: string;
+  choices: string[];
+  /** Shared time the answers close (`ask`) or the next question comes (`reveal`), ms. */
+  until: number;
+  /** The Players who answered this question, in the order their answers reached the host. */
+  answered: PlayerId[];
+  /** Every Player's points; this question's count from its reveal on. */
+  scores: Record<PlayerId, number>;
+  /** From the reveal on: the right choice, and what each Player got for this question. */
+  answer?: number;
+  gained?: Record<PlayerId, number>;
 };
 
-/** What a view may `send` to the host. This game sends nothing: `never`. */
-export type QuizMessage = never;
+/** One Controller's own state, published to that Controller alone: its Holder's answer and, after the reveal, what it earned. */
+export type ControllerState = {
+  kind: 'controller';
+  phase: Phase;
+  round: number;
+  choices: string[];
+  /** The Holder's choice for this question; null until it answered. */
+  picked: number | null;
+  /** The Holder's points; this question's count from its reveal on. */
+  score: number;
+  /** From the reveal on: the right choice, and what the Holder's answer earned. */
+  answer?: number;
+  gained?: number;
+};
 
 /**
- * Tap: the smallest complete Game. Every Player taps their own Tile; the host
- * counts, every Tile shows the counts and a ring where the last finger came
- * down; the first to `QUIZ.tapsToWin` wins.
+ * What the host publishes: a `BoardState` to every Device, then a
+ * `ControllerState` to each held Controller alone. A Controller's view hears
+ * both kinds, and its `latest()` is whichever came last, so every view tells
+ * them apart by `kind`.
+ */
+export type QuizState = BoardState | ControllerState;
+
+/** What a Controller sends: its Holder's answer, an index into `choices`. */
+export type QuizMessage = { t: 'answer'; choice: number };
+
+const LETTERS = ['A', 'B', 'C', 'D'] as const;
+const FG = '#f2f0ea';
+const DIM = 'rgba(242, 240, 234, 0.55)';
+const PANEL = 'rgba(242, 240, 234, 0.1)';
+const FAINT = 'rgba(242, 240, 234, 0.04)';
+const BG = '#121212';
+const GOOD = '#63c98a';
+const BAD = '#e26d5a';
+
+const nameOf = (match: MatchInfo, playerId: PlayerId): string => match.players.find((p) => p.playerId === playerId)?.name ?? playerId;
+
+/** Deterministic randoms in [0, 1) from the Match seed (mulberry32). */
+function random(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** `text` in lines no wider than `width` at `g`'s font, broken between words: Canvas2D does not wrap. */
+function wrap(g: CanvasRenderingContext2D, text: string, width: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    const longer = line === '' ? word : `${line} ${word}`;
+    if (line !== '' && g.measureText(longer).width > width) {
+      lines.push(line);
+      line = word;
+    } else line = longer;
+  }
+  return line === '' ? lines : [...lines, line];
+}
+
+/**
+ * Quiz: one Tile on the table is the board; every other phone is a
+ * Controller in a Player's hand. The board draws the question and its four
+ * choices; each Controller shows them as buttons to its Holder, then "locked
+ * in", then right or wrong. A question closes when every Holder answered or
+ * `QUIZ.answerMs` ran out; the right answer and the scores stay up for
+ * `QUIZ.revealMs`. A right answer earns more the sooner it reached the host.
+ * After `QUIZ.questions` questions the most points win.
  *
- * The host is event-driven (`tickHz: 0`): it only reacts to `onInput`. A game
- * that moves things on its own adds `tick(dt, now)` and drops `tickHz: 0`.
+ * Each Player holds one Controller for the whole Match: Players in
+ * `match.players` order to Controllers in `match.devices` order. A Controller
+ * left over has no Holder and waits; a Player left over cannot answer.
+ *
+ * The host is event-driven (`tickHz: 0`): Controllers' messages and two
+ * timers move it. Whether an answer was right stays on the host until the
+ * reveal, and each Controller learns its own from a state published to it alone.
  */
 export default defineGame<QuizState, QuizMessage>({
   manifest: {
     id: 'mgc.quiz',
     name: 'Quiz',
     version: '1.0.0',
-    // How many phones lie on the table (Tiles), how many are held (Controllers), how many Players.
-    // The lobby refuses to start outside these ranges.
-    tiles: { min: 1, max: 4 },
-    controllers: { min: 0, max: 0 },
-    players: { min: 1, max: 2 },
+    tiles: { min: 1, max: 1 },
+    controllers: { min: 1, max: 4 },
+    players: { min: 1, max: 4 },
     tickHz: 0,
+    bots: false,
     host: './index.js',
     view: './index.js',
   },
 
-  // Runs once, on the Host Device. `ctx.match` is frozen: who plays, which Device is where.
   host(ctx) {
-    /** The Player seated at each Tile Device: `Player.deviceId` says who sits where, never a Player's index. */
-    const seatOf: Record<DeviceId, PlayerId> = Object.fromEntries(ctx.match.players.flatMap((p) => (p.deviceId ? [[p.deviceId, p.playerId]] : [])));
-    const taps: Record<PlayerId, number> = Object.fromEntries(ctx.match.players.map((p) => [p.playerId, 0]));
-    let last: QuizState['last'];
+    const { match } = ctx;
+    const players = match.players.map((p) => p.playerId);
+    /** Each held Controller and its Holder, for the whole Match. */
+    const held = match.devices
+      .filter((d) => d.role === 'controller')
+      .flatMap((d, i): [DeviceId, PlayerId][] => (players[i] === undefined ? [] : [[d.deviceId, players[i]]]));
+    for (const [controller, playerId] of held) ctx.setHolder(controller, playerId);
 
-    // Publish the first state at once: a view draws nothing until it has one.
-    ctx.publish({ taps });
+    // This Match's questions: the bank shuffled by the seed (Fisher–Yates), the first TOTAL of it.
+    const rand = random(match.seed);
+    const deck = [...QUESTIONS];
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [deck[i], deck[j]] = [deck[j]!, deck[i]!];
+    }
+    deck.length = TOTAL;
 
+    const scores: Record<PlayerId, number> = Object.fromEntries(players.map((p) => [p, 0]));
+    let round = 0;
+    let phase: Phase = 'ask';
+    let askedAt = 0;
+    let until = 0;
+    let pausedAt = 0;
+    /** This question's answers, first first; `points` count from the reveal on. */
+    let answers: { playerId: PlayerId; choice: number; points: number }[] = [];
+
+    const board = (): BoardState => {
+      const q = deck[round]!;
+      return {
+        kind: 'board',
+        phase,
+        round,
+        question: q.text,
+        choices: [...q.choices],
+        until,
+        answered: answers.map((a) => a.playerId),
+        scores: { ...scores },
+        ...(phase === 'reveal' && {
+          answer: q.answer,
+          gained: Object.fromEntries(players.map((p) => [p, answers.find((a) => a.playerId === p)?.points ?? 0])),
+        }),
+      };
+    };
+    const own = (playerId: PlayerId): ControllerState => {
+      const q = deck[round]!;
+      const mine = answers.find((a) => a.playerId === playerId);
+      return {
+        kind: 'controller',
+        phase,
+        round,
+        choices: [...q.choices],
+        picked: mine?.choice ?? null,
+        score: scores[playerId]!,
+        ...(phase === 'reveal' && { answer: q.answer, gained: mine?.points ?? 0 }),
+      };
+    };
+    /** The board's state to every Device, then each held Controller its own, so that a Controller's `latest()` is its own. */
+    const publish = (): void => {
+      ctx.publish(board());
+      for (const [controller, playerId] of held) ctx.publish(own(playerId), controller);
+    };
+
+    const ask = (): void => {
+      phase = 'ask';
+      answers = [];
+      askedAt = ctx.now();
+      until = askedAt + QUIZ.answerMs;
+      ctx.timer('reveal', QUIZ.answerMs);
+      publish();
+    };
+    const reveal = (): void => {
+      phase = 'reveal';
+      ctx.timer('reveal', null); // when every Holder answered early
+      for (const a of answers) scores[a.playerId]! += a.points;
+      until = ctx.now() + QUIZ.revealMs;
+      ctx.timer('next', QUIZ.revealMs);
+      const q = deck[round]!;
+      ctx.log(`Answer ${LETTERS[q.answer]}: ${q.choices[q.answer]}`);
+      publish();
+    };
+    const next = (): void => {
+      if (round + 1 < deck.length) {
+        round++;
+        ask();
+        return;
+      }
+      // Ties keep `match.players` order: the sort is stable.
+      ctx.end({ scores: { ...scores }, ranking: [...players].sort((a, b) => scores[b]! - scores[a]!) });
+    };
+
+    ask();
     return {
-      // Every pointer sample from every Device, stamped with who sent it. Coordinates are world mm.
-      onInput(i) {
-        if (i.phase !== 'down') return;
-        const playerId = seatOf[i.deviceId];
-        if (playerId === undefined) return; // A Tile that seats nobody (a middle phone) taps for nobody.
-        taps[playerId] = (taps[playerId] ?? 0) + 1;
-        last = { x: i.world.x, y: i.world.y, playerId };
-        ctx.publish({ taps, last }); // One call = one frame on the wire. Publish when something changed.
-        if (taps[playerId]! >= QUIZ.tapsToWin) {
-          const ranking = Object.keys(taps).sort((a, b) => taps[b]! - taps[a]!);
-          ctx.end({ scores: taps, ranking }); // Closes the Match on every Device; the platform shows the result.
+      // `from.playerId` is the Holder when the answer reached the Host; a Controller without one, or a Tile, has none.
+      onMessage(msg, from) {
+        const { playerId } = from;
+        if (phase !== 'ask' || playerId === undefined || answers.some((a) => a.playerId === playerId)) return;
+        // A message is the sending phone's claim: check it is an answer this question has.
+        const q = deck[round]!;
+        if (msg.t !== 'answer' || !Number.isInteger(msg.choice) || msg.choice < 0 || msg.choice >= q.choices.length) return;
+        // Timed by its arrival here, on the shared clock: a phone's own clock does not count.
+        const late = Math.min(1, (ctx.now() - askedAt) / QUIZ.answerMs);
+        const points = msg.choice === q.answer ? Math.round(QUIZ.fastest - (QUIZ.fastest - QUIZ.slowest) * late) : 0;
+        answers.push({ playerId, choice: msg.choice, points });
+        ctx.log(`${nameOf(match, playerId)} locked in`);
+        if (held.every(([, p]) => answers.some((a) => a.playerId === p))) {
+          reveal();
+          return;
         }
+        // Only the board and the answering Controller changed.
+        ctx.publish(board());
+        ctx.publish(own(playerId), from.deviceId);
+      },
+      onTimer(tag) {
+        // A due `reveal` may already be on its way when the last Holder answers.
+        if (tag === 'reveal' && phase === 'ask') reveal();
+        else if (tag === 'next' && phase === 'reveal') next();
+      },
+      // The timers freeze with the pause; the answer time and the shown deadline move on by the paused time.
+      onPause() {
+        pausedAt = ctx.now();
+      },
+      onResume(now) {
+        askedAt += now - pausedAt;
+        until += now - pausedAt;
+        publish();
       },
     };
   },
 
-  // Runs once per Device, the Host included. `ctx.tile` is this Device's rectangle in world mm.
   view(ctx) {
+    const { match } = ctx;
+    if (ctx.role === 'controller') {
+      /** The last state the host published to this Controller alone; the board's broadcasts reach it too and are ignored. */
+      let mine: ControllerState | undefined;
+      let ui: { who: HTMLElement; where: HTMLElement; status: HTMLElement; buttons: HTMLButtonElement[] } | undefined;
+      const render = (): void => {
+        if (!ui) return;
+        const holder = ctx.holder();
+        const s = holder === null ? undefined : mine;
+        ui.who.textContent = holder === null ? '' : `${nameOf(match, holder)} · ${s?.score ?? 0}`;
+        ui.where.textContent = s ? `${s.round + 1} / ${TOTAL}` : '';
+        const [status, tone] =
+          holder === null ? ['Waiting for a player', DIM]
+          : !s ? ['Get ready', DIM]
+          : s.phase === 'ask' ? (s.picked === null ? ['Pick an answer', FG] : ['Locked in', FG])
+          : s.picked === null ? ['Too slow', DIM]
+          : s.picked === s.answer ? [`Right! +${s.gained ?? 0}`, GOOD]
+          : ['Wrong', BAD];
+        ui.status.textContent = status;
+        ui.status.style.color = tone;
+        ui.buttons.forEach((b, k) => {
+          const choice = s?.choices[k];
+          b.style.visibility = choice === undefined ? 'hidden' : 'visible';
+          b.textContent = `${LETTERS[k]}\u2003${choice ?? ''}`; // an em space: HTML collapses ASCII ones
+          // Open: every choice lit. Locked in: the pick lit. Revealed: the right one green, a wrong pick red.
+          const [bg, fg] =
+            !s ? [FAINT, DIM]
+            : s.phase === 'reveal' && k === s.answer ? [GOOD, BG]
+            : s.phase === 'reveal' && k === s.picked ? [BAD, BG]
+            : s.phase === 'ask' && (s.picked === null || k === s.picked) ? [FG, BG]
+            : [FAINT, DIM];
+          b.style.background = bg;
+          b.style.color = fg;
+        });
+      };
+      return {
+        // The buttons handle their own events.
+        input: 'off',
+        mount(root) {
+          const doc = root.ownerDocument;
+          // CSS px per platform mm on this phone (CSS `mm` is not it on phones); a Controller has no Surface to ask.
+          const mm = root.clientWidth / ctx.screenMm.x;
+          const el = <K extends keyof HTMLElementTagNameMap>(tag: K, css: string): HTMLElementTagNameMap[K] => {
+            const e = doc.createElement(tag);
+            e.style.cssText = css;
+            return e;
+          };
+          // Inline styles only: the view must not reach outside `root`, and the page's own CSS reaches in.
+          const box = el('div', `position:absolute;inset:0;display:flex;flex-direction:column;gap:${3 * mm}px;padding:${4 * mm}px;box-sizing:border-box;background:${BG};color:${FG};font:500 ${4 * mm}px system-ui,sans-serif;user-select:none;-webkit-user-select:none`);
+          const head = el('div', `display:flex;justify-content:space-between;gap:${2 * mm}px;color:${DIM};white-space:nowrap;overflow:hidden`);
+          const who = el('span', 'overflow:hidden;text-overflow:ellipsis');
+          const where = el('span', '');
+          const status = el('div', `font:700 ${8 * mm}px system-ui,sans-serif;line-height:1.1;min-height:1.1em`);
+          // Last in the tree: the headless test screen's pointer hits the last element appended.
+          const grid = el('div', `flex:1;min-height:0;display:flex;flex-direction:column;gap:${2.5 * mm}px`);
+          const buttons = LETTERS.map((_, k) => {
+            const b = el('button', `flex:1;min-height:0;margin:0;border:0;border-radius:${3 * mm}px;padding:0 ${5 * mm}px;text-align:left;font:600 ${6 * mm}px system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;touch-action:manipulation`);
+            b.type = 'button';
+            b.addEventListener('pointerdown', () => {
+              // The host takes the first answer anyway; this only spares the wire.
+              if (ctx.holder() !== null && mine?.phase === 'ask' && mine.picked === null) ctx.send({ t: 'answer', choice: k });
+            });
+            return b;
+          });
+          // One node per `append`: the headless test screen's `append` takes only its first argument.
+          head.append(who);
+          head.append(where);
+          for (const b of buttons) grid.append(b);
+          box.append(head);
+          box.append(status);
+          box.append(grid);
+          root.append(box);
+          ui = { who, where, status, buttons };
+          render();
+        },
+        onState(s) {
+          if (s.kind !== 'controller') return;
+          mine = s;
+          render();
+        },
+        onHolder(controller) {
+          if (controller === ctx.deviceId) render();
+        },
+      };
+    }
+
     return {
-      // Called every animation frame with the latest state. `g` is already in world mm:
-      // draw at world coordinates and this Tile shows its own part of the surface.
-      draw({ ctx: g, state, tile }) {
-        if (!state || !tile) return;
-        g.fillStyle = '#f2f0ea';
-        g.font = '600 6px system-ui, sans-serif';
+      draw({ ctx: g, state: s, now, tile }) {
+        if (!tile || s?.kind !== 'board') return;
+        // Tile-local mm from here: the board reads upright on its own phone, however its Tile lies in the World.
+        g.translate(tile.x, tile.y);
+        g.rotate(tile.rot);
+        const { w, h } = tile;
+        const pad = w * 0.06;
+        const inner = w - 2 * pad;
+        const font = (weight: number, size: number): string => `${weight} ${size}px system-ui, sans-serif`;
+
+        // Which question, and the seconds left to answer.
         g.textBaseline = 'top';
-        ctx.match.players.forEach((p, k) => g.fillText(`${p.name} ${state.taps[p.playerId] ?? 0}`, tile.x + 4, tile.y + 4 + k * 8));
-        if (state.last) {
-          g.strokeStyle = '#f2f0ea';
-          g.lineWidth = 1;
-          g.beginPath();
-          g.arc(state.last.x, state.last.y, QUIZ.ring, 0, Math.PI * 2);
-          g.stroke();
-        }
+        g.font = font(500, w * 0.05);
+        g.fillStyle = DIM;
+        g.textAlign = 'left';
+        g.fillText(`Question ${s.round + 1} of ${TOTAL}`, pad, pad);
+        g.textAlign = 'right';
+        g.fillText(s.phase === 'ask' ? `${Math.max(0, Math.ceil((s.until - now) / 1000))} s` : 'Answer', w - pad, pad);
+
+        const size = w * 0.075;
+        g.font = font(650, size);
+        g.fillStyle = FG;
+        g.textAlign = 'left';
+        wrap(g, s.question, inner)
+          .slice(0, 4)
+          .forEach((line, k) => g.fillText(line, pad, pad + w * 0.1 + k * size * 1.25, inner));
+
+        // The four choices; at the reveal the right one turns green.
+        const top = h * 0.36;
+        const row = h * 0.085;
+        const gap = h * 0.012;
+        g.textBaseline = 'middle';
+        s.choices.forEach((choice, k) => {
+          const y = top + k * (row + gap);
+          const open = s.answer === undefined;
+          g.fillStyle = k === s.answer ? GOOD : open ? PANEL : FAINT;
+          g.fillRect(pad, y, inner, row);
+          g.fillStyle = k === s.answer ? BG : open ? FG : DIM;
+          g.font = font(700, row * 0.42);
+          g.fillText(LETTERS[k] ?? '', pad + row * 0.3, y + row / 2);
+          g.font = font(500, row * 0.38);
+          g.fillText(choice, pad + row * 0.85, y + row / 2, inner - row);
+        });
+
+        // Every Player: a check once answered, the points this question gave at the reveal, the score.
+        const listTop = top + 4 * (row + gap) + gap;
+        const line = Math.min(w * 0.075, (h - pad - listTop) / Math.max(1, match.players.length));
+        g.font = font(500, line * 0.7);
+        match.players.forEach((p, k) => {
+          const y = listTop + (k + 0.5) * line;
+          g.textAlign = 'left';
+          g.fillStyle = FG;
+          g.fillText(p.name, pad, y, inner * 0.55);
+          g.textAlign = 'right';
+          g.fillText(String(s.scores[p.playerId] ?? 0), w - pad, y);
+          const gained = s.gained?.[p.playerId];
+          const mark = gained !== undefined ? (gained > 0 ? `+${gained}` : '') : s.answered.includes(p.playerId) ? '✓' : '';
+          g.fillStyle = GOOD;
+          g.fillText(mark, w - pad - inner * 0.22, y);
+        });
       },
     };
   },

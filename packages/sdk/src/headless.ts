@@ -42,6 +42,7 @@ export type CanvasOp = [name: string, ...args: unknown[]];
 
 /** Accepts every CanvasRenderingContext2D call and records it; tracks the transform. */
 export interface RecordingContext2D {
+  /** The calls since the last `clearRect`: the frame being drawn, or the last one drawn. */
   readonly ops: CanvasOp[];
   getTransform(): Matrix;
 }
@@ -74,6 +75,8 @@ function recordingContext2D(): RecordingContext2D {
       if (typeof k !== 'string') return undefined;
       if (props.has(k)) return props.get(k);
       return (...args: number[]) => {
+        // The SDK clears once per frame, first: the record is one frame, never a whole Match.
+        if (k === 'clearRect') ops.length = 0;
         if (k !== 'getTransform') ops.push([k, ...args]);
         return methods[k]?.(...args);
       };
@@ -116,9 +119,11 @@ class HeadlessElement {
     const { widthPx: width, heightPx: height } = this.ownerDocument.screen;
     return { x: 0, y: 0, left: 0, top: 0, width, height, right: width, bottom: height, toJSON: () => ({}) };
   }
-  append(child: HeadlessElement): void {
-    child.parent = this;
-    this.children.push(child);
+  append(...nodes: HeadlessElement[]): void {
+    for (const child of nodes) {
+      child.parent = this;
+      this.children.push(child);
+    }
   }
   prepend(child: HeadlessElement): void {
     child.parent = this;

@@ -11,11 +11,13 @@ export type PlayerId = string;
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [k: string]: JsonValue };
 
-/** A Device's rectangle on the play surface; `rot` radians, clockwise about (x, y). */
-export interface Tile extends Rect {
-  deviceId: DeviceId;
-  rot: number;
-}
+/**
+ * A Device's screen on the play surface: `x, y` is where its top-left corner
+ * lies in the World, `w, h` the screen's own size, `rot` radians clockwise
+ * about that corner. With `rot ≠ 0` this is not the world rectangle the screen
+ * covers (its axis-aligned box is `Surface.worldAabb()`).
+ */
+export type Tile = Rect & { deviceId: DeviceId; rot: number };
 
 /** A participant in the Match: a human, or (`bot`) one the Game's host plays itself. */
 export interface Player {
@@ -50,6 +52,12 @@ export interface MatchInfo {
   bounds: Rect;
 }
 
+/**
+ * What a Match ended with. The platform's result card names `ranking[0]` the
+ * winner; without a `ranking` it sorts by `scores` and reads "Draw" when the
+ * top two are equal, "Match over" with neither. So leave `ranking` out for a
+ * draw.
+ */
 export interface MatchResult {
   scores?: Record<PlayerId, number>;
   ranking?: PlayerId[];
@@ -63,7 +71,13 @@ export interface Sender {
   playerId?: PlayerId;
 }
 
-/** One pointer sample. Per `(deviceId, pointerId)` the host sees `down → move* → (up | cancel)`. */
+/**
+ * One pointer sample. Per `(deviceId, pointerId)` the host sees `down → move*
+ * → (up | cancel)`. On a Tile an input identifies the Device, never a finger
+ * or a Player: a Game that needs per-Player input on a shared surface maps the
+ * Device to its seated Player (`Player.deviceId`), gives each Player a region,
+ * or uses Controllers (whose input carries the Holder).
+ */
 export interface Input extends Sender {
   pointerId: number;
   phase: 'down' | 'move' | 'up' | 'cancel';
