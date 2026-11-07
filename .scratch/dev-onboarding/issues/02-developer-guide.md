@@ -6,11 +6,11 @@ Per `.scratch/dev-onboarding/spec.md` §2.
 
 **Blocked by:** 01 (Rails); the tutorial item also by `games/tap-race`
 
-**Status:** ready-for-agent (every item but the tutorial is done; the tutorial waits for the finished `games/tap-race`)
+**Status:** resolved
 
 - [x] `docs/guide/README.md` (index + reading order)
 - [x] `docs/guide/getting-started.md`: clone, install, dev server, open on a phone, join, start Pong
-- [x] `docs/guide/your-first-game.md`: tutorial that builds `games/tap-race` from `pnpm new-game` — **left open:** the page is a one-paragraph stub that says it will be written from the finished `games/tap-race` and points at `games/_template`
+- [x] `docs/guide/your-first-game.md`: tutorial that builds `games/tap-race` from `pnpm new-game` — written 2026-11-07 from the finished Game, hook by hook (§0–§8 + a rules table)
 - [x] `docs/guide/concepts.md`: Session/Device/Tile/Controller/Player/Holder, world mm, the state stream, pause, timers, faults; links to GLOSSARY and ADRs
 - [x] `docs/guide/testing.md`: `createTestMatch`, scripting fingers, asserting states/events/results, headless screen limits
 - [x] `docs/guide/running-on-phones.md`: HTTPS cert, LAN, QR/code join, templates, Tile order, bots, installing as PWA
