@@ -1,4 +1,4 @@
-import type { CloseReason, Device, DeviceId, Input, JsonValue, MatchInfo, MatchResult, RawInput } from './types';
+import type { CloseReason, Device, DeviceId, Input, JsonValue, MatchInfo, MatchResult, PauseReason, RawInput } from './types';
 
 /**
  * The link between a game and the platform. Each side of a Match (host game,
@@ -25,6 +25,10 @@ export interface ClockWire {
 /** In both Down unions. */
 export type Shared =
   | { v: 1; t: 'clock'; clock: ClockWire }
+  /** `now`: shared time of the pause. Sent again with the new reason when the reason changes while paused. */
+  | { v: 1; t: 'pause'; reason: PauseReason; now: number }
+  /** `now`: shared time of the resume, where ticks restart; `clock` re-anchors the game side's clock. */
+  | { v: 1; t: 'resume'; now: number; clock: ClockWire }
   | { v: 1; t: 'close'; reason: CloseReason; result?: MatchResult };
 
 export type HostDown =
@@ -60,7 +64,7 @@ export type Down = HostDown | ViewDown;
 export type Up = HostUp | ViewUp;
 
 /** Between Devices over the platform Transport: the subset of the view grammar that is not local. */
-export type NetDown = Extract<ViewDown, { t: 'state' | 'close' }>;
+export type NetDown = Extract<ViewDown, { t: 'state' | 'pause' | 'resume' | 'close' }>;
 export type NetUp = Extract<ViewUp, { t: 'input' | 'send' }>;
 export type NetFrame = NetDown | NetUp;
 
@@ -72,8 +76,23 @@ export function isNetDown(f: unknown): f is NetDown {
   const r = f as Record<string, unknown>;
   if (r['v'] !== WIRE_VERSION) return false;
   if (r['t'] === 'state') return 'state' in r && typeof r['at'] === 'number' && (r['to'] === undefined || typeof r['to'] === 'string');
+  if (r['t'] === 'pause') return Number.isFinite(r['now']) && isPauseReason(r['reason']);
+  if (r['t'] === 'resume') return Number.isFinite(r['now']) && isClockWire(r['clock']);
   if (r['t'] === 'close') return typeof r['reason'] === 'string' && CLOSE_REASONS.includes(r['reason']);
   return false;
+}
+
+function isPauseReason(p: unknown): p is PauseReason {
+  if (!p || typeof p !== 'object') return false;
+  const r = p as Record<string, unknown>;
+  if (r['kind'] === 'device-lost') return typeof r['deviceId'] === 'string';
+  return r['kind'] === 'platform' && (r['note'] === undefined || typeof r['note'] === 'string');
+}
+
+function isClockWire(c: unknown): c is ClockWire {
+  if (!c || typeof c !== 'object') return false;
+  const r = c as Record<string, unknown>;
+  return Number.isFinite(r['epochOffset']) && Number.isFinite(r['sentAt']);
 }
 
 const PHASES: readonly string[] = ['down', 'move', 'up', 'cancel'] satisfies Input['phase'][];

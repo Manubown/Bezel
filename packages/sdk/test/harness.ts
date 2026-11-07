@@ -17,6 +17,7 @@ import {
   type MatchInfo,
   type MatchResult,
   type NetFrame,
+  type PauseReason,
   type Tile,
   type ViewContext,
 } from '../src';
@@ -58,19 +59,24 @@ export interface Probe {
   rec: ProbeRecord;
 }
 
-/** What one view saw, in order: states, and the local echo of its own input. */
-export type Seen = { state: ProbeState } | { input: Input };
+/** What one view saw, in order: states, the local echo of its own input, pauses and resumes. */
+export type Seen = { state: ProbeState } | { input: Input } | { pause: PauseReason } | { resume: number };
+
+/** A host `onPause`/`onResume`, with how many ticks and inputs had run before it. */
+export type HostPause = ({ pause: PauseReason } | { resume: number }) & { afterTicks: number; afterInputs: number };
 
 export interface ProbeRecord {
   /** Host ticks in order. */
   ticks: { dt: number; now: number }[];
   /** Host `onInput` in order, with how many ticks had run before it. */
   inputs: { input: Input; afterTicks: number }[];
+  /** Host `onPause`/`onResume` in order. */
+  pauses: HostPause[];
   host: HostContext<ProbeState, never> | undefined;
   views: Map<DeviceId, ViewContext<ProbeState, never>>;
   /** Every state each view received, in order. */
   states: Map<DeviceId, { state: ProbeState; t: number }[]>;
-  /** States and input echoes per view, interleaved as they happened. */
+  /** States, input echoes, pauses and resumes per view, interleaved as they happened. */
   seen: Map<DeviceId, Seen[]>;
   /** Each view's `onEnd`. */
   ends: Map<DeviceId, { reason: CloseReason; result?: MatchResult }[]>;
@@ -91,7 +97,7 @@ export function probeGame(
     input?: 'off';
   } = {},
 ): Probe {
-  const rec: ProbeRecord = { ticks: [], inputs: [], host: undefined, views: new Map(), states: new Map(), seen: new Map(), ends: new Map(), draws: new Map() };
+  const rec: ProbeRecord = { ticks: [], inputs: [], pauses: [], host: undefined, views: new Map(), states: new Map(), seen: new Map(), ends: new Map(), draws: new Map() };
   const game = defineGame<ProbeState, never>({
     manifest: {
       id: 'mgc.probe',
@@ -116,6 +122,12 @@ export function probeGame(
           rec.inputs.push({ input, afterTicks: rec.ticks.length });
           o.onInput?.(ctx, input);
         },
+        onPause(reason) {
+          rec.pauses.push({ pause: reason, afterTicks: rec.ticks.length, afterInputs: rec.inputs.length });
+        },
+        onResume(now) {
+          rec.pauses.push({ resume: now, afterTicks: rec.ticks.length, afterInputs: rec.inputs.length });
+        },
       };
     },
     view(ctx) {
@@ -136,6 +148,12 @@ export function probeGame(
         onInput(input) {
           seen.push({ input });
         },
+        onPause(reason) {
+          seen.push({ pause: reason });
+        },
+        onResume(now) {
+          seen.push({ resume: now });
+        },
         onEnd(r) {
           ends.push(r);
         },
@@ -152,13 +170,32 @@ export function probeGame(
   return { game, rec };
 }
 
+export interface RigDevice {
+  handle: MatchHandle;
+  events: MatchEvent[];
+  screen: HeadlessScreen;
+  session: Session;
+}
+
 export interface Rig {
   frames: SteppedFrames;
-  devices: Map<DeviceId, { handle: MatchHandle; events: MatchEvent[]; screen: HeadlessScreen; session: Session }>;
+  devices: Map<DeviceId, RigDevice>;
   /** Added to every Device's shared clock as `runMatch` sees it: a test's stand-in for a clock re-estimate. */
   skewMs: number;
   /** The Host's shared clock, skew included. */
   sharedNow(): number;
+  /**
+   * Peer `id`'s tab goes away: its connection leaves the hub and its
+   * `runMatch` stops with its page. Returns what it had; its Session still
+   * sends, from the stale connection.
+   */
+  drop(id: DeviceId): RigDevice;
+  /**
+   * Peer `id` comes back as a new page: a new Session under a new peer id with
+   * the same `deviceId`, then, once that Session is ready, a new `runMatch` on
+   * a fresh screen in `devices`, as the app does.
+   */
+  rejoin(id: DeviceId): void;
 }
 
 /** The channel the app would use for Match frames; the SDK never sees it. */
@@ -167,8 +204,8 @@ const MATCH_CHANNEL = 'match';
 /**
  * One Session per Device of `match` over a MemoryHub (`host` hosts, the rest
  * join and sync), then `runMatch` on each with `send`/`deliver` bound to the
- * Session, as the app wires it: a Peer's frames go to the Host. `host` gets
- * `authority`.
+ * Session, as the app wires it: a Peer's frames go to the Host, and the Host
+ * pauses on the loss of a Match Device. `host` gets `authority`.
  */
 export function startMatch(o: {
   game: Game;
@@ -183,8 +220,14 @@ export function startMatch(o: {
   const hub = new MemoryHub(() => o.latencyMs ?? 0);
   const pxPerMm = o.pxPerMm ?? 6;
   const screen = o.screen ?? { widthPx: 390, heightPx: 844, dpr: 3 };
-  const join = (id: DeviceId, open: typeof hostSession): Session =>
-    open(hub.connect(`peer-of-${id}`), { deviceId: id, name: id, width: screen.widthPx, height: screen.heightPx, dpr: screen.dpr, pxPerMm });
+  /** Each Session's transport peer id: a Device that comes back gets a new one. */
+  const peerIdOf = new Map<Session, string>();
+  const join = (id: DeviceId, open: typeof hostSession): Session => {
+    const peerId = `peer-${peerIdOf.size + 1}-of-${id}`;
+    const session = open(hub.connect(peerId), { deviceId: id, name: id, width: screen.widthPx, height: screen.heightPx, dpr: screen.dpr, pxPerMm });
+    peerIdOf.set(session, peerId);
+    return session;
+  };
   const sessions = new Map<DeviceId, Session>([[o.host, join(o.host, hostSession)]]);
   for (const d of o.match.devices) if (d.deviceId !== o.host) sessions.set(d.deviceId, join(d.deviceId, joinSession));
   vi.advanceTimersByTime(3000);
@@ -192,13 +235,7 @@ export function startMatch(o: {
   if (unsynced.length > 0) throw new Error(`Sessions not ready: ${unsynced.map((s) => s.self.deviceId).join(', ')}`);
 
   const frames = new SteppedFrames();
-  const rig: Rig = {
-    frames,
-    devices: new Map(),
-    skewMs: 0,
-    sharedNow: () => sessions.get(o.host)!.clock.now() + rig.skewMs,
-  };
-  for (const [id, session] of sessions) {
+  const run = (id: DeviceId, session: Session): void => {
     const fake = headlessScreen(frames, screen);
     const events: MatchEvent[] = [];
     const load = o.load ?? (() => Promise.resolve({ default: o.game }));
@@ -212,9 +249,55 @@ export function startMatch(o: {
       ...(id === o.host && { authority: true }),
     });
     session.onMessage(MATCH_CHANNEL, (data, from) => handle.deliver(data as NetFrame, from));
+    if (id === o.host) pauseOnDeviceLoss(session, o.match, handle);
     rig.devices.set(id, { handle, events, screen: fake, session });
-  }
+  };
+  const rig: Rig = {
+    frames,
+    devices: new Map(),
+    skewMs: 0,
+    sharedNow: () => sessions.get(o.host)!.clock.now() + rig.skewMs,
+    drop(id) {
+      const gone = rig.devices.get(id)!;
+      gone.handle.stop('link-lost');
+      hub.disconnect(peerIdOf.get(gone.session)!);
+      return gone;
+    },
+    rejoin(id) {
+      const session = join(id, joinSession);
+      const off = session.onChange(() => {
+        if (session.status !== 'ready') return;
+        off();
+        run(id, session);
+      });
+    },
+  };
+  for (const [id, session] of sessions) run(id, session);
   return rig;
+}
+
+/**
+ * The Host app's pause policy (`apps/pwa/src/pause.ts`): the loss of a Match
+ * Device pauses the Match naming it; the Match resumes once every lost Match
+ * Device is back and has synced its clock (its new page runs its part by then).
+ */
+function pauseOnDeviceLoss(session: Session, match: MatchInfo, handle: MatchHandle): void {
+  const inMatch = new Set(match.devices.map((d) => d.deviceId));
+  const lost = new Set<DeviceId>();
+  let waitingFor: DeviceId | undefined;
+  const follow = (): void => {
+    for (const e of session.roster()) if (e.present && e.sync.synced) lost.delete(e.info.deviceId);
+    const [next] = lost;
+    if (next === waitingFor) return;
+    waitingFor = next;
+    handle.setPaused(next === undefined ? null : { kind: 'device-lost', deviceId: next });
+  };
+  session.onDeviceLost((id) => {
+    if (!inMatch.has(id)) return;
+    lost.add(id);
+    follow();
+  });
+  session.onChange(follow);
 }
 
 /** Lets queued link deliveries and due network messages land, advancing fake time by `ms`. */

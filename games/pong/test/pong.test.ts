@@ -176,4 +176,36 @@ describe('Pong', () => {
       expect(t.events(id).map((e) => e.t), id).toEqual(['started', 'ended', 'closed']);
     }
   });
+
+  it('freezes while paused and resumes mid-rally where the ball stopped: onResume re-publishes it, no serve', async () => {
+    const t = await createTestMatch<PongState>({ game: pong, match: TWO });
+    const west = finger(t, TWO, 'd0');
+    await west(40);
+    await t.tick(1000); // past the 0.8 s rest: the ball is in flight
+    const paused = t.state('d0')!;
+    expect(paused.wait).toBe(0);
+    expect(paused.score).toEqual([0, 0]);
+    expect(paused.ball.x).not.toBe(MID.x);
+
+    await t.setPaused({ kind: 'device-lost', deviceId: 'd1' });
+    await west(120); // dropped while paused: the paddle does not jump on resume
+    await t.tick(3000);
+    for (const id of ['d0', 'd1']) expect(t.state(id), id).toEqual(paused);
+
+    await t.setPaused(null);
+    // Re-published at the resume, unchanged: the same ball, stamped with the resume's time.
+    for (const id of ['d0', 'd1']) {
+      expect(t.latest(id)!.state, id).toEqual(paused);
+      expect(t.latest(id)!.t, id).toBeCloseTo(t.now(), 6);
+    }
+
+    await t.tick(STEP_MS);
+    const next = t.state('d0')!;
+    expect(next.ball.x).toBeCloseTo(paused.ball.x + paused.ball.vx / 60, 9);
+    expect(next.ball.y).toBeCloseTo(paused.ball.y + paused.ball.vy / 60, 9);
+    expect(next.ball.vx).toBe(paused.ball.vx);
+    expect(next.wait).toBe(0);
+    expect(next.score).toEqual([0, 0]);
+    expect(next.pads).toEqual(paused.pads);
+  });
 });

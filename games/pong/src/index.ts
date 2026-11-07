@@ -134,6 +134,10 @@ export default defineGame<PongState, never>({
         if (s < 0 || i.phase === 'cancel') return;
         pads[s] = clamp(i.world.y, T.padLo, T.padHi);
       },
+      // Nothing moved while paused; the views get the ball where it stopped, stamped now.
+      onResume() {
+        ctx.publish(snapshot());
+      },
       tick(dt) {
         if (wait > 0) {
           wait = Math.max(0, wait - dt);
@@ -177,11 +181,16 @@ export default defineGame<PongState, never>({
     const T = table(bounds);
     /** Each side's score sits mid-width on its own outer Tile, near the top. */
     const scoreX = [tiles[0]!, tiles[tiles.length - 1]!].map((tile) => tile.x + tile.w / 2);
+    /** Shared time of the last resume: a state from before it shows the ball where the pause stopped it. */
+    let resumedAt = -Infinity;
     return {
+      onResume(now) {
+        resumedAt = now;
+      },
       draw({ ctx: g, state: s, now, t }) {
         if (!s) return;
         // Extrapolate on the shared clock, never past a paddle that will return it.
-        const moving = Math.max(0, Math.min(Math.max(now - t, 0), MAX_AHEAD_MS) / 1000 - s.wait);
+        const moving = Math.max(0, Math.min(Math.max(now - Math.max(t, resumedAt), 0), MAX_AHEAD_MS) / 1000 - s.wait);
         const y = fold(s.ball.y + s.ball.vy * moving, T.top, T.bottom);
         let x = s.ball.x + s.ball.vx * moving;
         if (s.ball.vx < 0 && s.ball.x >= T.contact[0] && x < T.contact[0] && covers(s.pads[0], y)) x = 2 * T.contact[0] - x;

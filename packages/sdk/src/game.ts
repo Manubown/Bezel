@@ -1,5 +1,5 @@
 import type { Rect, Surface, Vec2 } from '@mgc/layout';
-import type { CloseReason, DeviceId, Input, JsonValue, Manifest, MatchInfo, MatchResult, Tile } from './types';
+import type { CloseReason, DeviceId, Input, JsonValue, Manifest, MatchInfo, MatchResult, PauseReason, Tile } from './types';
 
 /**
  * A Game is two factories. `host` runs once, on the Host Device; `view` runs
@@ -28,6 +28,8 @@ export interface HostContext<S extends JsonValue, M extends JsonValue> {
    * Broadcast `state` to every view, or to Device `to` alone. Never coalesced:
    * one call, one wire frame. Throws a `TypeError` here if `state` is not plain
    * JSON. Stamped with the current tick's `now` inside `tick`, else `now()`.
+   * While the Match is paused it is retained, and the views get the last one
+   * (broadcast and per Device) on resume.
    */
   publish(state: S, to?: DeviceId): void;
   /** Ends the Match on every Device with `result`. Afterwards `publish` is dropped and only `dispose` still runs. */
@@ -35,15 +37,24 @@ export interface HostContext<S extends JsonValue, M extends JsonValue> {
 }
 
 export interface HostHandlers<M extends JsonValue> {
-  /** Fixed step: `dt = 1 / tickHz` seconds, `now` the shared time of this step. Absent or `tickHz` 0 → never called. */
+  /**
+   * Fixed step: `dt = 1 / tickHz` seconds, `now` the shared time of this step.
+   * Absent or `tickHz` 0 → never called. Never called while paused; after a
+   * resume, steps restart at the resume's `now`.
+   */
   tick?(dt: number, now: number): void;
   /**
    * Every input in arrival order, before the `tick` of the step it arrived for
    * (at once when there is no tick). `deviceId`/`role` are stamped by the
    * platform from the channel it arrived on; per Device and pointer the phases
-   * run `down → move* → (up | cancel)`.
+   * run `down → move* → (up | cancel)`. A pause cancels every open pointer
+   * (a `cancel` before `onPause`); input sent while paused never arrives.
    */
   onInput?(i: Input): void;
+  /** The Match paused: no `tick` and no input until `onResume`. Called again if the reason changes while paused. */
+  onPause?(reason: PauseReason): void;
+  /** The Match resumed at shared time `now`; a game that publishes only on change re-publishes here. */
+  onResume?(now: number): void;
   dispose?(): void;
 }
 
@@ -65,11 +76,20 @@ export interface ViewContext<S extends JsonValue, M extends JsonValue> {
 }
 
 export interface ViewHandlers<S extends JsonValue, M extends JsonValue> {
-  /** Called on every animation frame with the SDK-owned canvas; see `Frame`. */
+  /** Called on every animation frame with the SDK-owned canvas, except while paused; see `Frame`. */
   draw?(f: Frame<S>): void;
   onState?(state: S, t: number): void;
   /** This Device's own input, as it leaves for the host: local echo for prediction. */
   onInput?(i: Input): void;
+  /** The Match paused: `draw` stops (the canvas keeps its last frame) until `onResume`. Again if the reason changes. */
+  onPause?(reason: PauseReason): void;
+  /**
+   * The Match resumed at shared time `now`. The host's retained states arrived
+   * just before (so `latest()` is current); states older than `now` describe
+   * the moment of the pause, so extrapolate from `max(t, now)`. A view that
+   * started while the Match was paused gets it without an `onPause`.
+   */
+  onResume?(now: number): void;
   /** The Match closed: `result` when the host ended it. `dispose` follows. */
   onEnd?(r: { reason: CloseReason; result?: MatchResult }): void;
   dispose?(): void;

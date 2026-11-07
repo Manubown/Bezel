@@ -34,13 +34,22 @@ export interface MatchOptions {
 export interface MatchHandle {
   /** Frames arriving off the Transport; `from` is the Device whose channel carried it. */
   deliver(frame: NetFrame, from: DeviceId): void;
-  /** Host only. Wire v1 as implemented has no pause frames yet: accepted, no effect. */
+  /**
+   * Host only; a no-op on a Peer. A reason pauses the Match on every Device:
+   * no ticks and no `draw`, open pointers cancelled, input dropped until the
+   * resume, `publish` retained. Another reason while paused is passed on to
+   * every Device. `null` resumes: every view gets the retained states, then
+   * `resume`, and ticks restart from the resume's time.
+   */
   setPaused(reason: PauseReason | null): void;
   stop(reason: 'aborted' | 'link-lost'): void;
 }
 
 export type MatchEvent =
   | { t: 'started' }
+  /** Again when the reason changes while paused. */
+  | { t: 'paused'; reason: PauseReason }
+  | { t: 'resumed' }
   | { t: 'ended'; result: MatchResult }
   | { t: 'closed'; reason: CloseReason; detail?: string }
   | { t: 'fault'; where: string; message: string };
@@ -51,6 +60,7 @@ export const MAX_CATCH_UP_STEPS = 5;
 export const CLOCK_EVERY_MS = 2000;
 
 type StateFrame = Extract<Down, { t: 'state' }>;
+type PauseFrame = Extract<Down, { t: 'pause' }>;
 type CloseFrame = Extract<Down, { t: 'close' }>;
 
 /**
@@ -87,15 +97,29 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   const onFault = (f: Extract<Up, { t: 'fault' }>): void => o.onEvent({ t: 'fault', where: f.where, message: f.message });
   const fail = (reason: CloseReason, detail: string): void => close({ v: 1, t: 'close', reason }, detail);
 
-  // This Device's view. It keeps the last broadcast and the last state sent to
-  // it alone, in arrival order, so a view that becomes ready late starts from them.
-  // Its input goes to the host runtime: here on the Host, over the net on a Peer.
-  const retained: StateFrame[] = [];
+  /** Set while the Match is paused: the frame that paused it, for a link that opens meanwhile. */
+  let pausedBy: PauseFrame | undefined;
+
+  // Retention: the last broadcast state and the last state for each Device
+  // alone, in arrival order (a state replaces its key's entry and moves to the
+  // end). A Peer holds its own two; the Host holds every Device's and re-posts
+  // them on resume.
+  const retained = new Map<DeviceId | undefined, StateFrame>();
+  const retain = (f: StateFrame): void => {
+    retained.delete(f.to);
+    retained.set(f.to, f);
+  };
+  const retainedFor = (d: DeviceId): StateFrame[] => [...retained.values()].filter((f) => f.to === undefined || f.to === d);
+
+  // This Device's view. One that becomes ready late starts from the retained
+  // states (and the pause, while paused). Its input goes to the host runtime:
+  // here on the Host, over the net on a Peer, paused or not.
   const view: GameLink = new GameLink('view', o.link({ side: 'view', root: o.self.mount }), {
     open() {
       const self = { deviceId: me.deviceId, role: me.role, screenMm: me.screenMm, pxPerMm, ...(me.tile && { tile: me.tile }) };
       view.post({ v: 1, t: 'init', side: 'view', match: o.match, self, clock: clockWire() });
-      for (const f of retained) view.post(f);
+      for (const f of retainedFor(me.deviceId)) view.post(f);
+      if (pausedBy) view.post(pausedBy);
       opened();
     },
     frame(f) {
@@ -107,10 +131,14 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
     fail,
   });
   const show = (f: StateFrame): void => {
-    const i = retained.findIndex((r) => (r.to === undefined) === (f.to === undefined));
-    if (i >= 0) retained.splice(i, 1);
-    retained.push(f);
+    retain(f);
     view.post(f);
+  };
+  /** This Device's view and platform hear of a pause (again, if the reason changed). */
+  const showPause = (f: PauseFrame): void => {
+    pausedBy = f;
+    view.post(f);
+    o.onEvent({ t: 'paused', reason: f.reason });
   };
 
   // Host input ingest. Who sent an input is the channel it came on, never what
@@ -119,10 +147,13 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   const openPointers = new Map<DeviceId, Set<number>>();
   /** Accepted since the last step, in arrival order. */
   let inbox: Input[] = [];
+  /** Per Device, the pointers the host game saw go down and not end, with their last input. */
+  const held = new Map<DeviceId, Map<number, Input>>();
   let hostOpen = false;
   const ingest = (raw: readonly RawInput[], from: DeviceId): void => {
     const role = roleOf.get(from);
-    if (over || role === undefined) return;
+    // Paused: dropped, so nothing sent meanwhile applies on resume.
+    if (over || pausedBy || role === undefined) return;
     let pointers = openPointers.get(from);
     if (!pointers) openPointers.set(from, (pointers = new Set()));
     for (const { pointerId, phase, t, world } of raw) {
@@ -138,8 +169,27 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   /** Inbound input goes to the host game before the step's tick. */
   const drain = (): void => {
     if (!hostOpen || inbox.length === 0) return;
+    for (const i of inbox) {
+      let pointers = held.get(i.deviceId);
+      if (!pointers) held.set(i.deviceId, (pointers = new Map()));
+      if (i.phase === 'down' || i.phase === 'move') pointers.set(i.pointerId, i);
+      else pointers.delete(i.pointerId);
+    }
     host?.post({ v: 1, t: 'input', inputs: inbox });
     inbox = [];
+  };
+  /**
+   * Drops the input not yet delivered and ends every pointer: the host game
+   * gets a `cancel` at `t` (where the pointer last was) for each one it holds
+   * open. Later samples of those pointers are orphans until a new `down`.
+   */
+  const cancelPointers = (t: number): void => {
+    inbox = [];
+    openPointers.clear();
+    const cancels: Input[] = [];
+    for (const pointers of held.values()) for (const i of pointers.values()) cancels.push({ ...i, phase: 'cancel', t, world: { ...i.world } });
+    held.clear();
+    if (cancels.length > 0) host?.post({ v: 1, t: 'input', inputs: cancels });
   };
 
   // The host side: a fixed-step accumulator on this window's animation frames.
@@ -148,7 +198,7 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   /** Shared time of the last step; steps are exactly `dtMs` apart until a stall is dropped. */
   let stepAt = 0;
   const advance = (): void => {
-    if (over) return;
+    if (over || pausedBy) return;
     raf = win.requestAnimationFrame(advance);
     const now = o.now();
     stepAt = Math.max(stepAt, now - MAX_CATCH_UP_STEPS * dtMs);
@@ -158,24 +208,27 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
       host?.post({ v: 1, t: 'tick', n: ++n, dt, now: stepAt });
     }
   };
+  /** Steps from `at` on: a fresh accumulator, nothing to catch up. */
+  const startStepping = (at: number): void => {
+    stepAt = at;
+    raf = win.requestAnimationFrame(advance);
+  };
   const publish = (f: Extract<Up, { t: 'publish' }>): void => {
     const { state, at, to } = f;
-    if (to === undefined) {
-      const frame: StateFrame = { v: 1, t: 'state', state, at };
-      o.send(frame);
-      show(frame);
-    } else if (to === o.self.deviceId) show({ v: 1, t: 'state', state, at, to });
-    else o.send({ v: 1, t: 'state', state, at, to }, to);
+    const frame: StateFrame = to === undefined ? { v: 1, t: 'state', state, at } : { v: 1, t: 'state', state, at, to };
+    retain(frame);
+    if (pausedBy) return; // the views get it on resume
+    if (to === undefined || to === o.self.deviceId) view.post(frame);
+    if (to !== o.self.deviceId) o.send(frame, to);
   };
   const host: GameLink | undefined = o.authority
     ? new GameLink('host', o.link({ side: 'host' }), {
         open() {
           host?.post({ v: 1, t: 'init', side: 'host', match: o.match, clock: clockWire() });
           hostOpen = true;
-          if (dt > 0) {
-            stepAt = o.now();
-            raf = win.requestAnimationFrame(advance);
-          } else drain();
+          if (pausedBy) host?.post(pausedBy);
+          else if (dt > 0) startStepping(o.now());
+          else drain();
           opened();
         },
         frame(f) {
@@ -187,6 +240,40 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
         fail,
       })
     : undefined;
+
+  /** Host: stops the steps, ends every pointer, and tells the host game, every view and the net. */
+  const pause = (reason: PauseReason): void => {
+    if (pausedBy && samePause(pausedBy.reason, reason)) return;
+    // A new reason while paused keeps the time the Match stopped.
+    const frame: PauseFrame = { v: 1, t: 'pause', reason: copyReason(reason), now: pausedBy?.now ?? o.now() };
+    if (!pausedBy) {
+      win.cancelAnimationFrame(raf);
+      cancelPointers(frame.now);
+    }
+    host?.post(frame);
+    o.send(frame);
+    showPause(frame);
+  };
+  /**
+   * Host: every view gets the retained states, then `resume` with a fresh
+   * clock frame (the host game first, so its `onResume` publish follows them),
+   * then steps restart from now.
+   */
+  const resume = (): void => {
+    if (!pausedBy) return;
+    pausedBy = undefined;
+    const clock = clockWire();
+    const frame: Extract<Down, { t: 'resume' }> = { v: 1, t: 'resume', now: clock.sentAt, clock };
+    host?.post(frame);
+    for (const d of o.match.devices) {
+      if (d.deviceId === me.deviceId) for (const f of retainedFor(d.deviceId)) view.post(f);
+      else for (const f of retainedFor(d.deviceId)) o.send(f, d.deviceId);
+    }
+    view.post(frame);
+    o.send(frame);
+    o.onEvent({ t: 'resumed' });
+    if (hostOpen && dt > 0) startStepping(frame.now);
+  };
 
   const stopClock = env.every(CLOCK_EVERY_MS, () => {
     const clock = clockWire();
@@ -216,14 +303,36 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
         if (from !== o.self.deviceId && isNetUp(frame)) ingest(frame.inputs, from);
       } else if (isNetDown(frame)) {
         if (frame.t === 'state') show(frame);
-        else close(frame);
+        else if (frame.t === 'pause') {
+          if (!pausedBy || !samePause(pausedBy.reason, frame.reason)) showPause({ v: 1, t: 'pause', reason: copyReason(frame.reason), now: frame.now });
+        } else if (frame.t === 'resume') {
+          // Also to a runtime that started during the pause: its retained states describe the paused moment.
+          pausedBy = undefined;
+          view.post({ v: 1, t: 'resume', now: frame.now, clock: clockWire() });
+          o.onEvent({ t: 'resumed' });
+        } else close(frame);
       }
     },
-    setPaused() {},
+    setPaused(reason) {
+      if (!o.authority || over) return;
+      if (reason) pause(reason);
+      else resume();
+    },
     stop(reason) {
       close({ v: 1, t: 'close', reason });
     },
   };
+}
+
+function samePause(a: PauseReason, b: PauseReason): boolean {
+  if (a.kind === 'device-lost') return b.kind === 'device-lost' && a.deviceId === b.deviceId;
+  return b.kind === 'platform' && a.note === b.note;
+}
+
+/** Only the fields a `PauseReason` has: it reaches games and may have come off the net. */
+function copyReason(r: PauseReason): PauseReason {
+  if (r.kind === 'device-lost') return { kind: 'device-lost', deviceId: r.deviceId };
+  return r.note === undefined ? { kind: 'platform' } : { kind: 'platform', note: r.note };
 }
 
 /**

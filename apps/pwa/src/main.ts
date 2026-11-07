@@ -4,6 +4,7 @@ import { inProcessLink, runMatch, type MatchHandle, type MatchInfo, type MatchRe
 import { claimDeviceId, claimPlayerId, deviceInfo } from './device';
 import { openHud, type Play } from './hud';
 import { openLobby } from './lobby';
+import { describePause, pauseOnDeviceLoss } from './pause';
 import { drawMetronome, startCanvasLoop } from './metronome';
 import { drawPreview } from './scene';
 
@@ -51,18 +52,27 @@ async function start(): Promise<void> {
   const lobby = openLobby(session, self.pxPerMm, claimPlayerId(deviceId));
   const host = () => session.roster()[0]?.info.deviceId;
 
-  const play: Play = { running: false, last: undefined };
+  const play: Play = { running: false, paused: undefined, last: undefined };
   /** The Match running on this Device. */
   let current: { matchId: string; handle: MatchHandle } | undefined;
-  /** A Device runs a Match once: after it closed here, it is not rejoined. */
+  /** A Device runs a Match once: after it closed here, it is not rejoined, unless it closed because the Session dropped. */
   let joined: string | undefined;
   const hud = await openHud(hudRoot, { session, lobby, code, game: GAME.manifest, play, abort: () => current?.handle.stop('aborted') });
 
   const begin = (match: MatchInfo): void => {
     joined = match.matchId;
     play.running = true;
+    play.paused = undefined;
     gameLayer.hidden = false;
     let result: MatchResult | undefined;
+    // Who sits where as this Device joins the Match: a pause names the lost Device's Player.
+    const seated = new Map(
+      match.players.flatMap((p) => {
+        const at = lobby.seatOf(p.playerId);
+        return at === undefined ? [] : [[at, p.name] as const];
+      }),
+    );
+    let unfollow = (): void => {};
     const handle = runMatch({
       link,
       match,
@@ -73,9 +83,15 @@ async function start(): Promise<void> {
       onEvent: (e) => {
         if (e.t === 'fault') console.warn(`${GAME.manifest.name}: fault in ${e.where}: ${e.message}`);
         if (e.t === 'ended') result = e.result;
+        if (e.t === 'paused' || e.t === 'resumed') {
+          play.paused = e.t === 'paused' ? describePause(match, e.reason, seated) : undefined;
+          hud.render();
+        }
         if (e.t !== 'closed' || current?.matchId !== match.matchId) return;
+        unfollow();
         current = undefined;
         play.running = false;
+        play.paused = undefined;
         play.last = { reason: e.reason, players: match.players, ...(result && { result }) };
         gameLayer.hidden = true;
         lobby.close(); // the Host's reopens the lobby on every Device; on a Peer, a no-op
@@ -84,15 +100,24 @@ async function start(): Promise<void> {
       authority: session.role === 'host',
     });
     current = { matchId: match.matchId, handle };
+    if (session.role === 'host') unfollow = pauseOnDeviceLoss(session, match, handle);
     hud.render();
   };
 
-  lobby.onChange(() => {
+  const follow = (): void => {
     const { match } = lobby;
     // The Match went away under this Device: the Host closed it, or the Session ended.
-    if (current && current.matchId !== match?.matchId) current.handle.stop(session.status === 'searching' ? 'link-lost' : 'aborted');
-    if (!current && match && match.matchId !== joined && match.devices.some((d) => d.deviceId === deviceId)) begin(match);
-  });
+    if (current && current.matchId !== match?.matchId) {
+      const dropped = session.status === 'searching';
+      current.handle.stop(dropped ? 'link-lost' : 'aborted');
+      // Lost with the connection, not closed: when the Session finds the Host again, this Device rejoins it.
+      if (dropped) joined = undefined;
+    }
+    // Only once the Session is ready, so the Match runs on the Host's clock (a reloaded Peer gets the Match while syncing).
+    if (!current && match && session.status === 'ready' && match.matchId !== joined && match.devices.some((d) => d.deviceId === deviceId)) begin(match);
+  };
+  lobby.onChange(follow);
+  session.onChange(follow);
   session.onMessage(MATCH_CHANNEL, (data, from) => {
     // Down frames originate on the Host only; the runtimes check what they take.
     if (current && (session.role === 'host' || from === host())) current.handle.deliver(data as NetFrame, from);

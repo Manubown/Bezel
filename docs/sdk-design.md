@@ -94,6 +94,7 @@ Rules a game author must know:
 - Handlers run only after the factory returned; async setup must be lazy inside handlers.
 - `publish` is never coalesced or rate-limited: the game owns the wire rate (host upload = (N−1) × publish rate, ADR-0002). A targeted `publish(s, to)` is retained per Device separately from the broadcast.
 - Extrapolation/prediction is the game's (ADR-0003); `Frame.t` and `latest()` make it one line.
+- Pause (shipped in M2 06): between `onPause` and `onResume` the host gets no `tick` and no input, and views do not `draw` (the canvas keeps its last frame). A `publish` while paused is retained, not sent; on resume every view gets the retained states, then `onResume(now)`. The host game gets its `resume` first, so state it publishes in `onResume` follows the retained states. `onPause` comes again with the new reason if the reason changes while paused. A view that started during the pause (a reloaded phone) gets `onResume` without `onPause`. States stamped before the resume's `now` describe the paused moment, so a view extrapolates from `max(t, now)` (Pong does).
 - `Input.t` is not monotone across Devices (clock error ≤ 5 ms); never sort inputs by `t` across Devices.
 - `setHolder` on a non-Controller or unknown Player is rejected (`reject` frame, logged); the roster is frozen so it is always a bug.
 - After `end`, `publish`/`send`/`timer` are dropped with a log line; nothing throws into the game.
@@ -112,7 +113,7 @@ interface MatchOptions {
   authority?: boolean }                             // true on the Host: also runs the GameHost
 interface MatchHandle {
   deliver(frame: NetFrame, from: DeviceId): void;   // frames arriving off the Transport; `from` = the channel's Device
-  setPaused(reason: PauseReason | null): void;      // Host only; broadcast to every Device
+  setPaused(reason: PauseReason | null): void;      // Host only (no-op on a Peer); broadcast to every Device; same reason again = no-op
   stop(reason: 'aborted' | 'link-lost'): void }
 type MatchEvent = { t: 'started' } | { t: 'paused'; reason: PauseReason } | { t: 'resumed' }
   | { t: 'holders'; holders: HolderEntry[] } | { t: 'ended'; result: MatchResult }
@@ -123,6 +124,8 @@ export function iframeLink(entries: { host: string; view: string }): LinkFactory
 ```
 
 `authority: true` makes `runMatch` open a host link *and* a view link through the same factory: the Host's own Tile is an ordinary view whose frames are cloned like a Peer's. `send`/`deliver` are closures: `@mgc/sdk` never sees `Transport` or `PeerId`; `PeerId ↔ DeviceId` is `@mgc/core`'s (see §8). `MatchInfo` does not name the Host, so a Peer's runtime never addresses it: every frame a Peer sends (its view's `input`, later `send`) is for the Host, and the platform delivers it there (`apps/pwa` sends to `roster()[0]`). The Host takes `NetUp` frames from any Match Device and ignores `NetDown`; a Peer takes only `NetDown`.
+
+`setPaused(reason)` pauses the Match everywhere. Calling it with a different reason while paused sends the new reason to every Device; the pause keeps its original `now`. `setPaused(null)` resumes, and is a no-op when the Match is not paused. Every Device's `runMatch` reports `paused` (again on a new reason) and `resumed` as `MatchEvent`s, so the platform's overlay needs no other channel. When to pause is the platform's decision (§6: `apps/pwa` resumes only when every lost Match Device is back *and* synced).
 
 ## 4. The link port and wire protocol
 
@@ -180,7 +183,7 @@ Flows:
 | `ctx.send` | `send` → `msg{from}` | view game → net → host runtime (stamps) → host game |
 | `set-holder` accepted | `holders` | host runtime → host game and **every** view |
 | `ctx.timer` elapsed | `timer` | host runtime → host game |
-| `setPaused` / resume | `pause`, then `resume`+`clock` | host runtime → host game, net, every view |
+| `setPaused` / resume | `pause`, then `resume`+`clock` | host runtime → host game, net, every view; a Peer's runtime replaces the `resume`'s `clock` with its own before posting it to its view |
 | every ~2 s | `clock` | each Device's runtime → its local game(s) |
 | `end`, `stop`, fault budget, version mismatch | `close` | runtime → game(s), net |
 
@@ -188,11 +191,11 @@ Clock: `epochOffset = shared.now() − Date.now()` at send. The game-side runtim
 
 ## 5. Invariants, ordering, errors, performance
 
-- **Ordering.** `ready` is the only Up frame before `init`; `init` is the only Down frame until `ready` is seen. No `tick` between `pause` and `resume`. `holders` precedes the first `input`/`msg` stamped with the new holder; an input in flight during a handover is stamped with the *new* holder. Per `(deviceId, pointerId)` the host runtime enforces `down → move* → (up | cancel)`, drops orphans (and a second `down` on an open pointer), and emits a synthetic `cancel` for every open pointer on pause, Device drop, or close. Up frames after `close` are dropped.
+- **Ordering.** `ready` is the only Up frame before `init`; `init` is the only Down frame until `ready` is seen. No `tick` between `pause` and `resume`. `holders` precedes the first `input`/`msg` stamped with the new holder; an input in flight during a handover is stamped with the *new* holder. Per `(deviceId, pointerId)` the host runtime enforces `down → move* → (up | cancel)`, drops orphans (and a second `down` on an open pointer), and emits a synthetic `cancel` for every open pointer on pause, Device drop, or close. Up frames after `close` are dropped. As shipped (M2 06), a pause drops the inputs accepted but not yet delivered, then sends one `input` frame of `cancel`s for every pointer the host game holds open (its `down` delivered, its end not), each at the pause's `now` and its last delivered `world`, and only then `pause`. Every pointer counts as closed afterwards, so a finger still held across the resume is an orphan until its next `down`. A Device drop always pauses in `apps/pwa`. The cancels on close are ticket 07's.
 - **Authority.** The host runtime overwrites `deviceId`/`role` (from the authenticated channel) and `playerId` (from its holder map) on every inbound `input`/`send` at ingest. A view cannot forge another Device's input.
-- **Retention and replay.** The host runtime retains the last broadcast state and the last per-Device state. A view that becomes `ready` late receives them at once (no iframe-load race); on `resume` they are re-posted to every view *before* the first tick, so a game that ignores `onPause`/`onResume` is still correct. A `state` frame carries `to` when it was published to that Device alone, so each Device's runtime keeps its last broadcast and its last targeted state apart; games never see `to`.
-- **Fixed step.** `dt = 1 / tickHz` exactly, driven by an accumulator on the host's rAF; ≤ 5 catch-up steps per animation frame, then the remainder is dropped (`now` jumps forward). Pause clears the accumulator. Per step: drain inbound `input`/`msg`/`timer` in arrival order, then `tick`, then flush outbound. Inputs accepted since the previous step leave as one `input` frame right before the step's `tick` (the first step of a catch-up burst); with `tickHz` 0 each arriving batch leaves at once. Hooks never fire *during* `tick`.
-- **Paused.** No ticks, no `draw`; inbound input is dropped (a paddle must not teleport on resume); pending timers freeze with their remaining delay; `publish` is accepted and retained.
+- **Retention and replay.** The host runtime retains the last broadcast state and the last per-Device state. A view that becomes `ready` late receives them at once (no iframe-load race); on `resume` they are re-posted to every view *before* the first tick, so a game that ignores `onPause`/`onResume` is still correct. A `state` frame carries `to` when it was published to that Device alone, so each Device's runtime keeps its last broadcast and its last targeted state apart; games never see `to`. As shipped: on resume the host game gets `resume` first. Then each Device gets its retained states in arrival order (a Peer over the net, addressed to it), then `resume`, and then steps restart. A view that becomes ready while paused gets `init`, the retained states, then `pause`.
+- **Fixed step.** `dt = 1 / tickHz` exactly, driven by an accumulator on the host's rAF; ≤ 5 catch-up steps per animation frame, then the remainder is dropped (`now` jumps forward). Pause clears the accumulator: the rAF stops, and steps restart from the resume's `now` (the first tick is one step after it, with no catch-up for the paused time). Per step: drain inbound `input`/`msg`/`timer` in arrival order, then `tick`, then flush outbound. Inputs accepted since the previous step leave as one `input` frame right before the step's `tick` (the first step of a catch-up burst); with `tickHz` 0 each arriving batch leaves at once. Hooks never fire *during* `tick`.
+- **Paused.** No ticks, no `draw`; inbound input is dropped (a paddle must not teleport on resume); pending timers freeze with their remaining delay; `publish` is accepted and retained. As shipped: the view's paint loop stops, so its canvas keeps its last frame. The view still captures and sends input (its own flush frame runs without the paint loop), and the host runtime drops it at ingest. Timers arrive with ticket 08; the runtime's `pause`/`resume` steps are where they freeze and thaw.
 - **Errors.** `ready.v ≠ WIRE_VERSION` → `close{'version'}`. Unknown or out-of-order frame → `close{'protocol'}`. A throw in any game handler is caught game-side and reported as `fault`; a throw in a factory, or > 3 faults in 5 s, → `close{'fault'}`. No `ready` within 5 s of `open()`, or iframe unload → `close{'link-lost'}`. Bad `set-holder`/`timer`/`publish`-after-`end` → `reject`, state unchanged. A throw in `draw` skips the frame; 10 consecutive → that view closes. Every one of these reaches `apps/pwa` only as a `MatchEvent`; nothing throws across the seam.
 - **Performance.** ≤ 1 `move` per `pointerId` per rAF, one `input` frame per view per rAF; `down/up/cancel` never coalesced. The view follows only pointers that went down on it, so a hovering mouse sends nothing; the local echo (`onInput`) runs as the frame leaves, before that animation frame's `draw`. One `structuredClone` per crossing in both adapters. `draw` stops when `document.hidden` or paused. Pong reference: ~200 B state at 60 Hz × 3 Peers ≈ 36 KB/s host upload — JSON only until phones are measured (ADR-0003).
 
@@ -255,7 +258,7 @@ export default defineGame<S, M>({
 });
 ```
 
-Every view draws the whole World; its Tile transform clips it. No canvas, DPR, rAF, pointer, px→mm, clock, pause, or link code in the game. (The shipped `games/pong` is this sketch with phone-sized geometry, a short rest before each serve, return angles from where the ball meets the paddle, and its constants exported as `PONG` for its tests.)
+Every view draws the whole World; its Tile transform clips it. No canvas, DPR, rAF, pointer, px→mm, clock, pause, or link code in the game. (The shipped `games/pong` is this sketch with phone-sized geometry, a short rest before each serve, return angles from where the ball meets the paddle, and its constants exported as `PONG` for its tests. Its view also records `onResume(now)` and extrapolates from `max(t, now)`, so the paused ball is not thrown forward by the pause's length for a frame.)
 
 ### `apps/pwa` call site (Host Device; a Peer is the same minus `authority`)
 
@@ -270,9 +273,11 @@ const handle = runMatch({
   authority: true,
 });
 session.onMessage(MATCH_CHANNEL, (frame, fromDeviceId) => handle.deliver(frame as NetFrame, fromDeviceId));
-session.onDeviceLost((d) => handle.setPaused({ kind: 'device-lost', deviceId: d }));
-session.onDeviceBack(() => handle.setPaused(null));
+// Host: pause on the loss of a Match Device; resume once every lost one is back *and* synced (apps/pwa/src/pause.ts).
+const unfollow = pauseOnDeviceLoss(session, match, handle);
 ```
+
+As shipped, `apps/pwa` does not resume on the bare `onDeviceBack`. A returning phone is usually a new page. It starts its `runMatch` only once its Session is `ready`, so that the Match runs on the Host's clock, and its Session gets `ready` only after `onDeviceBack` has fired on the Host. Resuming at `onDeviceBack` would send the retained states to a page that has no `runMatch` yet, and the Host would play on while that phone shows nothing. So the Host resumes on the roster change that reports the returning Device synced. By then the new page runs its part, gets the retained states, then `resume`. With several Devices lost, the pause names the first one still missing.
 
 ## 7. What the seam hides
 
@@ -294,8 +299,8 @@ Clock transport and monotone re-derivation; pointer capture (`touch-action: none
 
 **Tests at the interface.**
 1. *Link conformance*: a table of frame sequences replayed against both adapters asserting identical game-visible effects; proves M2 ≡ M3.
-2. *End-to-end*: `packages/sdk/test/match.e2e.test.ts` — `MemoryHub` (core as devDependency) + 4 `runMatch` handles (3 Tiles, 1 Controller, `authority` on d0) cross-delivering frames, fake clock, stepped rAF, a recording probe game built with `defineGame`. Asserts: ticks fan out to every view including the Host's own; world-mm input from a Tile; `playerId`-stamped input from a Controller after `setHolder`; pause on drop (no ticks, no state); resume + re-publish after rebinding; `ended` with scores.
-3. *Game tests*: `await createTestMatch({ game, match, host?, pxPerMm? })` from `@mgc/sdk/test` runs `runMatch` for every Device of `match` (host default `match.devices[0]`) over the in-process link with a headless screen each and in-memory JSON delivery between Devices, on its own fake clock (shared time starts at 0; no global timers touched). It gives a game author `await t.tick(ms)` (one animation frame per fixed step), `await t.input(deviceId, phase, at, pointerId?)` (a pointer event through that view's own capture, `at` in world mm on a Tile / screen mm on a Controller, delivered before the next tick), `t.state(deviceId)` (that view's `latest()`), `t.result()`, `t.events(deviceId)`, `t.now()`, `await t.stop()` — so "passes in M2" means "serialises in M3".
+2. *End-to-end*: `packages/sdk/test/match.e2e.test.ts` and `pause.e2e.test.ts` — `MemoryHub` (core as devDependency) + 4 `runMatch` handles (3 Tiles, 1 Controller, `authority` on d0) cross-delivering frames, fake clock, stepped rAF, a recording probe game built with `defineGame`; the harness wires the Host's pause policy as the app does and can drop a Peer's tab and bring it back as a new page under a new peer id. Asserts: ticks fan out to every view including the Host's own; world-mm input from a Tile; `playerId`-stamped input from a Controller after `setHolder`; pause on drop (no ticks, no state, no draw; synthetic cancels; input dropped); resume after rebinding (retained states, then `resume`, then the next tick; input on the new connection); a publish while paused delivered on resume; `ended` with scores.
+3. *Game tests*: `await createTestMatch({ game, match, host?, pxPerMm? })` from `@mgc/sdk/test` runs `runMatch` for every Device of `match` (host default `match.devices[0]`) over the in-process link with a headless screen each and in-memory JSON delivery between Devices, on its own fake clock (shared time starts at 0; no global timers touched). It gives a game author `await t.tick(ms)` (one animation frame per fixed step), `await t.input(deviceId, phase, at, pointerId?)` (a pointer event through that view's own capture, `at` in world mm on a Tile / screen mm on a Controller, delivered before the next tick), `await t.setPaused(reason | null)` (the Host platform's call), `t.state(deviceId)` and `t.latest(deviceId)` (that view's `latest()`: the state, and with its host time), `t.result()`, `t.events(deviceId)`, `t.now()`, `await t.stop()` — so "passes in M2" means "serialises in M3".
 
 ## 9. Rejected
 

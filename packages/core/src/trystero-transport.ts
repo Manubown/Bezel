@@ -39,7 +39,8 @@ export class TrysteroTransport implements Transport {
 
   send(channel: string, data: unknown, to?: PeerId): void {
     const env: Envelope = { c: channel, d: data as JsonValue };
-    void (to === undefined ? this.action.send(env) : this.action.send(env, { target: to }));
+    // A channel that dies mid-send rejects; that peer's leave reaches the Session on its own.
+    (to === undefined ? this.action.send(env) : this.action.send(env, { target: to })).catch(() => {});
   }
   onMessage(channel: string, handler: (data: unknown, from: PeerId) => void): () => void {
     return this.listeners.onMessage(channel, handler);

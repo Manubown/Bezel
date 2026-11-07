@@ -95,7 +95,11 @@ abstract class GameSide {
       this.start(f);
     } else if (f.t === 'clock') this.clock.receive(f.clock);
     else if (f.t === 'close') this.shutdown(f);
-    else if (f.t !== 'init') this.frame(f);
+    else if (f.t !== 'init') {
+      // A resume re-anchors the clock before any handler sees it.
+      if (f.t === 'resume') this.clock.receive(f.clock);
+      this.frame(f);
+    }
   }
 }
 
@@ -144,10 +148,14 @@ class HostSide extends GameSide {
       }
       return;
     }
-    if (f.t !== 'tick' || this.ended || !this.handlers.tick) return;
-    this.tickNow = f.now;
-    this.guard('tick', () => this.handlers.tick?.(f.dt, f.now));
-    this.tickNow = undefined;
+    if (this.ended) return;
+    if (f.t === 'pause') this.guard('onPause', () => this.handlers.onPause?.(f.reason));
+    else if (f.t === 'resume') this.guard('onResume', () => this.handlers.onResume?.(f.now));
+    else if (f.t === 'tick' && this.handlers.tick) {
+      this.tickNow = f.now;
+      this.guard('tick', () => this.handlers.tick?.(f.dt, f.now));
+      this.tickNow = undefined;
+    }
   }
 
   protected stop(): void {
@@ -167,7 +175,8 @@ class ViewSide extends GameSide {
   private latest: { state: JsonValue; t: number } | undefined;
   private root: HTMLElement | undefined;
   private sender: Pick<Input, 'deviceId' | 'role'> | undefined;
-  private stopDrawing = (): void => {};
+  /** The paint loop behind `draw`: stopped while paused, so the canvas keeps its last frame. */
+  private painter = { start: (): void => {}, stop: (): void => {} };
   private stopCapture = (): void => {};
   /** Captured since the last animation frame, in order; at most one move per pointer. */
   private pending: RawInput[] = [];
@@ -219,13 +228,21 @@ class ViewSide extends GameSide {
   }
 
   protected frame(f: Exclude<Down, { t: 'init' | 'clock' | 'close' }>): void {
-    if (f.t !== 'state') return;
-    this.latest = { state: f.state, t: f.at };
-    this.guard('onState', () => this.handlers.onState?.(f.state, f.at));
+    if (f.t === 'state') {
+      this.latest = { state: f.state, t: f.at };
+      this.guard('onState', () => this.handlers.onState?.(f.state, f.at));
+    } else if (f.t === 'pause') {
+      // Input is still captured and sent while paused: the host drops it.
+      this.painter.stop();
+      this.guard('onPause', () => this.handlers.onPause?.(f.reason));
+    } else if (f.t === 'resume') {
+      this.guard('onResume', () => this.handlers.onResume?.(f.now));
+      this.painter.start();
+    }
   }
 
   protected stop(close: CloseFrame | undefined): void {
-    this.stopDrawing();
+    this.painter.stop();
     this.stopCapture();
     if (close) {
       const r = close.result === undefined ? { reason: close.reason } : { reason: close.reason, result: close.result };
@@ -336,8 +353,16 @@ class ViewSide extends GameSide {
       this.guard('draw', () => this.handlers.draw?.(f));
       g.restore();
     };
-    raf = win.requestAnimationFrame(paint);
-    this.stopDrawing = () => win.cancelAnimationFrame(raf);
+    this.painter = {
+      start() {
+        if (raf === 0) raf = win.requestAnimationFrame(paint);
+      },
+      stop() {
+        win.cancelAnimationFrame(raf);
+        raf = 0;
+      },
+    };
+    this.painter.start();
   }
 }
 

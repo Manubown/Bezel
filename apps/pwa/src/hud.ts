@@ -3,6 +3,7 @@ import { TEMPLATE_IDS, type Layout, type TemplateId } from '@mgc/layout';
 import type { CloseReason, Manifest, MatchResult, Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
 import type { Lobby } from './lobby';
+import type { PauseNotice } from './pause';
 import { describeResult } from './result';
 
 const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column', grid: 'Grid' };
@@ -11,6 +12,8 @@ const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column
 export interface Play {
   /** A Match runs on this Device now: the screen is the Game's. */
   running: boolean;
+  /** Set while the running Match is paused: who it waits for. */
+  paused: PauseNotice | undefined;
   /** The last Match that ran on this Device. */
   last: LastMatch | undefined;
 }
@@ -42,16 +45,18 @@ export interface Hud {
 /**
  * The platform overlay, rendered from the lobby, the Session, and `play`: the
  * Host's bottom sheet (join code, arrangement, Player names, Start, roster) or
- * a Peer's top strip, plus the last Match's result on every Device. They step
- * aside while this Device runs a Match.
+ * a Peer's top strip, plus the last Match's result and a paused Match's notice
+ * on every Device. They step aside while this Device runs a Match.
  */
 export async function openHud(root: HTMLElement, o: HudOptions): Promise<Hud> {
   const panel = o.session.role === 'host' ? await hostSheet(root, o) : peerStrip(root, o);
   const result = resultCard(o.play);
+  const pause = pauseCard(o.play);
   const hud: Hud = {
     render() {
       panel.render();
       result();
+      pause();
     },
   };
   o.session.onChange(hud.render);
@@ -81,6 +86,23 @@ function resultCard(play: Readonly<Play>): () => void {
     const { headline, detail } = describeResult(last.players, last.result);
     card.innerHTML =
       `<p class="result-head">${esc(headline)}</p>` + (detail ? `<p class="result-detail">${esc(detail)}</p>` : '') + `<p class="result-hint">Tap to close</p>`;
+  };
+}
+
+/** Over a paused Match on every Device: who it waits for, until it resumes. */
+function pauseCard(play: Readonly<Play>): () => void {
+  const card = document.createElement('section');
+  card.className = 'pause';
+  card.setAttribute('role', 'status');
+  card.hidden = true;
+  document.body.append(card);
+  let shown: PauseNotice | undefined;
+  return () => {
+    const notice = play.running ? play.paused : undefined;
+    card.hidden = !notice;
+    if (!notice || notice === shown) return;
+    shown = notice;
+    card.innerHTML = `<p class="pause-head">${esc(notice.headline)}</p><p class="pause-detail">${esc(notice.detail)}</p>`;
   };
 }
 
@@ -166,7 +188,7 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     }
     const placed = layout?.devices.length ?? 0;
     barMeta.textContent = play.running
-      ? `${game.name} · playing`
+      ? `${game.name} · ${play.paused ? 'paused' : 'playing'}`
       : `${placed} phone${placed === 1 ? '' : 's'}${layout ? ` · ${TEMPLATE_LABEL[layout.template]}` : ''}`;
     seg.querySelectorAll<HTMLButtonElement>('button[data-t]').forEach((b) => {
       b.setAttribute('aria-checked', String(b.dataset['t'] === layout?.template));

@@ -4,7 +4,7 @@ import type { Game, ViewContext } from './game';
 import { headlessScreen, SteppedFrames, type HeadlessScreen } from './headless';
 import { linkInProcess } from './in-process';
 import { runMatchWith, type MatchEvent, type MatchHandle } from './match';
-import type { DeviceId, Input, JsonValue, MatchInfo, MatchResult } from './types';
+import type { DeviceId, Input, JsonValue, MatchInfo, MatchResult, PauseReason } from './types';
 import type { NetFrame } from './wire';
 
 export interface TestMatchOptions {
@@ -30,8 +30,15 @@ export interface TestMatch<S extends JsonValue = JsonValue> {
    * it reaches the host game before the next tick.
    */
   input(deviceId: DeviceId, phase: Input['phase'], at: Vec2, pointerId?: number): Promise<void>;
+  /**
+   * The Host platform's `setPaused`, as on a Device's loss (a reason) and
+   * return (`null`), then everything it set off. Time does not move.
+   */
+  setPaused(reason: PauseReason | null): Promise<void>;
   /** The latest state `deviceId`'s view has applied. */
   state(deviceId: DeviceId): S | undefined;
+  /** The same with its host time: the view's `latest()`. */
+  latest(deviceId: DeviceId): { state: S; t: number } | undefined;
   /** The result, once the host game ended the Match. */
   result(): MatchResult | undefined;
   /** What `runMatch` reported on `deviceId`, in order. */
@@ -127,6 +134,11 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
     await settle();
   };
   const frameMs = o.match.tickHz > 0 ? 1000 / o.match.tickHz : 1000 / 60;
+  const latest = (deviceId: DeviceId): { state: S; t: number } | undefined => {
+    device(deviceId);
+    // The view's own record of the state it applied; `S` is the caller's claim about the game.
+    return views.get(deviceId)?.latest() as { state: S; t: number } | undefined;
+  };
 
   await settle();
   const notStarted = [...devices].filter(([, d]) => !d.events.some((e) => e.t === 'started')).map(([id]) => id);
@@ -147,10 +159,12 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
       frames.fire(clock);
       await settle();
     },
-    state: (deviceId) => {
-      device(deviceId);
-      return views.get(deviceId)?.latest()?.state as S | undefined;
+    async setPaused(reason) {
+      device(hostId).handle.setPaused(reason);
+      await settle();
     },
+    latest,
+    state: (deviceId) => latest(deviceId)?.state,
     result() {
       const ended = device(hostId).events.find((e) => e.t === 'ended');
       return ended?.t === 'ended' ? ended.result : undefined;
