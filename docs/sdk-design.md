@@ -147,7 +147,7 @@ type HostDown = Shared
 type ViewDown = Shared
   | { v: 1; t: 'init'; side: 'view'; match: MatchInfo; self: Omit<Device, 'name'> & { pxPerMm: number };
       holders: HolderEntry[]; clock: ClockWire }
-  | { v: 1; t: 'state'; state: JsonValue; at: number };
+  | { v: 1; t: 'state'; state: JsonValue; at: number; to?: DeviceId };  // `to`: published to this Device alone
 type Fault = { v: 1; t: 'fault'; where: string; message: string; stack?: string };
 type Log = { v: 1; t: 'log'; args: JsonValue[] };
 type HostUp = Fault | Log
@@ -190,7 +190,7 @@ Clock: `epochOffset = shared.now() − Date.now()` at send. The game-side runtim
 
 - **Ordering.** `ready` is the only Up frame before `init`; `init` is the only Down frame until `ready` is seen. No `tick` between `pause` and `resume`. `holders` precedes the first `input`/`msg` stamped with the new holder; an input in flight during a handover is stamped with the *new* holder. Per `(deviceId, pointerId)` the host runtime enforces `down → move* → (up | cancel)`, drops orphans, and emits a synthetic `cancel` for every open pointer on pause, Device drop, or close. Up frames after `close` are dropped.
 - **Authority.** The host runtime overwrites `deviceId`/`role` (from the authenticated channel) and `playerId` (from its holder map) on every inbound `input`/`send` at ingest. A view cannot forge another Device's input.
-- **Retention and replay.** The host runtime retains the last broadcast state and the last per-Device state. A view that becomes `ready` late receives them at once (no iframe-load race); on `resume` they are re-posted to every view *before* the first tick, so a game that ignores `onPause`/`onResume` is still correct.
+- **Retention and replay.** The host runtime retains the last broadcast state and the last per-Device state. A view that becomes `ready` late receives them at once (no iframe-load race); on `resume` they are re-posted to every view *before* the first tick, so a game that ignores `onPause`/`onResume` is still correct. A `state` frame carries `to` when it was published to that Device alone, so each Device's runtime keeps its last broadcast and its last targeted state apart; games never see `to`.
 - **Fixed step.** `dt = 1 / tickHz` exactly, driven by an accumulator on the host's rAF; ≤ 5 catch-up steps per animation frame, then the remainder is dropped (`now` jumps forward). Pause clears the accumulator. Per step: drain inbound `input`/`msg`/`timer` in arrival order, then `tick`, then flush outbound. Hooks never fire *during* `tick`.
 - **Paused.** No ticks, no `draw`; inbound input is dropped (a paddle must not teleport on resume); pending timers freeze with their remaining delay; `publish` is accepted and retained.
 - **Errors.** `ready.v ≠ WIRE_VERSION` → `close{'version'}`. Unknown or out-of-order frame → `close{'protocol'}`. A throw in any game handler is caught game-side and reported as `fault`; a throw in a factory, or > 3 faults in 5 s, → `close{'fault'}`. No `ready` within 5 s of `open()`, or iframe unload → `close{'link-lost'}`. Bad `set-holder`/`timer`/`publish`-after-`end` → `reject`, state unchanged. A throw in `draw` skips the frame; 10 consecutive → that view closes. Every one of these reaches `apps/pwa` only as a `MatchEvent`; nothing throws across the seam.

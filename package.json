@@ -8,7 +8,7 @@
     "dev": "pnpm --filter @mgc/pwa dev",
     "build": "pnpm --filter @mgc/pwa build",
     "test": "vitest run",
-    "typecheck": "tsc -p packages/core && tsc -p packages/layout && tsc -p packages/sdk && tsc -p apps/pwa"
+    "typecheck": "tsc -p packages/core && tsc -p packages/layout && tsc -p packages/sdk && tsc -p games/tracer && tsc -p apps/pwa"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

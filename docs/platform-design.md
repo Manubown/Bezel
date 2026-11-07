@@ -68,21 +68,24 @@ The Lobby is the module that turns a Session into a frozen `MatchInfo` and hands
 
 ```ts
 export interface Lobby {
-  readonly layout: Layout | undefined;                 // live preview while open
-  readonly match: MatchInfo | undefined;               // set once; frozen
+  readonly layout: Layout | undefined;                 // live preview of the present Tiles
+  readonly surface: Surface | undefined;               // this Device's Tile in `layout`, at `pxPerMm`
+  readonly players: readonly Player[];                 // setPlayers' choice, else the Players at the two outer Tiles
+  seatOf(playerId: PlayerId): DeviceId | undefined;    // the Device a Player sits at
+  readonly match: MatchInfo | undefined;               // set by start, deep-frozen, until the Host's close
   onChange(h: () => void): () => void;
-  // Host only; no-ops on a Peer:
+  // Host only; no-ops on a Peer, ignored while `match` is set:
   setTemplate(t: TemplateId): void;
   setRole(deviceId: DeviceId, role: 'tile' | 'controller'): void;
-  setPlayers(players: Player[]): void;
-  start(game: Manifest): MatchInfo;                    // validates manifest ranges + minTileMm, freezes, broadcasts
-  close(): void }
-export function openLobby(session: Session, pxPerMm: number): Lobby;
+  setPlayers(players: Player[]): void;                 // until the Tiles change; names stay with their Player id
+  start(game: Manifest): MatchInfo;                    // validates, freezes, broadcasts; throws the reason (always on a Peer)
+  close(): void }                                      // the Match is over: `match` clears on every Device
+export function openLobby(session: Session, pxPerMm: number, playerId: PlayerId): Lobby;  // playerId: who sits here (persisted)
 ```
 
-Hides: `buildLayout` over the present Tile Devices in roster order; publishing `layout` and `match` on session channels; the `template|id:wxh` change key; manifest validation (`tiles`/`controllers`/`players` ranges, `minTileMm`, `templates`); the role map; freezing. The HUD (`hud.ts`) renders from `lobby.layout`/`session.roster()` and calls `setTemplate`/`start`; `main.ts` becomes: build `Transport` → `hostSession`/`joinSession` → `openLobby` → on `lobby.match`, `runMatch({... send: session.send.bind(…), …})` → on `ended`, back to the lobby. The M1 `drawScene` grid becomes the lobby's placement preview on the stage until a Match starts.
+Hides: `buildLayout` over the present Tile Devices in roster order; the `lobby` session channel (Host → Peers the whole lobby state, re-sent to a Device that appears; Peer → Host its persisted Player id once `ready`); the `template|id:wxh` change key; manifest validation (`templates`, `tiles`/`controllers`/`players` ranges, `minTileMm`, every Device synced and seated); the role map; freezing. A Peer takes lobby state from the Host's Device id only and validates it into fresh frozen objects. The HUD (`hud.ts`) renders from the lobby and `session.roster()` and calls `setTemplate`/`setPlayers`/`start`; `main.ts` is: build `Transport` → `hostSession`/`joinSession` → `openLobby` → on a `lobby.match` that lists this Device, `runMatch({... send: (f, to) => session.send('match', f, …), …})` → on `closed`, the Host's `lobby.close()` → back to the lobby on every Device. A Device that joins while `match` is set waits in the lobby. The M1 grid scene (`scene.ts` `drawPreview`; its ball became the tracer Game) is the lobby's placement preview on the stage until a Match starts.
 
-Tests at the interface: with a `Session` built over `MemoryHub` — `start()` throws on a manifest the roster cannot satisfy; the `MatchInfo` a Peer's lobby receives deep-equals the Host's; `setTemplate` after `start` is ignored.
+Tests at the interface: with a `Session` built over `MemoryHub` — `start()` throws on a manifest the roster cannot satisfy; the `MatchInfo` a Peer's lobby receives deep-equals the Host's; `setTemplate` after `start` is ignored; a Device joining after `start` is not in the Match.
 
 ## 6. Order of work (M2 tickets, in dependency order)
 
