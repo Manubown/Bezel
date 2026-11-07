@@ -123,6 +123,8 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
   const { session, lobby, code, games, play } = o;
   const joinUrl = new URL(location.href);
   joinUrl.search = `?room=${code}`;
+  /** The address to type: host plus the app's path, without the trailing slash (`manubown.github.io/Bezel`). */
+  const address = (joinUrl.host + joinUrl.pathname).replace(/\/$/, '');
   const qr = document.createElement('canvas');
   await QRCode.toCanvas(qr, joinUrl.toString(), { width: 168, margin: 0, color: { dark: '#121212', light: '#f2f0ea' } });
 
@@ -137,7 +139,7 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     <div class="body">
       <div class="join">
         <div class="qr"></div>
-        <p class="hint">Scan to join, or open <b>${esc(joinUrl.host)}</b> and enter the code.</p>
+        <p class="hint">Scan to join, or open <b>${esc(address)}</b> and enter the code.</p>
         <form class="enter" aria-label="Join another table">
           <input name="room" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="4" placeholder="Code" aria-label="Table code" />
           <button type="submit">Join</button>

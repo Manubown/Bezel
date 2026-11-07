@@ -1,7 +1,8 @@
 {
   "name": "MobileGameConnect",
   "short_name": "MGC",
-  "start_url": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "fullscreen",
   "orientation": "any",
   "background_color": "#111111",
