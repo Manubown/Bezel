@@ -5,23 +5,24 @@
 import { execSync } from 'node:child_process';
 
 const git = (args) => execSync(`git ${args}`, { encoding: 'utf8' }).trim();
+// `rev-list -n 1` resolves a tag to its commit without `^{commit}`, which cmd.exe would eat.
+const commitOf = (r) => git(`rev-parse --short ${git(`rev-list -n 1 ${r}`)}`);
 const [ref] = process.argv.slice(2);
 
 const current = (() => {
   try {
-    return git('rev-parse --short stable^{commit}');
+    return commitOf('stable');
   } catch {
     return undefined;
   }
 })();
-
 if (!ref) {
   console.log(current ? `stable → ${current}  ${git('log -1 --format=%s stable')}` : 'no stable tag yet');
   console.log('Move it: pnpm stable <ref>');
   process.exit(0);
 }
 
-const target = git(`rev-parse --short ${ref}^{commit}`);
+const target = commitOf(ref);
 git(`tag -f stable ${target}`);
 git('push -f origin stable');
 console.log(`stable: ${current ?? '(none)'} → ${target}  ${git(`log -1 --format=%s ${target}`)}
