@@ -13,4 +13,12 @@ export {
   type ClockSyncOptions,
   type LocalNow,
 } from './clock';
-export { HostSession, PeerSession, type DeviceInfo, type PeerEntry, type PeerStatus } from './session';
+export {
+  hostSession,
+  joinSession,
+  type Session,
+  type SessionStatus,
+  type RosterEntry,
+  type DeviceId,
+  type DeviceInfo,
+} from './session';

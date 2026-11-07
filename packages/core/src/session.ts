@@ -1,7 +1,11 @@
-import { ClockSync, SharedClock, serveClock, type ClockState, type LocalNow, performanceNow } from './clock';
+import { ClockSync, SharedClock, serveClock, performanceNow, type LocalNow } from './clock';
 import type { PeerId, Transport } from './transport';
 
+/** Stable identity of one Device across reconnects; the caller supplies (and persists) it. */
+export type DeviceId = string;
+
 export interface DeviceInfo {
+  deviceId: DeviceId;
   name: string;
   /** CSS pixels */
   width: number;
@@ -11,172 +15,366 @@ export interface DeviceInfo {
   pxPerMm: number;
 }
 
-export interface PeerEntry {
-  id: PeerId;
-  info?: DeviceInfo;
-  clock?: ClockState;
+export interface RosterEntry {
+  readonly info: DeviceInfo;
+  /** false = dropped; the identity is kept for the Session's lifetime. */
+  readonly present: boolean;
+  /** Clock sync against the Host (the Host itself is the reference). `rtt`/`offset` in ms once measured. */
+  readonly sync: { readonly synced: boolean; readonly rtt?: number; readonly offset?: number };
 }
 
+/** A Host is always `ready`. A Peer is `searching` until a Host greets it, `syncing` until its clock is synced. */
+export type SessionStatus = 'searching' | 'syncing' | 'ready';
+
+/**
+ * One phone's view of a Session, the same for Host and Peer. Devices are
+ * addressed by `DeviceId` only; transport peer ids never leave this module.
+ */
+export interface Session {
+  readonly self: DeviceInfo;
+  readonly role: 'host' | 'peer';
+  readonly status: SessionStatus;
+  /** Shared Session time in ms (the Host's clock). */
+  readonly clock: { now(): number };
+  /** Host first, then every Device seen this Session in join order. A fresh array of immutable entries. */
+  roster(): readonly RosterEntry[];
+  /**
+   * `data` must be JSON (it crosses WebRTC). `to` omitted = every other present Device.
+   * Dropped when `to` is this Device or not present, and on a Peer before `status === 'ready'`.
+   */
+  send(channel: string, data: unknown, to?: DeviceId): void;
+  onMessage(channel: string, handler: (data: unknown, from: DeviceId) => void): () => void;
+  /** Status, roster, or sync changed. */
+  onChange(handler: () => void): () => void;
+  /** Followed either by `onDeviceBack` for the same Device or by nothing. */
+  onDeviceLost(handler: (deviceId: DeviceId) => void): () => void;
+  onDeviceBack(handler: (deviceId: DeviceId) => void): () => void;
+  close(): void;
+}
+
+/** Host → Peer: the Host's DeviceInfo. */
 const HELLO = 'hello';
+/** Peer → Host: the Peer's DeviceInfo. */
 const INFO = 'info';
+/** Peer → Host: its sync summary. */
 const CLOCK_REPORT = 'clkrep';
+/** Host → Peers: the roster. */
+const ROSTER = 'roster';
+/** Application messages; Peers send only to the Host, which stamps the sender and relays. */
+const MSG = 'msg';
 const CLOCK_REPORT_MS = 1000;
 
-type ChangeHandler = () => void;
+type Sync = RosterEntry['sync'];
+type MessageHandler = (data: unknown, from: DeviceId) => void;
+/** Peer → Host; `to` omitted = everyone. */
+type UpEnvelope = { c: string; d: unknown; to?: DeviceId };
+/** Host → Peer; `from` is stamped by the Host from the connection the message arrived on. */
+type DownEnvelope = { c: string; d: unknown; from: DeviceId };
 
-class Emitter {
-  private readonly handlers = new Set<ChangeHandler>();
-  on(h: ChangeHandler): () => void {
+/** The Host is the clock reference; a new connection has not reported yet. */
+const HOST_SYNC: Sync = Object.freeze({ synced: true });
+const UNSYNCED: Sync = Object.freeze({ synced: false });
+
+class Emitter<A extends unknown[] = []> {
+  private readonly handlers = new Set<(...args: A) => void>();
+  on(h: (...args: A) => void): () => void {
     this.handlers.add(h);
     return () => this.handlers.delete(h);
   }
-  emit(): void {
-    this.handlers.forEach((h) => h());
+  emit(...args: A): void {
+    this.handlers.forEach((h) => h(...args));
   }
 }
 
-function isDeviceInfo(d: unknown): d is DeviceInfo {
-  if (!d || typeof d !== 'object') return false;
-  const r = d as Record<string, unknown>;
-  return (
-    typeof r['name'] === 'string' &&
-    typeof r['width'] === 'number' &&
-    typeof r['height'] === 'number' &&
-    typeof r['dpr'] === 'number' &&
-    typeof r['pxPerMm'] === 'number'
-  );
+function readDeviceInfo(d: unknown): DeviceInfo | undefined {
+  if (!d || typeof d !== 'object') return undefined;
+  const { deviceId, name, width, height, dpr, pxPerMm } = d as Record<string, unknown>;
+  if (typeof deviceId !== 'string' || deviceId === '' || typeof name !== 'string') return undefined;
+  if (typeof width !== 'number' || typeof height !== 'number') return undefined;
+  if (typeof dpr !== 'number' || typeof pxPerMm !== 'number') return undefined;
+  return Object.freeze({ deviceId, name, width, height, dpr, pxPerMm });
 }
 
-function isClockState(d: unknown): d is ClockState {
-  if (!d || typeof d !== 'object') return false;
-  const r = d as Record<string, unknown>;
-  return typeof r['offset'] === 'number' && typeof r['rtt'] === 'number' && typeof r['synced'] === 'boolean';
+function readSync(d: unknown): Sync | undefined {
+  if (!d || typeof d !== 'object') return undefined;
+  const { synced, rtt, offset } = d as Record<string, unknown>;
+  if (typeof synced !== 'boolean') return undefined;
+  if (typeof rtt !== 'number' || typeof offset !== 'number') return Object.freeze({ synced });
+  return Object.freeze({ synced, rtt, offset });
 }
 
-/** The authoritative phone. Owns the reference clock and the peer roster. */
-export class HostSession {
-  readonly peers = new Map<PeerId, PeerEntry>();
+function entry(info: DeviceInfo, present: boolean, sync: Sync): RosterEntry {
+  return Object.freeze({ info, present, sync });
+}
+
+function readRoster(d: unknown): RosterEntry[] | undefined {
+  if (!Array.isArray(d)) return undefined;
+  const entries: RosterEntry[] = [];
+  for (const e of d as unknown[]) {
+    if (!e || typeof e !== 'object') return undefined;
+    const r = e as Record<string, unknown>;
+    const info = readDeviceInfo(r['info']);
+    const sync = readSync(r['sync']);
+    if (!info || !sync || typeof r['present'] !== 'boolean') return undefined;
+    entries.push(entry(info, r['present'], sync));
+  }
+  return entries;
+}
+
+function isUpEnvelope(d: unknown): d is UpEnvelope {
+  if (!d || typeof d !== 'object') return false;
+  const r = d as Record<string, unknown>;
+  return typeof r['c'] === 'string' && (r['to'] === undefined || typeof r['to'] === 'string');
+}
+
+function isDownEnvelope(d: unknown): d is DownEnvelope {
+  if (!d || typeof d !== 'object') return false;
+  const r = d as Record<string, unknown>;
+  return typeof r['c'] === 'string' && typeof r['from'] === 'string';
+}
+
+abstract class SessionBase {
+  readonly self: DeviceInfo;
   readonly clock: SharedClock;
-  private readonly changed = new Emitter();
-  private readonly subs: Array<() => void> = [];
+  /** Replaced, never mutated: safe to hand out and to send. */
+  protected entries: readonly RosterEntry[] = [];
+  protected readonly changed = new Emitter();
+  protected readonly lost = new Emitter<[DeviceId]>();
+  protected readonly back = new Emitter<[DeviceId]>();
+  protected readonly subs: Array<() => void> = [];
+  private readonly handlers = new Map<string, Set<MessageHandler>>();
 
   constructor(
-    readonly transport: Transport,
-    localNow: LocalNow = performanceNow,
+    protected readonly transport: Transport,
+    self: DeviceInfo,
+    localNow: LocalNow,
   ) {
+    this.self = Object.freeze({ ...self });
     this.clock = new SharedClock(localNow);
-    this.subs.push(
-      serveClock(transport, localNow),
-      transport.onPeerJoin((id) => {
-        this.peers.set(id, { id });
-        transport.send(HELLO, { role: 'host' }, id);
-        this.changed.emit();
-      }),
-      transport.onPeerLeave((id) => {
-        this.peers.delete(id);
-        this.changed.emit();
-      }),
-      transport.onMessage(INFO, (data, from) => {
-        const entry = this.peers.get(from);
-        if (!entry || !isDeviceInfo(data)) return;
-        entry.info = data;
-        this.changed.emit();
-      }),
-      transport.onMessage(CLOCK_REPORT, (data, from) => {
-        const entry = this.peers.get(from);
-        if (!entry || !isClockState(data)) return;
-        entry.clock = data;
-        this.changed.emit();
-      }),
-    );
-    for (const id of transport.peers()) {
-      this.peers.set(id, { id });
-      transport.send(HELLO, { role: 'host' }, id);
-    }
   }
 
-  onChange(h: ChangeHandler): () => void {
-    return this.changed.on(h);
+  roster(): readonly RosterEntry[] {
+    return [...this.entries];
+  }
+
+  onMessage(channel: string, handler: MessageHandler): () => void {
+    let set = this.handlers.get(channel);
+    if (!set) {
+      set = new Set();
+      this.handlers.set(channel, set);
+    }
+    set.add(handler);
+    return () => set.delete(handler);
+  }
+
+  onChange(handler: () => void): () => void {
+    return this.changed.on(handler);
+  }
+
+  onDeviceLost(handler: (deviceId: DeviceId) => void): () => void {
+    return this.lost.on(handler);
+  }
+
+  onDeviceBack(handler: (deviceId: DeviceId) => void): () => void {
+    return this.back.on(handler);
+  }
+
+  protected deliver(channel: string, data: unknown, from: DeviceId): void {
+    this.handlers.get(channel)?.forEach((h) => h(data, from));
+  }
+}
+
+/** Owns the reference clock, the roster, and the PeerId ↔ DeviceId map; routes every message. */
+class HostedSession extends SessionBase implements Session {
+  readonly role = 'host';
+  readonly status = 'ready';
+  /** Live connections only: a leave or a rebind forgets the PeerId, so its messages are dropped. */
+  private readonly deviceOf = new Map<PeerId, DeviceId>();
+  private readonly peerOf = new Map<DeviceId, PeerId>();
+
+  constructor(transport: Transport, self: DeviceInfo, localNow: LocalNow) {
+    super(transport, self, localNow);
+    this.entries = [entry(this.self, true, HOST_SYNC)];
+    this.subs.push(
+      serveClock(transport, localNow),
+      transport.onPeerJoin((peer) => transport.send(HELLO, this.self, peer)),
+      transport.onPeerLeave((peer) => {
+        const id = this.deviceOf.get(peer);
+        if (id !== undefined) this.unbind(peer, id);
+      }),
+      transport.onMessage(INFO, (data, peer) => {
+        const info = readDeviceInfo(data);
+        if (info) this.bind(peer, info);
+      }),
+      transport.onMessage(CLOCK_REPORT, (data, peer) => {
+        const id = this.deviceOf.get(peer);
+        const sync = readSync(data);
+        if (id === undefined || !sync) return;
+        const was = this.entries.find((e) => e.info.deviceId === id)?.sync;
+        if (was && was.synced === sync.synced && was.rtt === sync.rtt && was.offset === sync.offset) return;
+        this.entries = this.entries.map((e) => (e.info.deviceId === id ? entry(e.info, e.present, sync) : e));
+        this.publishRoster();
+        this.changed.emit();
+      }),
+      transport.onMessage(MSG, (data, peer) => this.route(peer, data)),
+    );
+    for (const peer of transport.peers()) transport.send(HELLO, this.self, peer);
+  }
+
+  send(channel: string, data: unknown, to?: DeviceId): void {
+    this.forward({ c: channel, d: data, from: this.self.deviceId }, to);
   }
 
   close(): void {
     this.subs.forEach((u) => u());
     this.transport.close();
   }
+
+  /**
+   * A connection identified itself. A known `deviceId` rebinds: the entry keeps
+   * its place, the previous connection (if still live) is forgotten and reported
+   * lost, and `onDeviceBack` fires.
+   */
+  private bind(peer: PeerId, info: DeviceInfo): void {
+    // A connection identifies once; nobody may claim the Host's identity.
+    if (this.deviceOf.has(peer) || info.deviceId === this.self.deviceId) return;
+    const id = info.deviceId;
+    const previous = this.peerOf.get(id);
+    if (previous !== undefined) this.unbind(previous, id);
+    this.deviceOf.set(peer, id);
+    this.peerOf.set(id, peer);
+    const next = entry(info, true, UNSYNCED);
+    const known = this.entries.some((e) => e.info.deviceId === id);
+    this.entries = known ? this.entries.map((e) => (e.info.deviceId === id ? next : e)) : [...this.entries, next];
+    this.publishRoster();
+    if (known) this.back.emit(id);
+    this.changed.emit();
+  }
+
+  private unbind(peer: PeerId, id: DeviceId): void {
+    this.deviceOf.delete(peer);
+    this.peerOf.delete(id);
+    this.entries = this.entries.map((e) => (e.info.deviceId === id ? entry(e.info, false, e.sync) : e));
+    this.publishRoster();
+    this.lost.emit(id);
+    this.changed.emit();
+  }
+
+  private route(peer: PeerId, data: unknown): void {
+    const from = this.deviceOf.get(peer);
+    if (from === undefined || !isUpEnvelope(data)) return; // unknown or stale connection
+    const { c, d, to } = data;
+    if (to === undefined || to === this.self.deviceId) this.deliver(c, d, from);
+    if (to !== this.self.deviceId) this.forward({ c, d, from }, to, peer);
+  }
+
+  private forward(env: DownEnvelope, to: DeviceId | undefined, except?: PeerId): void {
+    if (to === undefined) {
+      for (const peer of this.peerOf.values()) if (peer !== except) this.transport.send(MSG, env, peer);
+      return;
+    }
+    const peer = this.peerOf.get(to);
+    if (peer !== undefined && peer !== except) this.transport.send(MSG, env, peer);
+  }
+
+  private publishRoster(): void {
+    for (const peer of this.peerOf.values()) this.transport.send(ROSTER, this.entries, peer);
+  }
 }
 
-export type PeerStatus = 'searching' | 'syncing' | 'ready';
-
-/** A non-host phone. Finds the host, syncs its clock, reports its device. */
-export class PeerSession {
-  hostId: PeerId | undefined;
-  status: PeerStatus = 'searching';
-  readonly clock: SharedClock;
+/** Finds the Host, syncs its clock against it, mirrors the Host's roster. */
+class JoinedSession extends SessionBase implements Session {
+  readonly role = 'peer';
+  status: SessionStatus = 'searching';
+  private host: PeerId | undefined;
   private sync: ClockSync | undefined;
   private reportTimer: ReturnType<typeof setInterval> | undefined;
-  private readonly changed = new Emitter();
-  private readonly subs: Array<() => void> = [];
 
-  constructor(
-    readonly transport: Transport,
-    readonly info: DeviceInfo,
-    localNow: LocalNow = performanceNow,
-  ) {
-    this.clock = new SharedClock(localNow);
+  constructor(transport: Transport, self: DeviceInfo, localNow: LocalNow) {
+    super(transport, self, localNow);
     this.subs.push(
-      transport.onMessage(HELLO, (data, from) => {
-        const role = (data as { role?: unknown } | null)?.role;
-        if (role === 'host') this.attach(from);
+      transport.onMessage(HELLO, (data, peer) => {
+        const info = readDeviceInfo(data);
+        if (info) this.attach(peer, info);
       }),
-      transport.onPeerLeave((id) => {
-        if (id === this.hostId) this.detach();
+      transport.onPeerLeave((peer) => {
+        if (peer === this.host) this.detach();
+      }),
+      transport.onMessage(ROSTER, (data, peer) => {
+        const next = peer === this.host ? readRoster(data) : undefined;
+        if (next) this.applyRoster(next);
+      }),
+      transport.onMessage(MSG, (data, peer) => {
+        if (peer === this.host && isDownEnvelope(data)) this.deliver(data.c, data.d, data.from);
       }),
     );
   }
 
-  clockState(): ClockState | undefined {
-    return this.sync?.estimator.state();
+  send(channel: string, data: unknown, to?: DeviceId): void {
+    if (this.status !== 'ready' || this.host === undefined || to === this.self.deviceId) return;
+    const env: UpEnvelope = to === undefined ? { c: channel, d: data } : { c: channel, d: data, to };
+    this.transport.send(MSG, env, this.host);
   }
 
-  onChange(h: ChangeHandler): () => void {
-    return this.changed.on(h);
-  }
-
-  private attach(hostId: PeerId): void {
-    if (this.hostId === hostId) return;
+  close(): void {
     this.detach();
-    this.hostId = hostId;
+    this.subs.forEach((u) => u());
+    this.transport.close();
+  }
+
+  private attach(host: PeerId, hostInfo: DeviceInfo): void {
+    if (this.host !== undefined) return; // one Host per Session
+    this.host = host;
     this.status = 'syncing';
-    this.transport.send(INFO, this.info, hostId);
-    this.sync = new ClockSync(this.transport, hostId, this.clock);
-    this.sync.onUpdate((state) => {
-      const next: PeerStatus = state.synced ? 'ready' : 'syncing';
-      const statusChanged = next !== this.status;
-      this.status = next;
-      if (statusChanged || !state.synced) this.changed.emit();
-    });
-    this.sync.start();
-    this.reportTimer = setInterval(() => {
-      const state = this.sync?.estimator.state();
-      if (state && this.hostId) this.transport.send(CLOCK_REPORT, state, this.hostId);
+    this.entries = [entry(hostInfo, true, HOST_SYNC)];
+    this.transport.send(INFO, this.self, host);
+    const sync = new ClockSync(this.transport, host, this.clock);
+    sync.onUpdate((state) => {
+      if (!state.synced || this.status !== 'syncing') return;
+      this.status = 'ready';
       this.changed.emit();
+    });
+    sync.start();
+    this.sync = sync;
+    this.reportTimer = setInterval(() => {
+      const { synced, rtt, offset, samples } = sync.estimator.state();
+      // An empty estimator reports `rtt: Infinity`, which JSON cannot carry.
+      const report: Sync = samples > 0 ? { synced, rtt, offset } : { synced };
+      this.transport.send(CLOCK_REPORT, report, host);
     }, CLOCK_REPORT_MS);
     this.changed.emit();
   }
 
+  /** The Host left: the Session is over (ADR-0002). */
   private detach(): void {
+    if (this.host === undefined) return;
     this.sync?.stop();
     this.sync = undefined;
     clearInterval(this.reportTimer);
     this.reportTimer = undefined;
-    this.hostId = undefined;
+    this.host = undefined;
     this.status = 'searching';
+    this.entries = [];
     this.changed.emit();
   }
 
-  close(): void {
-    this.detach();
-    this.subs.forEach((u) => u());
-    this.transport.close();
+  /** Lost/back on a Peer are the Host's presence flips, observed through the roster. */
+  private applyRoster(next: RosterEntry[]): void {
+    const before = new Map(this.entries.map((e) => [e.info.deviceId, e.present]));
+    this.entries = next;
+    for (const e of next) {
+      const was = before.get(e.info.deviceId);
+      if (was === true && !e.present) this.lost.emit(e.info.deviceId);
+      else if (was === false && e.present) this.back.emit(e.info.deviceId);
+    }
+    this.changed.emit();
   }
+}
+
+export function hostSession(transport: Transport, self: DeviceInfo, localNow: LocalNow = performanceNow): Session {
+  return new HostedSession(transport, self, localNow);
+}
+
+export function joinSession(transport: Transport, self: DeviceInfo, localNow: LocalNow = performanceNow): Session {
+  return new JoinedSession(transport, self, localNow);
 }

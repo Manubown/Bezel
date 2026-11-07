@@ -1,15 +1,7 @@
-import { HostSession, PeerSession, TrysteroTransport, type PeerId } from '@mgc/core';
-import {
-  Surface,
-  TEMPLATE_IDS,
-  buildLayout,
-  isLayout,
-  type DeviceSize,
-  type Layout,
-  type TemplateId,
-} from '@mgc/layout';
+import { TrysteroTransport, hostSession, joinSession, type DeviceInfo } from '@mgc/core';
+import { Surface, TEMPLATE_IDS, buildLayout, isLayout, type Layout, type TemplateId } from '@mgc/layout';
 import QRCode from 'qrcode';
-import { deviceInfo, deviceSize } from './device';
+import { claimDeviceId, deviceInfo, deviceSize } from './device';
 import { drawMetronome, startCanvasLoop } from './metronome';
 import { drawScene } from './scene';
 
@@ -41,7 +33,7 @@ function ms(n: number | undefined): string {
 }
 
 /** `rtt · Δoffset`; the offset is raw host−local time, so watch its stability, not its value. */
-function syncStats(c: { rtt: number; offset: number } | undefined): string {
+function syncStats(c: { rtt?: number; offset?: number } | undefined): string {
   return c ? `${ms(c.rtt)} · Δ${ms(c.offset)}` : '—';
 }
 
@@ -65,14 +57,13 @@ function placementHint(layout: Layout, index: number): string {
   }
 }
 
-async function runHost(): Promise<void> {
+async function runHost(self: DeviceInfo): Promise<void> {
   const code = newRoomCode();
   const joinUrl = new URL(location.href);
   joinUrl.search = `?room=${code}`;
-  const session = new HostSession(new TrysteroTransport({ appId: APP_ID, roomId: code }));
-  const self = deviceInfo();
+  const session = hostSession(new TrysteroTransport({ appId: APP_ID, roomId: code }), self);
   let template: TemplateId = 'row';
-  let layout: Layout = buildLayout('row', [deviceSize(session.transport.selfId, self)]);
+  let layout: Layout = buildLayout('row', [deviceSize(self)]);
   let surface = new Surface(layout.devices[0]!, self.pxPerMm);
 
   const qr = document.createElement('canvas');
@@ -118,36 +109,41 @@ async function runHost(): Promise<void> {
   });
 
   let layoutKey = '';
-  /** Rebuilds and publishes the layout only when devices or template changed; clock reports just re-render. */
+  /**
+   * Rebuilds and publishes the layout only when present devices or template changed; clock reports
+   * just re-render. Roster order is join order and survives a reconnect, so a returning phone gets its Tile back.
+   */
   const relayout = () => {
-    const sizes: DeviceSize[] = [deviceSize(session.transport.selfId, self)];
-    for (const p of session.peers.values()) if (p.info) sizes.push(deviceSize(p.id, p.info));
+    const sizes = session
+      .roster()
+      .filter((e) => e.present)
+      .map((e) => deviceSize(e.info));
     const key = template + '|' + sizes.map((s) => `${s.id}:${s.w.toFixed(1)}x${s.h.toFixed(1)}`).join(',');
     if (key !== layoutKey) {
       layoutKey = key;
       layout = buildLayout(template, sizes);
       surface = new Surface(layout.devices[0]!, self.pxPerMm);
-      session.transport.send(LAYOUT_CHANNEL, layout);
+      session.send(LAYOUT_CHANNEL, layout);
     }
     render();
   };
 
   const render = () => {
+    const entries = session.roster();
+    const byId = new Map(entries.map((e) => [e.info.deviceId, e]));
     const placed = layout.devices.length;
-    const pending = [...session.peers.values()].filter((p) => !p.info);
     barMeta.textContent = `${placed} phone${placed === 1 ? '' : 's'} · ${TEMPLATE_LABEL[template]}`;
     const rows = layout.devices.map((d, i) => {
       if (i === 0) return `<li><span class="n">1</span><span class="who">This phone</span><span class="meta">${placementHint(layout, 0)}</span></li>`;
-      const p = session.peers.get(d.id);
-      const c = p?.clock;
-      const state = c?.synced ? 'ok' : 'wait';
+      const e = byId.get(d.id);
+      const synced = e?.sync.synced === true;
       return (
-        `<li><span class="n">${i + 1}</span><span class="who">${p?.info?.name ?? d.id.slice(0, 6)}</span>` +
+        `<li><span class="n">${i + 1}</span><span class="who">${e?.info.name ?? d.id.slice(0, 6)}</span>` +
         `<span class="meta">${placementHint(layout, i)}</span>` +
-        `<span class="sync">${statusDot(state)} ${c?.synced ? syncStats(c) : 'syncing'}</span></li>`
+        `<span class="sync">${statusDot(synced ? 'ok' : 'wait')} ${synced ? syncStats(e.sync) : 'syncing'}</span></li>`
       );
     });
-    for (const p of pending) rows.push(`<li class="pending"><span class="n">·</span><span class="who">${p.id.slice(0, 6)}</span><span class="meta">connecting</span></li>`);
+    for (const e of entries) if (!e.present) rows.push(`<li class="pending"><span class="n">·</span><span class="who">${e.info.name}</span><span class="meta">disconnected</span></li>`);
     roster.innerHTML = rows.join('');
   };
 
@@ -156,9 +152,8 @@ async function runHost(): Promise<void> {
   startCanvasLoop(canvas, (f) => drawScene(f, surface, layout, session.clock.now()));
 }
 
-function runPeer(code: string): void {
-  const self = deviceInfo();
-  const session = new PeerSession(new TrysteroTransport({ appId: APP_ID, roomId: code }), self);
+function runPeer(code: string, self: DeviceInfo): void {
+  const session = joinSession(new TrysteroTransport({ appId: APP_ID, roomId: code }), self);
   let layout: Layout | undefined;
   let surface: Surface | undefined;
   let index = -1;
@@ -169,13 +164,13 @@ function runPeer(code: string): void {
   const meta = hud.querySelector('.meta')!;
 
   const render = () => {
-    const c = session.clockState();
+    const c = session.roster().find((e) => e.info.deviceId === session.self.deviceId)?.sync;
     if (session.status === 'searching') {
       state.innerHTML = `${statusDot('off')} Looking for the host`;
       meta.textContent = 'keep the host screen open';
     } else if (session.status === 'syncing') {
       state.innerHTML = `${statusDot('wait')} Syncing clocks`;
-      meta.textContent = `${c?.samples ?? 0} samples`;
+      meta.textContent = 'measuring the offset to the host';
     } else if (layout && index >= 0) {
       state.innerHTML = `${statusDot('ok')} Phone ${index + 1} of ${layout.devices.length}`;
       meta.textContent = `${placementHint(layout, index)} · ${syncStats(c)}`;
@@ -186,8 +181,7 @@ function runPeer(code: string): void {
   };
 
   const applyLayout = (l: Layout) => {
-    const me: PeerId = session.transport.selfId;
-    index = l.devices.findIndex((d) => d.id === me);
+    index = l.devices.findIndex((d) => d.id === session.self.deviceId);
     const rect = l.devices[index];
     layout = l;
     surface = rect ? new Surface(rect, self.pxPerMm) : undefined;
@@ -195,8 +189,8 @@ function runPeer(code: string): void {
   };
 
   session.onChange(render);
-  session.transport.onMessage(LAYOUT_CHANNEL, (data, from) => {
-    if (from === session.hostId && isLayout(data)) applyLayout(data);
+  session.onMessage(LAYOUT_CHANNEL, (data, from) => {
+    if (from === session.roster()[0]?.info.deviceId && isLayout(data)) applyLayout(data);
   });
   render();
   startCanvasLoop(canvas, (f) => {
@@ -206,7 +200,12 @@ function runPeer(code: string): void {
   });
 }
 
-keepAwakeOnFirstTap();
-const room = new URLSearchParams(location.search).get('room')?.toUpperCase();
-if (room) runPeer(room);
-else void runHost();
+async function start(): Promise<void> {
+  keepAwakeOnFirstTap();
+  const self = deviceInfo(await claimDeviceId());
+  const room = new URLSearchParams(location.search).get('room')?.toUpperCase();
+  if (room) runPeer(room, self);
+  else await runHost(self);
+}
+
+void start();

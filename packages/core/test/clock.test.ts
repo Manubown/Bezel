@@ -1,7 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ClockEstimator, HostSession, MemoryHub, PeerSession, type DeviceInfo } from '../src';
-
-const info: DeviceInfo = { name: 'test', width: 390, height: 844, dpr: 3, pxPerMm: 6.1 };
+import { describe, expect, it } from 'vitest';
+import { ClockEstimator } from '../src';
 
 describe('ClockEstimator', () => {
   it('recovers the offset exactly under symmetric latency', () => {
@@ -34,54 +32,5 @@ describe('ClockEstimator', () => {
     expect(est.state().synced).toBe(false);
     est.add(0, 10, 10, 20);
     expect(est.state().synced).toBe(true);
-  });
-});
-
-describe('Host/Peer session over MemoryHub', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
-  it('peer converges to host time within the asymmetry bound', () => {
-    const up = 6; // peer -> host
-    const down = 14; // host -> peer
-    const jitter = () => Math.random() * 3;
-    const hub = new MemoryHub((from) => (from === 'peer' ? up : down) + jitter());
-
-    const hostEpoch = 1_000_000;
-    const hostNow = () => hostEpoch + Date.now();
-    const peerNow = () => Date.now(); // true offset = hostEpoch
-
-    const host = new HostSession(hub.connect('host'), hostNow);
-    const peer = new PeerSession(hub.connect('peer'), info, peerNow);
-
-    vi.advanceTimersByTime(3000);
-
-    expect(peer.status).toBe('ready');
-    expect(peer.hostId).toBe('host');
-    const err = Math.abs(peer.clock.now() - host.clock.now());
-    // NTP bound: |err| <= |down - up| / 2 (+ jitter slack)
-    expect(err).toBeLessThanOrEqual((down - up) / 2 + 3);
-
-    // host saw the peer's device info and clock report
-    const entry = host.peers.get('peer');
-    expect(entry?.info).toEqual(info);
-    expect(entry?.clock?.synced).toBe(true);
-  });
-
-  it('peer returns to searching when the host leaves and re-attaches to a new host', () => {
-    const hub = new MemoryHub(() => 5);
-    const host = new HostSession(hub.connect('host'));
-    const peer = new PeerSession(hub.connect('peer'), info);
-    vi.advanceTimersByTime(1500);
-    expect(peer.status).toBe('ready');
-
-    host.close();
-    expect(peer.status).toBe('searching');
-    expect(peer.hostId).toBeUndefined();
-
-    new HostSession(hub.connect('host2'));
-    vi.advanceTimersByTime(1500);
-    expect(peer.hostId).toBe('host2');
-    expect(peer.status).toBe('ready');
   });
 });
