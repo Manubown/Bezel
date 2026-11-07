@@ -45,6 +45,16 @@ importers:
 
   packages/layout: {}
 
+  packages/sdk:
+    dependencies:
+      '@mgc/layout':
+        specifier: workspace:*
+        version: link:../layout
+    devDependencies:
+      '@mgc/core':
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   '@esbuild/aix-ppc64@0.28.2':
