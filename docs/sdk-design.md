@@ -14,7 +14,9 @@ type JsonValue = null | boolean | number | string | JsonValue[] | { [k: string]:
 interface Vec2 { x: number; y: number }            // re-exported from @mgc/layout
 interface Rect { x: number; y: number; w: number; h: number }
 interface Tile extends Rect { deviceId: DeviceId; rot: number }   // rot radians, clockwise about (x,y)
-interface Player { playerId: PlayerId; name: string }
+interface Player { playerId: PlayerId; name: string;
+                   deviceId?: DeviceId;    // the Device that seats this Player (Pong: an outer Tile); never on a bot
+                   bot?: true }            // a bot: no Device, the host game plays it; only if the manifest has `bots`
 interface Device { deviceId: DeviceId; role: 'tile' | 'controller'; name: string;
                    tile?: Tile;            // present iff role === 'tile'
                    screenMm: Vec2 }        // this Device's own screen size
@@ -33,6 +35,7 @@ type CloseReason = 'ended' | 'aborted' | 'version' | 'protocol' | 'fault' | 'lin
 interface Manifest { id: string; name: string; version: string;
   tiles: Range; controllers: Range; players: Range;   // Range = { min: number; max: number }
   templates?: ('row' | 'column' | 'grid')[]; minTileMm?: { w: number; h: number };
+  bots?: boolean;                          // default false; true: the Host may make a Player slot a bot
   tickHz?: number;                         // default 60; 0 = event-driven host, no tick
   host: string; view: string }             // bundle entry paths; may be the same file
 ```
@@ -97,6 +100,7 @@ Rules a game author must know:
 - Pause (shipped in M2 06): between `onPause` and `onResume` the host gets no `tick` and no input, and views do not `draw` (the canvas keeps its last frame). A `publish` while paused is retained, not sent; on resume every view gets the retained states, then `onResume(now)`. The host game gets its `resume` first, so state it publishes in `onResume` follows the retained states. `onPause` comes again with the new reason if the reason changes while paused. A view that started during the pause (a reloaded phone) gets `onResume` without `onPause`. States stamped before the resume's `now` describe the paused moment, so a view extrapolates from `max(t, now)` (Pong does).
 - `Input.t` is not monotone across Devices (clock error ≤ 5 ms); never sort inputs by `t` across Devices.
 - `setHolder` on a non-Controller or unknown Player is rejected (`reject` frame, logged); the roster is frozen so it is always a bug.
+- Seats and bots (seats-and-bots 01): the Host orders the Tiles in the lobby, and `match.players` lists the Player slots' Players, Player 1 first: slot 0 belongs to the first Tile, slot 1 to the last (with one Tile, slot 1 holds a Player only as a bot). Each is the human seated at that Tile, with its `deviceId`, or a bot (`bot: true`, no `deviceId`, id `bot:<slot>`, name "Bot" unless the Host renamed it). A game reads who sits where from `Player.deviceId`, never from a Player's index, and maps a `Sender.deviceId` to its Player the same way. A bot appears only when the manifest declares `bots: true` (the lobby refuses Start otherwise: "Pass does not support bots"); the host game then plays every bot Player itself. Bots count toward `players`, so a one-Tile Match can hold a human and a bot.
 - Controllers, Holders, messages and timers (shipped in M2 08):
   - A Controller's view has no `tile`/`surface`; its `draw` context, its `Input.world` and `t.input` positions are in its own screen mm (origin top-left, `screenMm`). `mount(root)` runs once, right after the factory, with `ctx.root`; a DOM view that handles its own events sets `input: 'off'` (the canvas, if it also draws, lies below).
   - `setHolder` takes effect at once for `holderOf`; the host game hears `onHolder(controller, playerId)` when the platform broadcast it, and so does every view (`onHolder` has the host's signature: every view hears of every Controller, so a Controller's own view checks `controller === ctx.deviceId`). Inputs and messages that reached the Host before the handover come first, stamped with the previous Holder; everything that arrives after it, including what was already on its way, carries the new one. The local echo carries the Holder the Controller's view knew. A `setHolder` to the current Holder changes nothing and fires nothing.

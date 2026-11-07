@@ -17,9 +17,14 @@ export interface Tile extends Rect {
   rot: number;
 }
 
+/** A participant in the Match: a human, or (`bot`) one the Game's host plays itself. */
 export interface Player {
   playerId: PlayerId;
   name: string;
+  /** The Device that seats this Player (Pong: one of the outer Tiles). Never set on a bot. */
+  deviceId?: DeviceId;
+  /** Set on a bot Player: no Device; the host game plays it. Only in a Match of a Game whose manifest has `bots`. */
+  bot?: true;
 }
 
 export interface Device {
@@ -95,6 +100,8 @@ export interface Manifest {
   players: Range;
   templates?: ('row' | 'column' | 'grid')[];
   minTileMm?: { w: number; h: number };
+  /** Default false; true: the Host may make a Player slot a bot, and the host game plays every `Player.bot`. */
+  bots?: boolean;
   /** Default 60; 0 = event-driven host, no tick. */
   tickHz?: number;
   /** Bundle entry paths; may be the same file. */

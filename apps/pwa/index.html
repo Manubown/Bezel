@@ -50,12 +50,19 @@
       .seg button + button { border-left: 1px solid var(--line); }
       .seg button[aria-checked="true"] { background: var(--fg); color: var(--bg); font-weight: 500; }
       .roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-      .roster li { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+      .roster li { display: grid; grid-template-columns: 28px 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
       .roster li:first-child { border-top: 0; }
-      .roster .n { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: var(--line); font-weight: 600; }
+      .roster .n { grid-row: 1 / span 2; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: var(--line); font-weight: 600; }
       .roster .who { font-weight: 500; }
-      .roster .meta { grid-column: 2; color: var(--fg-2); margin-top: -8px; }
-      .roster .sync { grid-row: 1 / span 2; grid-column: 3; color: var(--fg-2); }
+      .roster .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); }
+      .roster .sync { grid-row: 2; grid-column: 3; justify-self: end; color: var(--fg-2); }
+      /* The Tile order: ◀ towards the first phone, ▶ towards the last. */
+      .roster .order { grid-row: 1; grid-column: 3; justify-self: end; display: flex; gap: 6px; }
+      .move { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); transition: background 120ms; }
+      .move svg { fill: currentColor; }
+      .move:not(:disabled):active { background: var(--line); }
+      @media (hover: hover) { .move:not(:disabled):hover { background: var(--line); } }
+      .move:disabled { color: var(--off); cursor: default; }
       .roster .pending { color: var(--fg-2); }
       .seg button:disabled { opacity: 0.45; cursor: default; }
       /* Controllers: one chip per phone; a pressed chip is held in hand, out of the Layout. */
@@ -66,12 +73,14 @@
       .chip { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--fg-2); transition: background 120ms, color 120ms; }
       .chip[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); font-weight: 500; }
       .chip:disabled { opacity: 0.45; cursor: default; }
-      .players { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-      .players li { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; }
+      .players { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 28px 1fr auto auto; gap: 8px 10px; }
+      /* One shared set of columns, so name fields line up whichever rows carry a seat or a Bot chip. */
+      .players li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; }
       .players .n { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: var(--line); font-weight: 600; font-size: 12px; }
       .players input { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; min-width: 0; }
       .players input:disabled { color: var(--fg-2); }
       .players .meta { color: var(--fg-2); }
+      .players .empty { color: var(--fg-2); padding: 7px 0; }
       .go { display: grid; gap: 6px; }
       .go .start, .go .end { padding: 12px 0; border-radius: 8px; font-weight: 600; }
       .go .start { background: var(--ok); color: var(--bg); }
@@ -102,7 +111,7 @@
       .result .result-detail, .pause .pause-detail { margin-top: 8px; color: var(--fg-2); font-size: 16px; }
       .result .result-hint { margin-top: 14px; color: var(--fg-2); font-size: 12px; }
 
-      @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .chip { transition: none; } }
+      @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .chip, .move { transition: none; } }
     </style>
   </head>
   <body>

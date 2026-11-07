@@ -76,13 +76,8 @@ async function start(): Promise<void> {
     // The screen stays on from the Match's first touch until it closes.
     const sleep = keepAwakeOnTouch();
     let result: MatchResult | undefined;
-    // Who sits where as this Device joins the Match: a pause names the lost Device's Player.
-    const seated = new Map(
-      match.players.flatMap((p) => {
-        const at = lobby.seatOf(p.playerId);
-        return at === undefined ? [] : [[at, p.name] as const];
-      }),
-    );
+    // Who sits where in the Match: a pause names the lost Device's Player.
+    const seated = new Map(match.players.flatMap((p) => (p.deviceId === undefined ? [] : [[p.deviceId, p.name] as const])));
     let unfollow = (): void => {};
     const handle = runMatch({
       link: inProcessLink(() => Promise.resolve({ default: game })),

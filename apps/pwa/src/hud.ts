@@ -55,10 +55,11 @@ export interface Hud {
 
 /**
  * The platform overlay, rendered from the lobby, the Session, and `play`: the
- * Host's bottom sheet (join code, Game, arrangement, Controllers, Player
- * names, Start, game log, roster) or a Peer's top strip, plus the last Match's
- * close (its result, or why it stopped) and a paused Match's notice on every
- * Device. They step aside while this Device runs a Match.
+ * Host's bottom sheet (join code, Game, arrangement, Controllers, Player slots
+ * with names and bots, Start, game log, and the roster in Tile order with its
+ * move buttons) or a Peer's top strip, plus the last Match's close (its result,
+ * or why it stopped) and a paused Match's notice on every Device. They step
+ * aside while this Device runs a Match.
  */
 export async function openHud(root: HTMLElement, o: HudOptions): Promise<Hud> {
   const panel = o.session.role === 'host' ? await hostSheet(root, o) : peerStrip(root, o);
@@ -201,6 +202,15 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     const input = e.target as HTMLInputElement;
     lobby.setPlayers(lobby.players.map((p) => (p.playerId === input.dataset['player'] ? { ...p, name: input.value } : p)));
   });
+  // A pressed Bot chip: the host game plays that slot.
+  players.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-slot]');
+    if (btn) lobby.setBot(Number(btn.dataset['slot']), btn.getAttribute('aria-pressed') !== 'true');
+  });
+  roster.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-delta]');
+    if (btn) lobby.move(btn.dataset['device']!, Number(btn.dataset['delta']));
+  });
   /** Why the last Start was refused; stale as soon as the lobby changes. */
   let refusal = '';
   lobby.onChange(() => (refusal = ''));
@@ -216,6 +226,8 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
 
   let playersKey = '';
   let chipsKey = '';
+  let rosterHtml = '';
+  let rosterSync: string[] = [];
   let wasRunning = false;
   let shownLog: Play['log'] | undefined;
   setOpen(true);
@@ -264,26 +276,40 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
         .join('');
     }
 
-    // Player names: rebuilt only when who plays where changes, so typing is never interrupted.
-    const list = match?.players ?? lobby.players;
-    const seat = (playerId: string) => {
-      const i = layout?.devices.findIndex((d) => d.id === lobby.seatOf(playerId)) ?? -1;
+    // Player slots: rebuilt only when who plays where changes, so typing is never interrupted.
+    const phoneAt = (order: readonly string[], deviceId: string | undefined): string => {
+      const i = deviceId === undefined ? -1 : order.indexOf(deviceId);
       return i >= 0 ? `phone ${i + 1}` : '';
     };
-    const key = `${match ? 'frozen' : 'open'}|${list.map((p) => `${p.playerId}@${seat(p.playerId)}`).join(',')}`;
+    const tileIds = (layout?.devices ?? []).map((d) => d.id);
+    /** `where`: the phone a human sits at; for an empty slot, why it is empty. `bot`: the slot's Bot chip, when it has one. */
+    type SlotRow = { n: number; player: Player | undefined; where: string; bot?: { slot: number; on: boolean } };
+    const slotRows: SlotRow[] = match
+      ? match.players.map((p, i) => ({ n: i + 1, player: p, where: p.bot ? 'Bot' : phoneAt(match.tiles.map((t) => t.deviceId), p.deviceId) }))
+      : lobby.slots.flatMap((s, slot): SlotRow[] => {
+          const on = s.player?.bot === true;
+          // An empty slot is listed only where a bot could take it; a bot always, so it can be turned off.
+          if (!s.player && !game.bots) return [];
+          const where = on ? '' : s.player ? phoneAt(tileIds, s.deviceId) : s.deviceId === undefined ? 'no phone' : 'joining…';
+          return [{ n: slot + 1, player: s.player, where, ...((game.bots || on) && { bot: { slot, on } }) }];
+        });
+    const key = `${match ? 'frozen' : 'open'}|${slotRows.map((r) => `${r.n}:${r.player?.playerId ?? ''}@${r.where}:${r.bot?.on ?? ''}`).join(',')}`;
     if (key !== playersKey) {
       playersKey = key;
-      players.innerHTML = list
+      players.innerHTML = slotRows
         .map(
-          (p, i) =>
-            `<li><span class="n">P${i + 1}</span>` +
-            `<input type="text" data-player="${esc(p.playerId)}" value="${esc(p.name)}" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Player ${i + 1} name"${match ? ' disabled' : ''}>` +
-            `<span class="meta">${seat(p.playerId)}</span></li>`,
+          ({ n, player: p, where, bot }) =>
+            `<li><span class="n">P${n}</span>` +
+            (p
+              ? `<input type="text" data-player="${esc(p.playerId)}" value="${esc(p.name)}" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Player ${n} name"${match ? ' disabled' : ''}><span class="meta">${where}</span>`
+              : `<span class="empty">${where}</span><span class="meta"></span>`) +
+            (bot ? `<button type="button" class="chip bot" data-slot="${bot.slot}" aria-pressed="${bot.on}" aria-label="Player ${n} is a bot">Bot</button>` : '') +
+            `</li>`,
         )
         .join('');
     } else {
       players.querySelectorAll<HTMLInputElement>('input').forEach((input) => {
-        const p = list.find((x) => x.playerId === input.dataset['player']);
+        const p = (match?.players ?? lobby.players).find((x) => x.playerId === input.dataset['player']);
         if (p && input !== document.activeElement) input.value = p.name;
       });
     }
@@ -306,23 +332,58 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     const byId = new Map(entries.map((e) => [e.info.deviceId, e]));
     const syncOf = (e: RosterEntry | undefined, self: boolean): string => {
       const synced = e?.sync.synced === true;
-      return self ? '' : `<span class="sync">${statusDot(synced ? 'ok' : 'wait')} ${synced ? syncStats(e.sync) : 'syncing'}</span>`;
+      return self ? '' : `${statusDot(synced ? 'ok' : 'wait')} ${synced ? syncStats(e.sync) : 'syncing'}`;
     };
     const late = (id: string) => match !== undefined && !match.devices.some((m) => m.deviceId === id) && 'joins the next match';
-    const rows = (layout?.devices ?? []).map((d, i) => {
+    // ◀ ▶ move a Tile along the Tile order; never past the ends, never a Controller, never while a Match runs.
+    const moves = (id: string, label: string, earlier: boolean, later: boolean): string =>
+      `<span class="order">` +
+      `<button type="button" class="move" data-device="${esc(id)}" data-delta="-1" aria-label="Move ${label} earlier"${earlier && !match ? '' : ' disabled'}>${arrow(-1)}</button>` +
+      `<button type="button" class="move" data-device="${esc(id)}" data-delta="1" aria-label="Move ${label} later"${later && !match ? '' : ' disabled'}>${arrow(1)}</button>` +
+      `</span>`;
+    const tiles = layout?.devices ?? [];
+    const rows = tiles.map((d, i) => {
       const e = byId.get(d.id);
       const self = d.id === session.self.deviceId;
-      const seated = lobby.players.find((p) => lobby.seatOf(p.playerId) === d.id);
+      const seated = lobby.players.find((p) => p.deviceId === d.id);
       const meta = [placementHint(layout!, i), seated && esc(seated.name), late(d.id)].filter(Boolean).join(' · ');
-      return `<li><span class="n">${i + 1}</span><span class="who">${self ? 'This phone' : esc(e?.info.name ?? d.id.slice(0, 6))}</span><span class="meta">${meta}</span>${syncOf(e, self)}</li>`;
+      return {
+        html:
+          `<li><span class="n">${i + 1}</span><span class="who">${self ? 'This phone' : esc(e?.info.name ?? d.id.slice(0, 6))}</span>` +
+          `<span class="meta">${meta}</span>${moves(d.id, `phone ${i + 1}`, i > 0, i < tiles.length - 1)}<span class="sync"></span></li>`,
+        sync: syncOf(e, self),
+      };
     });
     for (const e of present) {
       if (lobby.roleOf(e.info.deviceId) !== 'controller') continue;
       const meta = ['Controller', late(e.info.deviceId)].filter(Boolean).join(' · ');
-      rows.push(`<li><span class="n">C</span><span class="who">${esc(nameOf(e))}</span><span class="meta">${meta}</span>${syncOf(e, e.info.deviceId === session.self.deviceId)}</li>`);
+      rows.push({
+        html: `<li><span class="n">C</span><span class="who">${esc(nameOf(e))}</span><span class="meta">${meta}</span>${moves(e.info.deviceId, esc(nameOf(e)), false, false)}<span class="sync"></span></li>`,
+        sync: syncOf(e, e.info.deviceId === session.self.deviceId),
+      });
     }
-    for (const e of entries) if (!e.present) rows.push(`<li class="pending"><span class="n">·</span><span class="who">${esc(e.info.name)}</span><span class="meta">disconnected</span></li>`);
-    roster.innerHTML = rows.join('');
+    for (const e of entries) {
+      if (!e.present) rows.push({ html: `<li class="pending"><span class="n">·</span><span class="who">${esc(e.info.name)}</span><span class="meta">disconnected</span><span class="sync"></span></li>`, sync: '' });
+    }
+    // The rows are rebuilt only when phones, order or names change, so a tap on ◀ ▶ is never lost to a clock report.
+    const html = rows.map((r) => r.html).join('');
+    if (html !== rosterHtml) {
+      const was = roster.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset : undefined;
+      rosterHtml = html;
+      rosterSync = [];
+      roster.innerHTML = html;
+      // Keyboard focus follows the moved phone, to its other button once it reached an end.
+      if (was?.['device'] !== undefined) {
+        const buttons = [...roster.querySelectorAll<HTMLButtonElement>('button[data-delta]')].filter((b) => b.dataset['device'] === was['device'] && !b.disabled);
+        (buttons.find((b) => b.dataset['delta'] === was['delta']) ?? buttons[0])?.focus();
+      }
+    }
+    const syncs = roster.querySelectorAll('.sync');
+    rows.forEach((r, i) => {
+      if (rosterSync[i] === r.sync) return;
+      rosterSync[i] = r.sync;
+      syncs[i]!.innerHTML = r.sync;
+    });
   };
   return { render };
 }
@@ -353,7 +414,7 @@ function peerStrip(root: HTMLElement, o: HudOptions): Hud {
         state.innerHTML = `${statusDot('ok')} Controller`;
         meta.textContent = `hold this phone in hand · ${syncStats(sync)}`;
       } else if (layout && index >= 0) {
-        const seated = lobby.players.find((p) => lobby.seatOf(p.playerId) === me);
+        const seated = lobby.players.find((p) => p.deviceId === me);
         state.innerHTML = `${statusDot('ok')} Phone ${index + 1} of ${layout.devices.length}`;
         meta.textContent = [placementHint(layout, index), seated?.name, syncStats(sync)].filter(Boolean).join(' · ');
       } else {
@@ -378,6 +439,11 @@ function placementHint(layout: Layout, index: number): string {
       return `row ${Math.floor(index / cols) + 1}, column ${(index % cols) + 1}`;
     }
   }
+}
+
+/** The ◀ (towards the first Tile) or ▶ (towards the last) of a move button. */
+function arrow(delta: -1 | 1): string {
+  return `<svg width="10" height="12" viewBox="0 0 10 12" aria-hidden="true"><path d="${delta < 0 ? 'M8.5 1v10L1.5 6z' : 'M1.5 1v10l7-5z'}"/></svg>`;
 }
 
 function ms(n: number | undefined): string {

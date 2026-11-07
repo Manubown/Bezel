@@ -24,16 +24,20 @@ const DUEL: Manifest = {
 function table(peers: DeviceId[]) {
   const hub = new MemoryHub(() => 5);
   const lobbies = new Map<DeviceId, Lobby>();
-  const join = (deviceId: DeviceId, open = joinSession): Lobby => {
-    const lobby = openLobby(open(hub.connect(`peer-of-${deviceId}`), info(deviceId)), PX_PER_MM, seat(deviceId));
+  /** `connection`: a Device back after a drop comes under a new one. */
+  const join = (deviceId: DeviceId, open = joinSession, connection = `peer-of-${deviceId}`): Lobby => {
+    const lobby = openLobby(open(hub.connect(connection), info(deviceId)), PX_PER_MM, seat(deviceId));
     lobbies.set(deviceId, lobby);
     return lobby;
   };
   const host = join('d0', hostSession);
   for (const id of peers) join(id);
   vi.advanceTimersByTime(3000);
-  return { host, lobby: (id: DeviceId) => lobbies.get(id)!, join };
+  return { hub, host, lobby: (id: DeviceId) => lobbies.get(id)!, join };
 }
+
+/** The Tile order a lobby shows. */
+const order = (lobby: Lobby) => lobby.layout?.devices.map((d) => d.id);
 
 describe('Lobby over a Session on MemoryHub', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -66,9 +70,9 @@ describe('Lobby over a Session on MemoryHub', () => {
 
     const match = host.start(DUEL);
     expect(host.match).toBe(match);
-    expect(match.players).toEqual([
-      { playerId: seat('d0'), name: 'Ann' },
-      { playerId: seat('d2'), name: 'Bo' },
+    expect(match.players).toStrictEqual([
+      { playerId: seat('d0'), name: 'Ann', deviceId: 'd0' },
+      { playerId: seat('d2'), name: 'Bo', deviceId: 'd2' },
     ]);
     expect(match.tiles.map((t) => t.deviceId)).toEqual(['d0', 'd1', 'd2']);
     expect(match.devices.map((d) => [d.deviceId, d.role, d.tile?.x])).toEqual([
@@ -160,5 +164,144 @@ describe('Lobby over a Session on MemoryHub', () => {
     vi.advanceTimersByTime(100);
     expect(host.layout?.devices.map((d) => d.id)).toEqual(['d0', 'd1', 'd2']);
     expect([peer.roleOf('d2'), peer.game]).toEqual(['tile', undefined]);
+  });
+
+  it('orders the Tiles as the Host says, on the Host and the Peer; a Device that drops and returns keeps its place; Controllers are never in the order', () => {
+    const { hub, host, lobby, join } = table(['d1', 'd2', 'd3']);
+    const peer = lobby('d2');
+    const both = () => {
+      vi.advanceTimersByTime(100);
+      return [order(host), order(peer)];
+    };
+
+    host.move('d0', 2);
+    expect(both()).toEqual([
+      ['d1', 'd2', 'd0', 'd3'],
+      ['d1', 'd2', 'd0', 'd3'],
+    ]);
+    // The Players sit at the ends of the order.
+    expect(host.players.map((p) => p.deviceId)).toEqual(['d1', 'd3']);
+    expect(peer.players).toStrictEqual(host.players);
+    host.move('d0', 9); // stops at the last Tile
+    host.move('d3', -9); // and at the first
+    expect(both()).toEqual([
+      ['d3', 'd1', 'd2', 'd0'],
+      ['d3', 'd1', 'd2', 'd0'],
+    ]);
+    host.setOrder(['d2', 'd0', 'd9']); // the rest follow in roster order; d9 is not in the roster
+    expect(both()).toEqual([
+      ['d2', 'd0', 'd1', 'd3'],
+      ['d2', 'd0', 'd1', 'd3'],
+    ]);
+
+    // d1 drops: the others close up, and can be moved past its place while it is away.
+    hub.disconnect('peer-of-d1');
+    expect(both()).toEqual([
+      ['d2', 'd0', 'd3'],
+      ['d2', 'd0', 'd3'],
+    ]);
+    host.move('d3', -1);
+    expect(both()).toEqual([
+      ['d2', 'd3', 'd0'],
+      ['d2', 'd3', 'd0'],
+    ]);
+    // Back under a new connection, it is third again.
+    const back = join('d1', joinSession, 'peer-of-d1-again');
+    vi.advanceTimersByTime(3000);
+    expect([order(host), order(peer), order(back)]).toEqual([
+      ['d2', 'd3', 'd1', 'd0'],
+      ['d2', 'd3', 'd1', 'd0'],
+      ['d2', 'd3', 'd1', 'd0'],
+    ]);
+
+    // A Controller is no Tile to order or move; a Tile again, it joins at the end.
+    host.setRole('d2', 'controller');
+    host.setOrder(['d2', 'd0', 'd3', 'd1']);
+    host.move('d2', 1);
+    expect(both()).toEqual([
+      ['d0', 'd3', 'd1'],
+      ['d0', 'd3', 'd1'],
+    ]);
+    host.setRole('d2', 'tile');
+    expect(both()).toEqual([
+      ['d0', 'd3', 'd1', 'd2'],
+      ['d0', 'd3', 'd1', 'd2'],
+    ]);
+  });
+
+  it('makes a Player slot a bot and back: a bot sits at no Device, Player 1 still at the first Tile; one Tile and a bot are two Players', () => {
+    const { host, lobby } = table(['d1', 'd2']);
+    const peer = lobby('d1');
+    host.setBot(1, true);
+    vi.advanceTimersByTime(100);
+    expect(host.players).toStrictEqual([
+      { playerId: seat('d0'), name: 'Player 1', deviceId: 'd0' },
+      { playerId: 'bot:1', name: 'Bot', bot: true },
+    ]);
+    expect(host.players[1]).not.toHaveProperty('deviceId');
+    expect(host.seatOf('bot:1')).toBeUndefined();
+    expect(host.slots).toStrictEqual([
+      { deviceId: 'd0', player: host.players[0] },
+      { deviceId: 'd2', player: host.players[1] },
+    ]);
+    expect(peer.players).toStrictEqual(host.players);
+    expect(peer.slots).toStrictEqual(host.slots);
+
+    // The bot's name is the Host's to give, and stays with the slot's bot.
+    host.setPlayers(host.players.map((p) => (p.bot ? { ...p, name: 'Robo' } : p)));
+    host.setBot(1, false);
+    vi.advanceTimersByTime(100);
+    expect(host.players).toStrictEqual([
+      { playerId: seat('d0'), name: 'Player 1', deviceId: 'd0' },
+      { playerId: seat('d2'), name: 'Player 2', deviceId: 'd2' },
+    ]);
+    expect(peer.players).toStrictEqual(host.players);
+    host.setBot(1, true);
+    expect(host.players[1]).toStrictEqual({ playerId: 'bot:1', name: 'Robo', bot: true });
+
+    // One Tile: slot 1 has none, so it holds a Player only as a bot.
+    const solo = table([]).host;
+    expect(solo.players).toStrictEqual([{ playerId: seat('d0'), name: 'Player 1', deviceId: 'd0' }]);
+    solo.setBot(1, true);
+    solo.setBot(2, true); // there is no third slot
+    expect(solo.players).toStrictEqual([
+      { playerId: seat('d0'), name: 'Player 1', deviceId: 'd0' },
+      { playerId: 'bot:1', name: 'Bot', bot: true },
+    ]);
+    expect(solo.slots.map((s) => s.deviceId)).toEqual(['d0', undefined]);
+  });
+
+  it('refuses a bot to a Game without bots; with bots, the Peer’s Match carries the same seats and bot as the Host’s', () => {
+    const { host, lobby } = table(['d1', 'd2']);
+    const peer = lobby('d1');
+    host.setBot(0, true);
+    expect(() => host.start(DUEL)).toThrow('Duel does not support bots');
+    expect(host.match).toBeUndefined();
+
+    const match = host.start({ ...DUEL, bots: true });
+    expect(match.players).toStrictEqual([
+      { playerId: 'bot:0', name: 'Bot', bot: true },
+      { playerId: seat('d2'), name: 'Player 2', deviceId: 'd2' },
+    ]);
+    vi.advanceTimersByTime(100);
+    expect(peer.match).toStrictEqual(match);
+    expect(Object.isFrozen(peer.match!.players[0])).toBe(true);
+    // Order and bots are fixed while the Match runs.
+    host.setBot(0, false);
+    host.move('d0', 1);
+    host.setOrder(['d2']);
+    vi.advanceTimersByTime(100);
+    expect(host.players[0]?.bot).toBe(true);
+    expect([order(host), order(peer)]).toEqual([
+      ['d0', 'd1', 'd2'],
+      ['d0', 'd1', 'd2'],
+    ]);
+
+    // A bot counts toward the Player range: one Tile needs one to make two Players.
+    const solo = table([]).host;
+    const oneTile = { ...DUEL, tiles: { min: 1, max: 4 }, bots: true };
+    expect(() => solo.start(oneTile)).toThrow('Duel needs 2 Players; 1 seated');
+    solo.setBot(1, true);
+    expect(solo.start(oneTile).players.map((p) => p.playerId)).toEqual([seat('d0'), 'bot:1']);
   });
 });
