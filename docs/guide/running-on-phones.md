@@ -106,6 +106,38 @@ The Host learns that a phone is gone only when the transport reports it, 10–13
 
 The web manifest asks for `display: fullscreen` and any orientation. On iOS, Share → "Add to Home Screen" installs it full-screen (README). There is no service worker, so the installed app still loads from the server it was installed from (the dev server, or the hosted build).
 
+## The session log: what each phone records, and how to get it off the phone
+
+Every page keeps a log of what it saw (`apps/pwa/src/recorder.ts`), in IndexedDB, so it survives reloads and crashes: the newest 20 000 lines (about 3 MB), one database per Device id. Nothing leaves the phone until you export it.
+
+**Export:** the Host's sheet has **Export log** (and **Clear**) at the bottom; a Peer's strip has **Log** at the top right. On a phone the browser's share sheet opens (`navigator.share` with a file): send the `.txt` to yourself by mail, AirDrop, Drive, a chat. Where files cannot be shared (desktop browsers), the file downloads. The name is `mgc-<code>-<host|peer>-<time>.txt`.
+
+**Format:** NDJSON, one JSON object per line, the first a summary (`k: "export"`: Device, role, code, line count, when the log started). Every other line has `t` (shared time, ms: the Host's clock, this phone's own until it synced), `w` (wall time, ms since the epoch) and `k` (the kind), then the kind's fields:
+
+| `k` | When | Fields |
+|---|---|---|
+| `device` | page load | `ua`, `platform`, `pxPerMm`, `viewport`, `screen`, `dpr`, `touchPoints`, `cores`, `standalone`, `url` |
+| `viewport` | load, and every resize / toolbar change | `width`, `height`, `inner`, `dpr` |
+| `tick` | once a second | `fps` (this page's animation frames), `hidden`; `tx` / `rx`: frames `n` and bytes `b` sent / received since the last tick, per channel (`msg` carries Match frames and the lobby, `clk` clock pings, `clkrep` clock reports, `roster`, `hello`, `info`) |
+| `peer-join`, `peer-leave` | the transport sees a connection come or go | `peer` (transport id), `peers` left, `afterMs` connected |
+| `roster` | status, presence or any Device's sync changed | `status`, `roster[]` with `deviceId`, `name`, `present`, `synced`, `rtt`, `offset` |
+| `clock` | a Peer gets a clock reply (10 in the first second, then every 5 s) | `q`, `rtt`, `offset` (ms, this sample alone) |
+| `device-lost`, `device-back` | the Session's leave detection and return | `deviceId` |
+| `match`, `lobby` | the lobby froze a Match (the whole `MatchInfo`, `game`, `template`) / returned to the lobby | |
+| `match:<event>` | every `runMatch` event on this page: `started`, `paused`, `resumed`, `holders`, `ended`, `closed`, `view-closed`, `fault` (with the stack), `log` (every `ctx.log`, not just the last 50) | the event's fields and `matchId` |
+| `visibility` | the page went to the background or came back | `hidden` |
+| `error` | an uncaught error or rejection on the page | `message`, `stack` |
+
+Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Peer's sync; `select(.k=="tick") | .fps` the frame rate; the gap between a `peer-leave` and the `device-lost` that follows is the leave-detection latency; `match:paused`/`match:resumed` and `match:fault` carry their reasons. Faults with stacks and every `ctx.log` line are in there even after the HUD's 50-line log has rolled over.
+
+## Two hosted builds: the latest and a known-good one
+
+Every push to `master` publishes the PWA to **https://manubown.github.io/Bezel/**. The same site also serves **https://manubown.github.io/Bezel/stable/**: the commit the git tag `stable` points at, built from its own tree (`.github/workflows/pages.yml`). So a change that misbehaves on phones is tested against the known-good build by opening the other address: no rollback, no redeploy, both are live at once.
+
+- `pnpm stable` prints where `stable` points; `pnpm stable <ref>` moves the tag to a commit, tag or branch, pushes it, and Pages rebuilds both channels (`scripts/stable.mjs`). `/stable/COMMIT` names the commit the channel was built from.
+- Put every phone on the **same** address: a Host on `/stable/` and a Peer on `/` are different builds, and the QR code only guarantees that by encoding the Host page's own URL.
+- Both channels share the origin, so a phone keeps its Device id and its session logs across them.
+
 ## Several tabs on one computer
 
 Each tab of one desktop browser gets its own Device id (a Web Lock per id; a reloaded tab takes its own back: `apps/pwa/src/device.ts:41-57`), so one computer can run a Host tab (`https://localhost:5173/`) and Peer tabs (`https://localhost:5173/?room=CODE`). Keep every tab visible, in separate windows: a hidden tab stops its view's `draw` (`packages/sdk/src/game-side.ts:416`), and a hidden Host tab gets no animation frames, so its host's `tick` stops. Desktop tabs use `pxPerMm` 3.78.

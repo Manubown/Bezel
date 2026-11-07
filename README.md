@@ -23,6 +23,8 @@ pnpm typecheck
 
 Every push to `master` builds the PWA and publishes it to GitHub Pages (`.github/workflows/pages.yml`): open **https://manubown.github.io/Bezel/** on the host phone, and the others scan its QR or type the code. For a table away from Wi-Fi, turn on a phone's hotspot and put every phone on it: the hotspot's mobile data carries the signaling, the game itself runs phone-to-phone on the hotspot. On iOS, Share → "Add to Home Screen" installs it full-screen.
 
+Two builds are live at once: **/Bezel/** is `master`, **/Bezel/stable/** is the commit the git tag `stable` points at, a known-good build to test against when the latest misbehaves. `pnpm stable <ref>` moves the tag. Every phone keeps a session log (connectivity, clock samples, Match events, faults, wire bytes, frame rate); **Export log** on the Host's sheet or **Log** on a Peer's strip shares it as a `.txt` (NDJSON). Details: `docs/guide/running-on-phones.md`.
+
 To build the same thing yourself: `BASE_PATH=/Bezel/ pnpm build` (the sub-path the static host serves it from; default `/`), output in `apps/pwa/dist`.
 
 ## Layout

@@ -1,10 +1,15 @@
-# Builds the PWA and publishes it to GitHub Pages on every push to master,
-# so phones can open https://manubown.github.io/Bezel/ with no dev server.
+# Builds the PWA and publishes it to GitHub Pages on every push to master, and
+# whenever the `stable` tag moves, so phones can open it with no dev server:
+#   https://manubown.github.io/Bezel/          master, the latest
+#   https://manubown.github.io/Bezel/stable/   the commit the `stable` tag points at
+# Two builds on one site: a change that breaks phones is tested against the
+# known-good one by opening the other address; `pnpm stable <ref>` moves the tag.
 name: pages
 
 on:
   push:
     branches: [master]
+    tags: [stable]
   workflow_dispatch:
 
 permissions:
@@ -21,6 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -33,6 +41,18 @@ jobs:
         env:
           # The repository name: Pages serves a project site from /<repo>/.
           BASE_PATH: /${{ github.event.repository.name }}/
+      # The stable channel: the tagged commit, built from its own tree, served under /stable/.
+      - name: Build the stable tag
+        run: |
+          if git rev-parse -q --verify refs/tags/stable >/dev/null; then
+            git worktree add ../stable stable
+            (cd ../stable && pnpm install --frozen-lockfile && BASE_PATH="/${{ github.event.repository.name }}/stable/" pnpm build)
+            mkdir -p apps/pwa/dist/stable
+            cp -r ../stable/apps/pwa/dist/. apps/pwa/dist/stable/
+            git -C ../stable rev-parse --short HEAD > apps/pwa/dist/stable/COMMIT
+          else
+            echo "no stable tag: only master is published"
+          fi
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/pwa/dist

@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import type { LogLine } from './gamelog';
 import type { Lobby } from './lobby';
 import type { PauseNotice } from './pause';
+import type { Recorder } from './recorder';
 import { describeClose, describeResult } from './result';
 
 const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column', grid: 'Grid' };
@@ -47,6 +48,8 @@ export interface HudOptions {
   play: Readonly<Play>;
   /** Host: ends the running Match. */
   abort(): void;
+  /** The session log this page keeps; the HUD offers its export. */
+  log: Pick<Recorder, 'export' | 'clear' | 'count'>;
 }
 
 export interface Hud {
@@ -163,6 +166,11 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
       </div>
       <ol class="log" aria-label="Game log, newest first" hidden></ol>
       <ol class="roster"></ol>
+      <div class="diag">
+        <button type="button" class="export">Export log</button>
+        <button type="button" class="clear-log">Clear</button>
+        <span class="diag-meta"></span>
+      </div>
     </div>`;
   root.querySelector('.qr')!.append(qr);
   const bar = root.querySelector<HTMLButtonElement>('.bar')!;
@@ -186,6 +194,7 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     barAction.textContent = open ? 'Hide' : 'Setup';
   };
   bar.addEventListener('click', () => setOpen(!('open' in root.dataset)));
+  wireDiagnostics(root, o.log);
   // Joining a table means leaving this one: the page reopens as a Peer of that room.
   const enter = root.querySelector<HTMLFormElement>('.enter')!;
   const roomInput = enter.elements.namedItem('room') as HTMLInputElement;
@@ -411,7 +420,8 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
 function peerStrip(root: HTMLElement, o: HudOptions): Hud {
   const { session, lobby, code, play } = o;
   root.className = 'strip';
-  root.innerHTML = `<span class="code">${esc(code)}</span><span class="state"></span><span class="meta"></span>`;
+  root.innerHTML = `<span class="code">${esc(code)}</span><span class="state"></span><span class="meta"></span><button type="button" class="export" aria-label="Export the session log">Log</button>`;
+  root.querySelector<HTMLButtonElement>('.export')!.addEventListener('click', () => void o.log.export());
   const state = root.querySelector('.state')!;
   const meta = root.querySelector('.meta')!;
   return {
@@ -482,4 +492,26 @@ function statusDot(state: 'ok' | 'wait' | 'off'): string {
 /** Names and ids come off the network: never markup. */
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+/** The Host sheet's log row: export (share or download) and clear, with the line count. */
+function wireDiagnostics(root: HTMLElement, log: HudOptions['log']): void {
+  const exportBtn = root.querySelector<HTMLButtonElement>('.diag .export')!;
+  const clearBtn = root.querySelector<HTMLButtonElement>('.diag .clear-log')!;
+  const meta = root.querySelector<HTMLElement>('.diag-meta')!;
+  const show = (): void => {
+    void log.count().then((n) => {
+      meta.textContent = `${n} lines · ndjson .txt`;
+    });
+  };
+  exportBtn.addEventListener('click', () => {
+    exportBtn.disabled = true;
+    void log.export().finally(() => {
+      exportBtn.disabled = false;
+    });
+  });
+  clearBtn.addEventListener('click', () => void log.clear().then(show));
+  show();
+  // The count is cheap to show whenever the sheet opens.
+  root.querySelector('.bar')?.addEventListener('click', show);
 }

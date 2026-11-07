@@ -7,6 +7,7 @@ import { openHud, type Play } from './hud';
 import { openLobby } from './lobby';
 import { describePause, pauseOnDeviceLoss } from './pause';
 import { drawMetronome, startCanvasLoop } from './metronome';
+import { createRecorder } from './recorder';
 import { describeClose } from './result';
 import { drawPreview } from './scene';
 import { keepAwakeOnTouch } from './wake';
@@ -47,17 +48,54 @@ async function start(): Promise<void> {
   const self = deviceInfo(deviceId);
   const room = new URLSearchParams(location.search).get('room')?.toUpperCase();
   const code = room ?? hostRoomCode();
-  const transport = new TrysteroTransport({ appId: APP_ID, roomId: code });
+  // The session log: every event this page sees, kept across reloads, exported from the HUD.
+  let sharedNow = (): number => performance.now();
+  const rec = createRecorder({ now: () => sharedNow(), deviceId, role: room ? 'peer' : 'host', code });
+  rec.log('device', {
+    ua: navigator.userAgent,
+    platform: self.name,
+    pxPerMm: self.pxPerMm,
+    viewport: { w: self.width, h: self.height },
+    screen: { w: screen.width, h: screen.height },
+    dpr: self.dpr,
+    touchPoints: navigator.maxTouchPoints,
+    cores: navigator.hardwareConcurrency,
+    standalone: matchMedia('(display-mode: standalone)').matches,
+    url: location.href,
+  });
+  rec.observe();
+  const transport = rec.transport(new TrysteroTransport({ appId: APP_ID, roomId: code }));
   const session = room ? joinSession(transport, self) : hostSession(transport, self);
+  sharedNow = () => session.clock.now();
   const lobby = openLobby(session, self.pxPerMm, claimPlayerId(deviceId));
   const host = () => session.roster()[0]?.info.deviceId;
+  // Connectivity and clock: the roster as it changes (status, who is present, each Device's rtt/offset).
+  let rosterKey = '';
+  session.onChange(() => {
+    const roster = session.roster().map((e) => ({ deviceId: e.info.deviceId, name: e.info.name, present: e.present, ...e.sync }));
+    const key = JSON.stringify([session.status, roster]);
+    if (key === rosterKey) return;
+    rosterKey = key;
+    rec.log('roster', { status: session.status, roster });
+  });
+  session.onDeviceLost((id) => rec.log('device-lost', { deviceId: id }));
+  session.onDeviceBack((id) => rec.log('device-back', { deviceId: id }));
+  // The lobby: the Match it froze (the whole MatchInfo once), and the Game it names.
+  let loggedMatch: string | undefined;
+  lobby.onChange(() => {
+    const { match } = lobby;
+    if (match?.matchId === loggedMatch) return;
+    loggedMatch = match?.matchId;
+    if (match) rec.log('match', { game: lobby.game, template: lobby.layout?.template, match });
+    else rec.log('lobby', {});
+  });
 
   const play: Play = { running: false, paused: undefined, stopped: undefined, last: undefined, log: [] };
   /** The Match running on this Device. */
   let current: { matchId: string; handle: MatchHandle } | undefined;
   /** A Device runs a Match once: after it closed here, it is not rejoined, unless it closed because the Session dropped. */
   let joined: string | undefined;
-  const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted') });
+  const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted'), log: rec });
   /** At most one HUD render per animation frame for the game log: a game may log on every frame. */
   let logRender = 0;
   const renderLog = (): void => {
@@ -97,6 +135,8 @@ async function start(): Promise<void> {
         if (e.t === 'fault') console.warn(`${name}: fault in ${e.where}: ${e.message}`, ...(e.stack ? [`\n${e.stack}`] : []));
         if (e.t === 'log') console.log(`${name} ${e.side}:`, ...e.args);
         if (e.t === 'view-closed' || e.t === 'closed') console.info(`${name}: ${e.t === 'closed' ? 'match' : 'this phone’s view'} closed (${e.reason}): ${e.detail}`);
+        const { t: kind, ...detail } = e;
+        rec.log(`match:${kind}`, { matchId: match.matchId, ...detail });
         const line = logLineOf(e);
         if (line) play.log = [...play.log, line].slice(-LOG_LINES);
         if (e.t === 'ended') result = e.result;
