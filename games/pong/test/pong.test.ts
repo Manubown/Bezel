@@ -2,11 +2,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { DeviceId, MatchInfo, Tile } from '@mgc/sdk';
+import type { DeviceId, MatchInfo, Player, Tile } from '@mgc/sdk';
 import { createTestMatch, type TestMatch } from '@mgc/sdk/test';
 import pong, { PONG, type PongState } from '../src';
 
-/** Phones in a row, 70 × 150 mm, with a 4 mm bezel gap between neighbours. */
+/** Phones in a row, 70 × 150 mm, with a 4 mm bezel gap between neighbours; Ann seated at the first, Bo at the last. */
 function rowMatch(n: number): MatchInfo {
   const tiles: Tile[] = Array.from({ length: n }, (_, i) => ({ deviceId: `d${i}`, x: i * 74, y: 0, w: 70, h: 150, rot: 0 }));
   return {
@@ -14,8 +14,8 @@ function rowMatch(n: number): MatchInfo {
     seed: 1,
     tickHz: 60,
     players: [
-      { playerId: 'p-ann', name: 'Ann' },
-      { playerId: 'p-bo', name: 'Bo' },
+      { playerId: 'p-ann', name: 'Ann', deviceId: 'd0' },
+      { playerId: 'p-bo', name: 'Bo', deviceId: `d${n - 1}` },
     ],
     devices: tiles.map((tile) => ({ deviceId: tile.deviceId, role: 'tile', name: tile.deviceId, tile, screenMm: { x: tile.w, y: tile.h } })),
     tiles,
@@ -41,20 +41,29 @@ function finger(t: TestMatch<PongState>, match: MatchInfo, deviceId: DeviceId) {
   };
 }
 
-/** Where a side's paddle should go, given the state it sees. */
-type Bot = (s: PongState) => number;
+/** Where a human's finger puts a side's paddle, given the state it sees. */
+type Hand = (s: PongState) => number;
 
 /**
- * The two outer Players on the two-Tile table moving their fingers as `bots`
- * say before every step, for at most `ms`, until `done`, or until the Match
- * ends. Returns the state the Host's own view held after each step.
+ * The fingers on `match`'s two outer Tiles moving as `hands` say before every
+ * step (none for a side without a hand), for at most `ms`, until `done`, or
+ * until the Match ends. Returns the state the Host's own view held after each step.
  */
-async function play(t: TestMatch<PongState>, bots: [Bot, Bot], ms: number, done: (s: PongState) => boolean = () => false): Promise<PongState[]> {
-  const fingers = [finger(t, TWO, 'd0'), finger(t, TWO, 'd1')];
+async function play(
+  t: TestMatch<PongState>,
+  hands: [Hand | undefined, Hand | undefined],
+  ms: number,
+  done: (s: PongState) => boolean = () => false,
+  match: MatchInfo = TWO,
+): Promise<PongState[]> {
+  const fingers = [match.tiles[0]!, match.tiles[match.tiles.length - 1]!].map((tile) => finger(t, match, tile.deviceId));
   const states: PongState[] = [];
   for (let k = 0; k < ms / STEP_MS && !t.result(); k++) {
     const s = t.state('d0');
-    if (s) for (const side of [0, 1] as const) await fingers[side]!(bots[side](s));
+    for (const side of [0, 1] as const) {
+      const hand = hands[side];
+      if (s && hand) await fingers[side]!(hand(s));
+    }
     await t.tick(STEP_MS);
     states.push(t.state('d0')!);
     if (done(states.at(-1)!)) break;
@@ -64,16 +73,28 @@ async function play(t: TestMatch<PongState>, bots: [Bot, Bot], ms: number, done:
 
 /** A Player who hits the ball `off` mm from the paddle's centre (positive: below it). */
 const tracks =
-  (off = 0): Bot =>
+  (off = 0): Hand =>
   (s) =>
     s.ball.y - off;
 /** A Player who always moves the paddle to the far side from the ball. */
-const dodges: Bot = (s) => (s.ball.y < MID.y ? B.y + B.h : B.y);
+const dodges: Hand = (s) => (s.ball.y < MID.y ? B.y + B.h : B.y);
+
+/** A bot Player in slot `slot`, as the lobby makes it. */
+const bot = (slot: 0 | 1): Player => ({ playerId: `bot:${slot}`, name: 'Bot', bot: true });
+/** The paddle's reach: how far from its centre a ball's centre still meets it. */
+const REACH = PONG.paddle.h / 2 + R;
+
+/** Ann and Bo track the ball for `ms`, then Bo lifts his finger off his Tile; returns the shared time he lifted it. */
+async function boLifts(t: TestMatch<PongState>, ms: number): Promise<number> {
+  await play(t, [tracks(), tracks()], ms);
+  await t.input('d1', 'up', { x: 109, y: t.state('d0')!.pads[1] });
+  return t.now();
+}
 
 describe('Pong', () => {
-  it('declares 2–4 Tiles, no Controllers, 2 Players, the row template, and imports nothing but the SDK', () => {
-    const { tiles, controllers, players, templates } = pong.manifest;
-    expect({ tiles, controllers, players, templates }).toEqual({ tiles: { min: 2, max: 4 }, controllers: { min: 0, max: 0 }, players: { min: 2, max: 2 }, templates: ['row'] });
+  it('declares 1–4 Tiles, no Controllers, 2 Players, bots, the row template, and imports nothing but the SDK', () => {
+    const { tiles, controllers, players, templates, bots } = pong.manifest;
+    expect({ tiles, controllers, players, templates, bots }).toEqual({ tiles: { min: 1, max: 4 }, controllers: { min: 0, max: 0 }, players: { min: 2, max: 2 }, templates: ['row'], bots: true });
 
     const dir = fileURLToPath(new URL('../src/', import.meta.url));
     const files = readdirSync(dir, { recursive: true, encoding: 'utf8' }).filter((f) => /\.[cm]?[jt]sx?$/.test(f));
@@ -107,6 +128,27 @@ describe('Pong', () => {
     await finger(t3, three, 'd2')(120);
     await t3.tick(STEP_MS);
     expect(t3.state('d1')!.pads).toEqual([three.bounds.y + three.bounds.h / 2, 120]);
+  });
+
+  it('gives each side to the Player seated at its outer Tile, whatever the Players’ order, and scores by Player id', async () => {
+    // Ann, Player 1, sits at the last Tile; Bo at the first.
+    const three = rowMatch(3);
+    const swapped: MatchInfo = { ...three, players: [{ ...three.players[0]!, deviceId: 'd2' }, { ...three.players[1]!, deviceId: 'd0' }] };
+    const mid = three.bounds.y + three.bounds.h / 2;
+    const t = await createTestMatch<PongState>({ game: pong, match: swapped });
+    await finger(t, swapped, 'd2')(100);
+    await t.tick(STEP_MS);
+    expect(t.state('d0')!.pads).toEqual([mid, 100]); // Ann's finger moves the east paddle; the west one ignores it
+    await finger(t, swapped, 'd0')(40);
+    await finger(t, swapped, 'd1')(120); // the middle phone seats no side
+    await t.tick(STEP_MS);
+    expect(t.state('d1')!.pads).toEqual([40, 100]);
+
+    // Two Tiles, Ann east: the east side's points are hers.
+    const two: MatchInfo = { ...TWO, players: [{ ...TWO.players[0]!, deviceId: 'd1' }, { ...TWO.players[1]!, deviceId: 'd0' }] };
+    const t2 = await createTestMatch<PongState>({ game: pong, match: two });
+    await play(t2, [dodges, tracks()], 60_000, undefined, two);
+    expect(t2.result()).toEqual({ scores: { 'p-ann': 7, 'p-bo': 0 }, ranking: ['p-ann', 'p-bo'] });
   });
 
   it('bounces the ball off the table’s top and bottom and off paddles', async () => {
@@ -181,6 +223,7 @@ describe('Pong', () => {
     const t = await createTestMatch<PongState>({ game: pong, match: TWO });
     const west = finger(t, TWO, 'd0');
     await west(40);
+    await finger(t, TWO, 'd1')(100); // both Players touch: play may start
     await t.tick(1000); // past the 0.8 s rest: the ball is in flight
     const paused = t.state('d0')!;
     expect(paused.wait).toBe(0);
@@ -207,5 +250,234 @@ describe('Pong', () => {
     expect(next.wait).toBe(0);
     expect(next.score).toEqual([0, 0]);
     expect(next.pads).toEqual(paused.pads);
+  });
+
+  it('lets a bot play the side left to it, after the ball, never faster than `PONG.bot.speed`; its Tile’s finger moves nothing', async () => {
+    // Slot 0 is the bot, so it plays west; Bo, at the last Tile, plays east.
+    const match: MatchInfo = { ...TWO, players: [bot(0), TWO.players[1]!] };
+    const t = await createTestMatch<PongState>({ game: pong, match });
+    // A finger on the west Tile dodges the ball; Bo hits off his paddle's top half, so his shots come back at an angle.
+    const states = await play(t, [dodges, tracks(10)], 30_000, undefined, match);
+    const step = PONG.bot.speed / 60;
+    let flatOut = 0;
+    const met: number[] = [];
+    states.slice(1).forEach((s, i) => {
+      const prev = states[i]!;
+      const moved = Math.abs(s.pads[0] - prev.pads[0]);
+      expect(moved).toBeLessThanOrEqual(step + 1e-9);
+      if (moved > step - 1e-9) flatOut++;
+      if (prev.ball.vx < 0 && s.ball.vx > 0) met.push(s.ball.y); // the bot returned it
+    });
+    expect(flatOut).toBeGreaterThan(10); // the cap binds
+    expect(met.length).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...met) - Math.min(...met)).toBeGreaterThan(PONG.paddle.h); // high and low: it goes after the ball
+  });
+
+  it('has a bot wait centred for every serve and return it', async () => {
+    // Seed 1 serves east first, toward the bot in slot 1; Ann never misses, so every serve comes to the bot.
+    const match: MatchInfo = { ...TWO, players: [TWO.players[0]!, bot(1)] };
+    const t = await createTestMatch<PongState>({ game: pong, match });
+    const states = await play(t, [tracks(-6), undefined], 60_000, undefined, match);
+    let serves = 0;
+    states.forEach((s, i) => {
+      // The step the ball's rest ends: it leaves the centre next.
+      if (i === 0 || states[i - 1]!.wait === 0 || s.wait > 0) return;
+      serves++;
+      expect(s.ball.vx).toBeGreaterThan(0);
+      expect(s.pads[1]).toBeCloseTo(MID.y, 9);
+      // Next the bot sends it back, before any point.
+      const next = states.slice(i + 1).find((n) => n.ball.vx < 0 || n.score.join() !== s.score.join());
+      expect(next?.score).toEqual(s.score);
+      expect(Math.abs(next!.ball.x - CONTACT[1])).toBeLessThan(PONG.maxSpeed / 60);
+    });
+    expect(serves).toBeGreaterThanOrEqual(2); // the first, and one after a point the bot lost
+  });
+
+  it('can be beaten: a bot that aims off where the ball will cross its face lets it past', async () => {
+    const match: MatchInfo = { ...TWO, players: [TWO.players[0]!, bot(1)] };
+    const t = await createTestMatch<PongState>({ game: pong, match });
+    // Ann hits off her paddle's top half: angled, ever faster shots.
+    const states = await play(t, [tracks(12), undefined], 60_000, (s) => s.score[0] > 0, match);
+    const point = states.findIndex((s) => s.score[0] > 0);
+    expect(point).toBeGreaterThan(0);
+    expect(states[point]!.score).toEqual([1, 0]);
+    // The bot had returned shots before this one.
+    expect(states.slice(1, point).some((s, i) => states[i]!.ball.vx > 0 && s.ball.vx < 0)).toBe(true);
+
+    // The step the ball crossed its face: the paddle had settled where it aimed, off the crossing by
+    // more than its reach and no more than its aim error.
+    let k = point - 1;
+    while (k > 0 && !(states[k]!.ball.x > CONTACT[1] && states[k - 1]!.ball.x <= CONTACT[1])) k--;
+    const [before, crossed] = [states[k - 1]!, states[k]!];
+    expect(crossed.ball.x).toBeGreaterThan(CONTACT[1]);
+    const y = before.ball.y + ((CONTACT[1] - before.ball.x) * before.ball.vy) / before.ball.vx;
+    expect(Math.abs(crossed.pads[1] - before.pads[1])).toBeLessThan(1e-6);
+    expect(Math.abs(crossed.pads[1] - y)).toBeGreaterThan(REACH);
+    expect(Math.abs(crossed.pads[1] - y)).toBeLessThanOrEqual(PONG.bot.aimError + 1e-9);
+  });
+
+  it('plays one Tile against a bot: the human west, the bot east, a point at a time to seven', async () => {
+    const one: MatchInfo = { ...rowMatch(1), players: [TWO.players[0]!, bot(1)] };
+    const { y, h } = one.bounds;
+    const t = await createTestMatch<PongState>({ game: pong, match: one });
+    // Its one Device is the first and the last Tile: Ann's finger moves the west paddle, and the bot waits centred for the serve.
+    await t.input('d0', 'down', { x: 35, y: 40 });
+    await t.tick(STEP_MS);
+    expect(t.state('d0')!.pads).toEqual([40, y + h / 2]);
+    await t.input('d0', 'up', { x: 35, y: 40 });
+
+    const states = await play(t, [tracks(), undefined], 300_000, undefined, one);
+    expect(t.result()).toEqual({ scores: { 'p-ann': 7, 'bot:1': 0 }, ranking: ['p-ann', 'bot:1'] });
+    // A point at a time to seven, never past it.
+    expect([...new Set(states.map((s) => s.score.join(':')))]).toEqual(['0:0', '1:0', '2:0', '3:0', '4:0', '5:0', '6:0', '7:0']);
+    expect(t.events('d0').map((e) => e.t)).toEqual(['started', 'ended', 'closed']);
+  });
+
+  it('serves first only once every human has touched; until then the state names who has not', async () => {
+    const three = rowMatch(3);
+    const mid = { x: three.bounds.x + three.bounds.w / 2, y: three.bounds.y + three.bounds.h / 2 };
+    const t = await createTestMatch<PongState>({ game: pong, match: three });
+    /** The ball at the centre with its whole rest still ahead: not served. */
+    const unserved = (s: PongState) => ({ x: s.ball.x, y: s.ball.y, wait: s.wait, started: s.started });
+    const before = { ...mid, wait: PONG.serveWait, started: false };
+
+    await t.tick(3000);
+    for (const id of ['d0', 'd1', 'd2']) {
+      expect(unserved(t.state(id)!), id).toEqual(before);
+      expect(t.state(id)!.hold, id).toEqual([0, 1]);
+    }
+    // The middle phone seats no side: its touch counts for nobody.
+    await t.input('d1', 'down', { x: 109, y: 40 });
+    await t.input('d1', 'up', { x: 109, y: 40 });
+    await t.tick(1000);
+    expect(unserved(t.state('d0')!)).toEqual(before);
+    expect(t.state('d0')!.hold).toEqual([0, 1]);
+
+    // Ann taps: only Bo is missing; her paddle moved, the ball did not.
+    await t.input('d0', 'down', { x: 35, y: 40 });
+    await t.input('d0', 'up', { x: 35, y: 40 });
+    await t.tick(1000);
+    expect(unserved(t.state('d0')!)).toEqual(before);
+    expect(t.state('d0')!.hold).toEqual([1]);
+    expect(t.state('d0')!.pads).toEqual([40, mid.y]);
+
+    // Bo touches a second after her: the next step plays, the rest runs, and then the ball leaves the centre.
+    await t.input('d2', 'down', { x: 183, y: 100 });
+    await t.tick(STEP_MS);
+    const first = t.state('d2')!;
+    expect(first).toMatchObject({ hold: [], started: true, ball: { x: mid.x, y: mid.y } });
+    expect(first.wait).toBeCloseTo(PONG.serveWait - 1 / 60, 9);
+    await t.tick(PONG.serveWait * 1000);
+    const served = t.state('d2')!;
+    expect(served.wait).toBe(0);
+    expect(served.ball.x).not.toBe(mid.x);
+    expect(served.hold).toEqual([]);
+  });
+
+  it('holds a human side 5 s after its finger lifts, the ball frozen where it was, and plays on from there at its next touch', async () => {
+    const t = await createTestMatch<PongState>({ game: pong, match: TWO });
+    const lifted = await boLifts(t, 1000);
+    // Ann plays on; Bo's paddle stays where he left it.
+    const playing = await play(t, [tracks(), undefined], 4900);
+    expect(t.now() - lifted).toBeCloseTo(4900, 6);
+    expect(playing.every((s) => s.hold.length === 0)).toBe(true);
+    const [a, b] = playing.slice(-2) as [PongState, PongState];
+    expect(b.ball.x).not.toBe(a.ball.x); // at 4.9 s the ball still moves
+
+    const late = await play(t, [tracks(), undefined], 200);
+    expect(t.now() - lifted).toBeCloseTo(5100, 6);
+    const held = late.at(-1)!;
+    expect(held).toMatchObject({ hold: [1], started: true, wait: 0 });
+    expect(t.state('d1')!.hold).toEqual([1]); // every view has it
+    // The ball moved up to the step that held, stays where that left it, and a second later still does.
+    const from = late.findIndex((s) => s.hold.length > 0);
+    expect(from).toBeGreaterThan(1);
+    expect(late[from - 1]!.ball).not.toEqual(late[from - 2]!.ball);
+    expect(held.ball).toEqual(late[from - 1]!.ball);
+    const still = await play(t, [tracks(), undefined], 1000);
+    for (const s of [...late.slice(from), ...still]) {
+      expect(s.hold).toEqual([1]);
+      expect(s.ball).toEqual(held.ball);
+      expect(s.score).toEqual(held.score);
+    }
+
+    // Bo touches: the next step plays on from where the ball stopped, at its speed; no serve.
+    await t.input('d1', 'down', { x: 109, y: held.pads[1] });
+    await t.tick(STEP_MS);
+    const next = t.state('d0')!;
+    expect(next.hold).toEqual([]);
+    expect(next.wait).toBe(0);
+    expect(next.score).toEqual(held.score);
+    expect(next.ball.vx).toBe(held.ball.vx);
+    expect(next.ball.vy).toBe(held.ball.vy);
+    expect(next.ball.x).toBeCloseTo(held.ball.x + held.ball.vx / 60, 9);
+    expect(next.ball.y).toBeCloseTo(held.ball.y + held.ball.vy / 60, 9);
+  });
+
+  it('never holds for a bot: with one human and a bot only the human must touch', async () => {
+    // Ann west, the bot east. Before her first touch only she is asked for; a finger on the bot's Tile counts for nobody.
+    const match: MatchInfo = { ...TWO, players: [TWO.players[0]!, bot(1)] };
+    const t = await createTestMatch<PongState>({ game: pong, match });
+    await t.tick(1000);
+    expect(t.state('d1')).toMatchObject({ hold: [0], started: false, wait: PONG.serveWait });
+    await t.input('d1', 'down', { x: 109, y: 40 });
+    await t.tick(1000);
+    expect(t.state('d1')).toMatchObject({ hold: [0], started: false, wait: PONG.serveWait });
+
+    // Ann alone starts it, and while she plays nothing holds: the bot returns her shots.
+    const states = await play(t, [tracks(), undefined], 20_000, undefined, match);
+    expect(states.every((s) => s.hold.length === 0 && s.started)).toBe(true);
+    expect(states.slice(1).some((s, i) => states[i]!.ball.vx > 0 && s.ball.vx < 0)).toBe(true);
+
+    // She lifts her finger: after 5 s only her side holds, and the bot's paddle settles where it was going.
+    await t.input('d0', 'up', { x: 35, y: t.state('d0')!.pads[0] });
+    const lapsed = await play(t, [undefined, undefined], 7000, undefined, match);
+    expect(new Set(lapsed.map((s) => s.hold.join()))).toEqual(new Set(['', '0']));
+    const [x, y] = lapsed.slice(-2) as [PongState, PongState];
+    expect(y.hold).toEqual([0]);
+    expect(y.pads[1]).toBe(x.pads[1]);
+
+    // The bot west, Bo east; and one Tile, Ann and a bot: only the human is asked for.
+    const west = await createTestMatch<PongState>({ game: pong, match: { ...TWO, players: [bot(0), TWO.players[1]!] } });
+    await west.tick(1000);
+    expect(west.state('d0')).toMatchObject({ hold: [1], started: false });
+    const one: MatchInfo = { ...rowMatch(1), players: [TWO.players[0]!, bot(1)] };
+    const alone = await createTestMatch<PongState>({ game: pong, match: one });
+    await alone.tick(1000);
+    expect(alone.state('d0')).toMatchObject({ hold: [0], started: false });
+    await alone.input('d0', 'down', { x: 35, y: 40 });
+    await alone.tick(STEP_MS);
+    expect(alone.state('d0')).toMatchObject({ hold: [], started: true });
+  });
+
+  it('lets the paddles follow their fingers while held, and never scores while held', async () => {
+    const t = await createTestMatch<PongState>({ game: pong, match: TWO });
+    await boLifts(t, 2400);
+    await play(t, [tracks(), undefined], 5100);
+    const held = t.state('d0')!;
+    expect(held).toMatchObject({ hold: [1], wait: 0 });
+    // It held with the ball already past Bo's paddle, on its way off the table: a few steps of play from a point.
+    expect(held.ball.vx).toBeGreaterThan(0);
+    expect(held.ball.x).toBeGreaterThan(CONTACT[1]);
+
+    // For 10 s Ann sweeps her paddle up and down: it follows her finger every step, Bo's stays, and the ball
+    // neither moves nor scores.
+    for (let k = 0; k < 600; k++) {
+      const y = B.y + 20 + ((k * 3) % 110);
+      await t.input('d0', 'move', { x: 35, y });
+      await t.tick(STEP_MS);
+      const s = t.state('d1')!;
+      expect(s.pads).toEqual([y, held.pads[1]]);
+      expect(s.ball).toEqual(held.ball);
+      expect(s.score).toEqual(held.score);
+      expect(s.hold).toEqual([1]);
+    }
+
+    // Bo touches where his paddle is: play goes on, and the point that was coming is Ann's within a few steps.
+    await t.input('d1', 'down', { x: 109, y: held.pads[1] });
+    const after = await play(t, [undefined, undefined], 1000, (s) => s.score.join() !== held.score.join());
+    expect(after.at(-1)!.score).toEqual([held.score[0] + 1, held.score[1]]);
+    expect(after.length).toBeLessThan(10);
+    expect(after.every((s) => s.hold.length === 0)).toBe(true);
   });
 });

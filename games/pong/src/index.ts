@@ -1,4 +1,4 @@
-import { defineGame, type DeviceId, type MatchResult, type Vec2 } from '@mgc/sdk';
+import { defineGame, type DeviceId, type MatchInfo, type MatchResult, type Player, type Rect, type Tile, type Vec2 } from '@mgc/sdk';
 
 /** Sizes in world mm, speeds in mm/s, angles in radians, times in seconds. */
 export const PONG = {
@@ -18,16 +18,29 @@ export const PONG = {
   serveWait: 0.8,
   /** Points that win. */
   win: 7,
+  /**
+   * A bot's paddle moves at most `speed` toward where the ball will cross its
+   * face, off by up to `aimError` either way (drawn anew for every shot the
+   * other side returns), so a steep or fast shot, or a bad guess, beats it.
+   */
+  bot: { speed: 160, aimError: 20 },
+  /**
+   * A human side is present while a finger is on its Tile or its last touch is
+   * less than `holdMs` old (ms, the host's clock); while one is not, play holds.
+   */
+  presence: { holdMs: 5000 },
 } as const;
 
 /** A view extrapolates a state at most this far ahead, ms. */
 const MAX_AHEAD_MS = 100;
 const FG = '#f2f0ea';
 const DIM = 'rgba(242, 240, 234, 0.35)';
+/** Behind a hold's message, over whatever it covers. */
+const SHADE = 'rgba(0, 0, 0, 0.6)';
 
 type Ball = { x: number; y: number; vx: number; vy: number };
 
-/** Side 0 is the west paddle (first Tile, first Player), side 1 the east one (last Tile, second Player). */
+/** Side 0 is the west paddle, side 1 the east one; `seats` says whose. */
 export type PongState = {
   ball: Ball;
   /** Paddle centre y per side. */
@@ -36,6 +49,14 @@ export type PongState = {
   score: [number, number];
   /** Seconds the ball still rests at the centre before it moves. */
   wait: number;
+  /**
+   * The human sides play waits for until they touch their Tile, west first:
+   * while any is listed the ball stays where it is and its rest does not run.
+   * Empty while play runs; a bot's side is never listed.
+   */
+  hold: (0 | 1)[];
+  /** Whether play has run yet: until then, a hold is the first serve's "touch to start". */
+  started: boolean;
 };
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
@@ -61,20 +82,45 @@ function random(seed: number): () => number {
 }
 
 /**
- * The table: the Layout bounds. Paddles sit on the two outer Tiles, inside the
- * table's west and east edges; `contact` is the x of the ball's centre when it
- * touches a paddle's face.
+ * Who plays each side: side 0 the Player seated at the first Tile, side 1 the
+ * one seated at the last Tile (another one: with one Tile its human plays
+ * west); the other Players, the bots, take the sides still open in order.
+ * Never a Player's index in `match.players`.
  */
-function table(b: { x: number; y: number; w: number; h: number }) {
+function seats(match: MatchInfo): [Player, Player] {
+  const { players, tiles } = match;
+  const west = players.find((p) => !p.bot && p.deviceId === tiles[0]!.deviceId);
+  const east = players.find((p) => !p.bot && p !== west && p.deviceId === tiles[tiles.length - 1]!.deviceId);
+  const rest = players.filter((p) => p !== west && p !== east);
+  const sides = [west ?? rest.shift(), east ?? rest.shift()] as const;
+  if (!sides[0] || !sides[1]) throw new Error('Pong needs a Player on each side');
+  return [sides[0], sides[1]];
+}
+
+/**
+ * The table: the Layout bounds across, and up and down only the band every
+ * Tile covers, so the ball and the paddles stay on screen when one Tile is
+ * taller than its neighbours (a row centres Tiles on the tallest). Paddles sit
+ * inside the table's west and east edges, on the outer Tiles (both on a lone
+ * Tile); `contact` is the x of the ball's centre when it touches a paddle's face.
+ */
+function table(m: { bounds: Rect; tiles: readonly Tile[] }) {
   const { ball: R, paddle: P } = PONG;
+  const b = m.bounds;
+  let y = Math.max(b.y, ...m.tiles.map((t) => t.y));
+  let yEnd = Math.min(b.y + b.h, ...m.tiles.map((t) => t.y + t.h));
+  // Tiles with no common band (a grid): the bounds, as the best there is.
+  if (yEnd - y < P.h) [y, yEnd] = [b.y, b.y + b.h];
   return {
-    top: b.y + R,
-    bottom: b.y + b.h - R,
+    /** The band's upper edge, where the scores hang. */
+    y,
+    top: y + R,
+    bottom: yEnd - R,
     padX: [b.x + P.inset, b.x + b.w - P.inset - P.w] as const,
     contact: [b.x + P.inset + P.w + R, b.x + b.w - P.inset - P.w - R] as const,
-    padLo: b.y + P.h / 2,
-    padHi: b.y + b.h - P.h / 2,
-    mid: { x: b.x + b.w / 2, y: b.y + b.h / 2 } satisfies Vec2,
+    padLo: y + P.h / 2,
+    padHi: yEnd - P.h / 2,
+    mid: { x: b.x + b.w / 2, y: (y + yEnd) / 2 } satisfies Vec2,
   };
 }
 
@@ -82,40 +128,60 @@ function table(b: { x: number; y: number; w: number; h: number }) {
 const covers = (pad: number, y: number): boolean => Math.abs(y - pad) <= PONG.paddle.h / 2 + PONG.ball;
 
 /**
- * Pong across the table. The outer Tiles' Players move their paddles with a
- * finger; the ball bounces off the table's top and bottom and off paddles; a
- * miss scores for the other Player and the ball is served from the centre
- * toward the one who missed; the first to seven wins.
+ * Pong across the table. The Players seated at the outer Tiles move their
+ * paddles with a finger, and the host moves a bot's; the ball bounces off the
+ * table's top and bottom and off paddles; a miss scores for the other Player
+ * and the ball is served from the centre toward the one who missed; the first
+ * to seven wins. A human Player must keep touching: while one is not (they
+ * have not touched yet, or their finger has been off their Tile for
+ * `PONG.presence.holdMs`) play holds where it is and every Tile asks them to touch.
  */
 export default defineGame<PongState, never>({
   manifest: {
     id: 'mgc.pong',
     name: 'Pong',
     version: '1.0.0',
-    tiles: { min: 2, max: 4 },
+    tiles: { min: 1, max: 4 },
     controllers: { min: 0, max: 0 },
     players: { min: 2, max: 2 },
     templates: ['row'],
+    bots: true,
     host: './index.js',
     view: './index.js',
   },
   host(ctx) {
     const { match } = ctx;
-    const T = table(match.bounds);
-    // Layout order runs west to east in a row; the lobby seats Player 1 west, Player 2 east.
-    const sides: readonly DeviceId[] = [match.tiles[0]!.deviceId, match.tiles[match.tiles.length - 1]!.deviceId];
-    const players = [match.players[0]!.playerId, match.players[1]!.playerId] as const;
+    const T = table(match);
+    const seated = seats(match);
+    const players = [seated[0].playerId, seated[1].playerId] as const;
+    /** The Device whose finger moves each side's paddle: its seated human's; none for a bot. */
+    const fingers: readonly (DeviceId | undefined)[] = seated.map((p) => (p.bot ? undefined : p.deviceId));
+    const bots = ([0, 1] as const).filter((s) => seated[s].bot);
+    /** The sides a finger plays: each must keep touching its Tile (`PONG.presence`); a bot's side never holds play. */
+    const humans = ([0, 1] as const).filter((s) => fingers[s] !== undefined);
     const rand = random(match.seed);
+    // The bots' aim draws from its own stream: the serves are the same with or without bots.
+    const aimRand = random(match.seed ^ 0x9e3779b9);
 
     const pads: [number, number] = [T.mid.y, T.mid.y];
     const score: [number, number] = [0, 0];
     let ball: Ball = { ...T.mid, vx: 0, vy: 0 };
     let wait = 0;
+    /** How far off a bot aims at the shot in flight: none at a serve, anew at every return. */
+    let aim = 0;
+    /** Per side: the pointers down on its Device's screen, and when its last touch reached the host (ms, its clock). */
+    const down = [new Set<number>(), new Set<number>()] as const;
+    const touched: [number, number] = [-Infinity, -Infinity];
+    /** The human sides play waits for, as of the last step; every one until it touches. */
+    let hold: (0 | 1)[] = [...humans];
+    /** Whether play has run yet: the first serve waits for every human side to touch. */
+    let started = false;
     const serve = (toward: 0 | 1): void => {
       const angle = (rand() * 2 - 1) * PONG.maxServeAngle;
       const dir = toward === 0 ? -1 : 1;
       ball = { ...T.mid, vx: dir * PONG.speed * Math.cos(angle), vy: PONG.speed * Math.sin(angle) };
       wait = PONG.serveWait;
+      aim = 0;
     };
     /** The ball met side `s`'s paddle: back out, steeper the further off-centre it hit, a little faster. */
     const ret = (s: 0 | 1): void => {
@@ -124,21 +190,43 @@ export default defineGame<PongState, never>({
       const speed = Math.min(PONG.maxSpeed, Math.hypot(ball.vx, ball.vy) * PONG.speedUp);
       const dir = s === 0 ? 1 : -1;
       ball = { x: 2 * T.contact[s] - ball.x, y: ball.y, vx: dir * speed * Math.cos(angle), vy: speed * Math.sin(angle) };
+      aim = (aimRand() * 2 - 1) * PONG.bot.aimError;
     };
-    const snapshot = (): PongState => ({ ball: { ...ball }, pads: [pads[0], pads[1]], score: [score[0], score[1]], wait });
+    /** Where side `s`'s bot heads: where the ball will cross its face, off by `aim`; the centre while the ball rests or goes away. */
+    const goal = (s: 0 | 1): number => {
+      if (wait > 0 || (s === 0 ? ball.vx >= 0 : ball.vx <= 0)) return T.mid.y;
+      const time = Math.max(0, (T.contact[s] - ball.x) / ball.vx);
+      return clamp(fold(ball.y + ball.vy * time, T.top, T.bottom) + aim, T.padLo, T.padHi);
+    };
+    const snapshot = (): PongState => ({ ball: { ...ball }, pads: [pads[0], pads[1]], score: [score[0], score[1]], wait, hold: [...hold], started });
 
     serve(match.seed & 1 ? 1 : 0);
     return {
       onInput(i) {
-        const s = sides.indexOf(i.deviceId);
-        if (s < 0 || i.phase === 'cancel') return;
-        pads[s] = clamp(i.world.y, T.padLo, T.padHi);
+        const s = fingers.indexOf(i.deviceId);
+        if (s !== 0 && s !== 1) return;
+        // Every sample is a touch, the pointer on the screen until it ends; a pointer is down from its `down` to its `up` or `cancel`.
+        touched[s] = ctx.now();
+        if (i.phase === 'down') down[s].add(i.pointerId);
+        else if (i.phase === 'up' || i.phase === 'cancel') down[s].delete(i.pointerId);
+        if (i.phase !== 'cancel') pads[s] = clamp(i.world.y, T.padLo, T.padHi);
       },
       // Nothing moved while paused; the views get the ball where it stopped, stamped now.
       onResume() {
         ctx.publish(snapshot());
       },
-      tick(dt) {
+      tick(dt, now) {
+        // A bot's paddle first: at most its speed, toward where it means to meet the ball.
+        const reach = PONG.bot.speed * dt;
+        for (const s of bots) pads[s] += clamp(goal(s) - pads[s], -reach, reach);
+        // A human side with no finger down and no touch in `holdMs` holds play: the ball stays where it is and
+        // its rest does not run, so nothing scores; the paddles still move. Its next touch lets play on, here.
+        hold = humans.filter((s) => down[s].size === 0 && now - touched[s] >= PONG.presence.holdMs);
+        if (hold.length > 0) {
+          ctx.publish(snapshot());
+          return;
+        }
+        started = true;
         if (wait > 0) {
           wait = Math.max(0, wait - dt);
           ctx.publish(snapshot());
@@ -177,10 +265,13 @@ export default defineGame<PongState, never>({
     };
   },
   view(ctx) {
-    const { tiles, bounds } = ctx.match;
-    const T = table(bounds);
-    /** Each side's score sits mid-width on its own outer Tile, near the top. */
-    const scoreX = [tiles[0]!, tiles[tiles.length - 1]!].map((tile) => tile.x + tile.w / 2);
+    const { tiles } = ctx.match;
+    const T = table(ctx.match);
+    /** Each side's score sits near the top, mid-width on its own outer Tile, or of its own half of a lone Tile. */
+    const scoreX = [tiles[0]!, tiles[tiles.length - 1]!].map((tile, s) => tile.x + (tiles.length > 1 ? tile.w / 2 : (tile.w * (1 + 2 * s)) / 4));
+    const sides = seats(ctx.match);
+    /** The sides a bot plays: labelled under their scores. */
+    const bots = sides.flatMap((p, s) => (p.bot ? [s] : []));
     /** Shared time of the last resume: a state from before it shows the ball where the pause stopped it. */
     let resumedAt = -Infinity;
     return {
@@ -189,8 +280,8 @@ export default defineGame<PongState, never>({
       },
       draw({ ctx: g, state: s, now, t }) {
         if (!s) return;
-        // Extrapolate on the shared clock, never past a paddle that will return it.
-        const moving = Math.max(0, Math.min(Math.max(now - Math.max(t, resumedAt), 0), MAX_AHEAD_MS) / 1000 - s.wait);
+        // Extrapolate on the shared clock, never past a paddle that will return it; a held ball stays where it is.
+        const moving = s.hold.length > 0 ? 0 : Math.max(0, Math.min(Math.max(now - Math.max(t, resumedAt), 0), MAX_AHEAD_MS) / 1000 - s.wait);
         const y = fold(s.ball.y + s.ball.vy * moving, T.top, T.bottom);
         let x = s.ball.x + s.ball.vx * moving;
         if (s.ball.vx < 0 && s.ball.x >= T.contact[0] && x < T.contact[0] && covers(s.pads[0], y)) x = 2 * T.contact[0] - x;
@@ -200,8 +291,10 @@ export default defineGame<PongState, never>({
         g.font = '600 14px system-ui, sans-serif';
         g.textAlign = 'center';
         g.textBaseline = 'top';
-        g.fillText(String(s.score[0]), scoreX[0]!, bounds.y + 8);
-        g.fillText(String(s.score[1]), scoreX[1]!, bounds.y + 8);
+        g.fillText(String(s.score[0]), scoreX[0]!, T.y + 8);
+        g.fillText(String(s.score[1]), scoreX[1]!, T.y + 8);
+        g.font = '600 4.5px system-ui, sans-serif';
+        for (const side of bots) g.fillText('BOT', scoreX[side]!, T.y + 24);
 
         g.fillStyle = FG;
         for (const side of [0, 1] as const) g.fillRect(T.padX[side], s.pads[side] - PONG.paddle.h / 2, PONG.paddle.w, PONG.paddle.h);
@@ -213,6 +306,21 @@ export default defineGame<PongState, never>({
           g.lineWidth = 1;
           g.stroke();
         } else g.fill();
+
+        // A hold: every Tile names each human side play waits for, on a shaded band above the ball's rest.
+        if (s.hold.length > 0) {
+          const ask = s.started ? 'touch your screen' : 'touch to start';
+          const top = T.mid.y - 30;
+          g.font = '600 5px system-ui, sans-serif';
+          g.textAlign = 'center';
+          g.textBaseline = 'middle';
+          for (const tile of tiles) {
+            g.fillStyle = SHADE;
+            g.fillRect(tile.x, top - 5, tile.w, 7 * s.hold.length + 3);
+            g.fillStyle = FG;
+            s.hold.forEach((side, k) => g.fillText(`${sides[side].name}, ${ask}`, tile.x + tile.w / 2, top + 7 * k, tile.w - 6));
+          }
+        }
       },
     };
   },

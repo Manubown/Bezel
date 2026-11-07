@@ -235,53 +235,77 @@ Clock: `epochOffset = shared.now() − Date.now()` at send. The game-side runtim
 ### `games/pong/src/index.ts` — the whole game, imports `@mgc/sdk` only
 
 ```ts
-import { defineGame, type DeviceId, type PlayerId, type Vec2 } from '@mgc/sdk';
+import { defineGame, type MatchInfo, type Player, type Vec2 } from '@mgc/sdk';
 const R = 9, PAD = { w: 10, h: 110, inset: 14 }, SPEED = 520, WIN = 7;                // mm, mm/s
-type S = { ball: Vec2 & { vx: number; vy: number }; pads: Record<DeviceId, number>; score: Record<PlayerId, number> };
+const BOT = { speed: 160, aimError: 20 };                                              // mm/s, mm
+type S = { ball: Vec2 & { vx: number; vy: number }; pads: [number, number]; score: [number, number] };
 type M = never;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+const fold = (p: number, lo: number, hi: number) => {                                  // p bounced between lo and hi
+  const span = hi - lo, u = (((p - lo) % (2 * span)) + 2 * span) % (2 * span);
+  return u <= span ? lo + u : hi - (u - span);
+};
+// Side 0 (west): the Player seated at the first Tile; side 1 (east): the one at the last; a bot takes the side left.
+// Never a Player's index in `match.players`.
+function seats({ players, tiles }: MatchInfo): [Player, Player] {
+  const west = players.find((p) => !p.bot && p.deviceId === tiles[0]!.deviceId);
+  const east = players.find((p) => !p.bot && p !== west && p.deviceId === tiles.at(-1)!.deviceId); // one Tile: its human is west
+  const rest = players.filter((p) => p !== west && p !== east);
+  return [west ?? rest.shift()!, east ?? rest.shift()!];
+}
 
 export default defineGame<S, M>({
-  manifest: { id: 'mgc.pong', name: 'Pong', version: '1.0.0', tiles: { min: 2, max: 4 },
-    controllers: { min: 0, max: 0 }, players: { min: 2, max: 2 }, templates: ['row'],
+  manifest: { id: 'mgc.pong', name: 'Pong', version: '1.0.0', tiles: { min: 1, max: 4 },   // one Tile: a human and a bot
+    controllers: { min: 0, max: 0 }, players: { min: 2, max: 2 }, templates: ['row'], bots: true,
     host: './index.js', view: './index.js' },
   host(ctx) {
-    const b = ctx.match.bounds, mid = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
-    const [l, r] = [ctx.match.tiles[0]!, ctx.match.tiles.at(-1)!];                      // outer Tiles
-    const seat: Record<DeviceId, PlayerId> = { [l.deviceId]: ctx.match.players[0]!.playerId,
-                                               [r.deviceId]: ctx.match.players[1]!.playerId };
-    const pads = { [l.deviceId]: mid.y, [r.deviceId]: mid.y }, score = { [seat[l.deviceId]!]: 0, [seat[r.deviceId]!]: 0 };
-    let ball = { ...mid, vx: SPEED, vy: SPEED * 0.4 };
-    const serve = (dir: number) => { ball = { ...mid, vx: SPEED * dir, vy: (Math.random() - 0.5) * SPEED }; };
+    // Across: the Layout bounds. Up and down: only the band every Tile covers (a row centres Tiles on the
+    // tallest, so a tall Tile in the middle would otherwise carry the ball off its neighbours' screens).
+    const b = ctx.match.bounds, tiles = ctx.match.tiles;
+    const y0 = Math.max(...tiles.map((t) => t.y)), y1 = Math.min(...tiles.map((t) => t.y + t.h));
+    const mid = { x: b.x + b.w / 2, y: (y0 + y1) / 2 };
+    const sides = seats(ctx.match), ids = sides.map((p) => p.playerId);
+    const fingers = sides.map((p) => (p.bot ? undefined : p.deviceId));                 // the Device that moves each paddle
+    const pads: [number, number] = [mid.y, mid.y], score: [number, number] = [0, 0];
+    let ball = { ...mid, vx: SPEED, vy: SPEED * 0.4 }, aim = 0;                        // aim: how far off a bot goes for this shot
+    const serve = (dir: number) => { ball = { ...mid, vx: SPEED * dir, vy: (Math.random() - 0.5) * SPEED }; aim = 0; };
+    const ret = () => { ball.vx *= -1; aim = (Math.random() * 2 - 1) * BOT.aimError; };
     const hit = (y: number) => Math.abs(ball.y - y) < PAD.h / 2 + R;
-    const lx = b.x + PAD.inset + PAD.w + R, rx = b.x + b.w - PAD.inset - PAD.w - R;
-    const snap = (): S => ({ ball: { ...ball }, pads: { ...pads }, score: { ...score } });
+    const face = [b.x + PAD.inset + PAD.w + R, b.x + b.w - PAD.inset - PAD.w - R] as const;
+    const snap = (): S => ({ ball: { ...ball }, pads: [pads[0], pads[1]], score: [score[0], score[1]] });
     return {
-      onInput(i) { if (i.deviceId in pads) pads[i.deviceId] = clamp(i.world.y, b.y + PAD.h / 2, b.y + b.h - PAD.h / 2); },
+      onInput(i) {
+        const s = fingers.indexOf(i.deviceId);                                          // a Device that seats no side: ignored
+        if (s >= 0) pads[s] = clamp(i.world.y, y0 + PAD.h / 2, y1 - PAD.h / 2);
+      },
       onResume() { ctx.publish(snap()); },
       tick(dt) {
+        for (const s of [0, 1] as const) if (sides[s].bot) {                            // toward where the ball will cross its face
+          const coming = s === 0 ? ball.vx < 0 : ball.vx > 0;                           // else back to the centre
+          const goal = coming ? fold(ball.y + (ball.vy * (face[s] - ball.x)) / ball.vx, y0 + R, y1 - R) + aim : mid.y;
+          pads[s] += clamp(goal - pads[s], -BOT.speed * dt, BOT.speed * dt);            // never faster than BOT.speed
+        }
         ball.x += ball.vx * dt; ball.y += ball.vy * dt;
-        if ((ball.y < b.y + R && ball.vy < 0) || (ball.y > b.y + b.h - R && ball.vy > 0)) ball.vy *= -1;
-        if (ball.x < lx && ball.vx < 0 && hit(pads[l.deviceId]!)) ball.vx *= -1;
-        if (ball.x > rx && ball.vx > 0 && hit(pads[r.deviceId]!)) ball.vx *= -1;
+        if ((ball.y < y0 + R && ball.vy < 0) || (ball.y > y1 - R && ball.vy > 0)) ball.vy *= -1;
+        if (ball.x < face[0] && ball.vx < 0 && hit(pads[0])) ret();
+        if (ball.x > face[1] && ball.vx > 0 && hit(pads[1])) ret();
         if (ball.x < b.x - R || ball.x > b.x + b.w + R) {
-          const scorer = seat[ball.x < b.x ? r.deviceId : l.deviceId]!;
-          if (++score[scorer]! >= WIN) return ctx.end({ scores: score, ranking: Object.keys(score).sort((a, c) => score[c]! - score[a]!) });
-          serve(scorer === seat[l.deviceId] ? 1 : -1);
+          const scorer = ball.x < b.x ? 1 : 0;
+          if (++score[scorer] >= WIN) return ctx.end({ scores: { [ids[0]!]: score[0], [ids[1]!]: score[1] }, ranking: [ids[scorer]!, ids[1 - scorer]!] });
+          serve(scorer === 0 ? 1 : -1);
         }
         ctx.publish(snap());
       },
     };
   },
-  view(ctx) {
+  view() {
     return {
       draw({ ctx: g, state: s, now, t, bounds: b }) {
         if (!s) return;
         const k = Math.min((now - t) / 1000, 0.1);                                      // extrapolate ≤ 100 ms
         g.fillStyle = '#f2f0ea';
-        for (const tile of ctx.match.tiles) if (tile.deviceId in s.pads)
-          g.fillRect(tile.x < b.x + b.w / 2 ? b.x + PAD.inset : b.x + b.w - PAD.inset - PAD.w,
-                     s.pads[tile.deviceId]! - PAD.h / 2, PAD.w, PAD.h);
+        g.fillRect(b.x + PAD.inset, s.pads[0] - PAD.h / 2, PAD.w, PAD.h);
+        g.fillRect(b.x + b.w - PAD.inset - PAD.w, s.pads[1] - PAD.h / 2, PAD.w, PAD.h);
         g.beginPath(); g.arc(s.ball.x + s.ball.vx * k, s.ball.y + s.ball.vy * k, R, 0, Math.PI * 2); g.fill();
       },
     };
@@ -289,7 +313,9 @@ export default defineGame<S, M>({
 });
 ```
 
-Every view draws the whole World; its Tile transform clips it. No canvas, DPR, rAF, pointer, px→mm, clock, pause, or link code in the game. (The shipped `games/pong` is this sketch with phone-sized geometry, a short rest before each serve, return angles from where the ball meets the paddle, and its constants exported as `PONG` for its tests. Its view also records `onResume(now)` and extrapolates from `max(t, now)`, so the paused ball is not thrown forward by the pause's length for a frame.)
+Every view draws the whole World; its Tile transform clips it. No canvas, DPR, rAF, pointer, px→mm, clock, pause, or link code in the game. (The shipped `games/pong` is this sketch with phone-sized geometry, a short rest before each serve, return angles from where the ball meets the paddle, and its constants exported as `PONG` for its tests, the bot's as `PONG.bot = { speed, aimError }`. Its randoms come from the Match seed, the bot's aim from a stream of its own so the serves are the same with or without a bot. A bot waits centred while the ball rests before a serve, aims a serve exactly and every returned shot off by up to `aimError`, so it loses a rally now and then. The view draws each side's score on its outer Tile (on a lone Tile, each over its own half) with a small "BOT" under a bot's. It also records `onResume(now)` and extrapolates from `max(t, now)`, so the paused ball is not thrown forward by the pause's length for a frame.)
+
+Touch presence (seats-and-bots 03), Pong's own logic over the plain `onInput`: transport leave detection takes 10–13 s, so a human must keep touching. A human side is present while a pointer is down on its Device's Tile (from its `down` to its `up` or `cancel`) or while its last touch reached the host less than `PONG.presence.holdMs` (5000 ms, `ctx.now()` against the step's `now`) ago; a bot's side always is, and a Device that seats no side counts for nobody. Each `tick`, after the bots have moved, lists the human sides that are not present in `PongState.hold`; while any is listed the host publishes and returns, so the ball stays where it is, its serve rest does not run and nothing scores, while the paddles still follow their fingers and a bot settles toward its goal. The first serve waits the same way until every human has touched (`started` is false until play first runs). The step after a listed side's touch plays on from where the ball stopped, without a re-serve. Every view draws the hold from the state alone: it does not extrapolate a held ball, and on every Tile it shades a band with "<name>, touch your screen" for each listed side ("<name>, touch to start" before the first serve). The platform's device-lost pause is separate and unchanged; its synthetic `cancel`s count as the last touch, so after a pause longer than `holdMs` play holds until every human touches again.
 
 ### `games/pass/src/index.ts` — a Controller passed between Players (the reference for Controllers, Holders, timers and an event-driven host)
 
