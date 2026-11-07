@@ -9,22 +9,29 @@ export interface Frame {
   dpr: number;
 }
 
-/** Hi-DPI aware requestAnimationFrame loop; `draw` gets a context reset to CSS px. */
+/**
+ * Hi-DPI aware requestAnimationFrame loop; `draw` gets a context reset to CSS px.
+ * The canvas is sized to the visual viewport: iOS Safari lays out `position: fixed`
+ * against the large viewport, so `height: 100%` would extend under the bottom toolbar.
+ */
 export function startCanvasLoop(canvas: HTMLCanvasElement, draw: (f: Frame) => void): () => void {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas2D unavailable');
   let raf = 0;
   const frame: Frame = { ctx, w: 0, h: 0, dpr: 1 };
+  const vv = window.visualViewport;
 
   const resize = () => {
     frame.dpr = window.devicePixelRatio || 1;
-    frame.w = canvas.clientWidth;
-    frame.h = canvas.clientHeight;
+    frame.w = vv?.width ?? canvas.clientWidth;
+    frame.h = vv?.height ?? canvas.clientHeight;
+    canvas.style.width = `${frame.w}px`;
+    canvas.style.height = `${frame.h}px`;
     canvas.width = Math.round(frame.w * frame.dpr);
     canvas.height = Math.round(frame.h * frame.dpr);
   };
   resize();
-  window.addEventListener('resize', resize);
+  (vv ?? window).addEventListener('resize', resize);
 
   const tick = () => {
     ctx.setTransform(frame.dpr, 0, 0, frame.dpr, 0, 0);
@@ -34,7 +41,7 @@ export function startCanvasLoop(canvas: HTMLCanvasElement, draw: (f: Frame) => v
   raf = requestAnimationFrame(tick);
   return () => {
     cancelAnimationFrame(raf);
-    window.removeEventListener('resize', resize);
+    (vv ?? window).removeEventListener('resize', resize);
   };
 }
 

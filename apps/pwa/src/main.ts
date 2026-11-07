@@ -39,6 +39,11 @@ function ms(n: number | undefined): string {
   return n === undefined || !Number.isFinite(n) ? '—' : `${n.toFixed(1)} ms`;
 }
 
+/** `rtt · Δoffset`; the offset is raw host−local time, so watch its stability, not its value. */
+function syncStats(c: { rtt: number; offset: number } | undefined): string {
+  return c ? `${ms(c.rtt)} · Δ${ms(c.offset)}` : '—';
+}
+
 function statusDot(state: 'ok' | 'wait' | 'off'): string {
   return `<svg class="dot dot-${state}" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>`;
 }
@@ -138,7 +143,7 @@ async function runHost(): Promise<void> {
       return (
         `<li><span class="n">${i + 1}</span><span class="who">${p?.info?.name ?? d.id.slice(0, 6)}</span>` +
         `<span class="meta">${placementHint(layout, i)}</span>` +
-        `<span class="sync">${statusDot(state)} ${c?.synced ? ms(c.rtt) : 'syncing'}</span></li>`
+        `<span class="sync">${statusDot(state)} ${c?.synced ? syncStats(c) : 'syncing'}</span></li>`
       );
     });
     for (const p of pending) rows.push(`<li class="pending"><span class="n">·</span><span class="who">${p.id.slice(0, 6)}</span><span class="meta">connecting</span></li>`);
@@ -172,10 +177,10 @@ function runPeer(code: string): void {
       meta.textContent = `${c?.samples ?? 0} samples`;
     } else if (layout && index >= 0) {
       state.innerHTML = `${statusDot('ok')} Phone ${index + 1} of ${layout.devices.length}`;
-      meta.textContent = `${placementHint(layout, index)} · ${ms(c?.rtt)}`;
+      meta.textContent = `${placementHint(layout, index)} · ${syncStats(c)}`;
     } else {
       state.innerHTML = `${statusDot('ok')} Synced`;
-      meta.textContent = `waiting for arrangement · ${ms(c?.rtt)}`;
+      meta.textContent = `waiting for arrangement · ${syncStats(c)}`;
     }
   };
 

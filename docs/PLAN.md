@@ -71,8 +71,8 @@ docs/                this plan, ADRs (docs/adr), agent config (docs/agents)
 
 | # | Milestone | Proves | Done when |
 |---|---|---|---|
-| M0 ✅ | Two phones, QR join, shared clock | Transport + clock sync | **Done 2026-11-07** (two Chromium tabs, same machine): rtt 1.6 ms, offset error ≤ 2 ms, both on the same beat. Real iOS+Android phones on a LAN still to be measured. |
-| M1 ✅ | Shape-template layout + Surface | Alignment v1 | **Done 2026-11-07** (host + 2 peers, row/grid): grid lines continue across bezels at the expected sub-mm offsets; the shared-time ball is on exactly one tile per sample and crosses tiles continuously. `pxPerMm` is a UA heuristic (Android 6.3, iPhone 6.1, iPad 5.2, desktop 3.78) until calibration. |
+| M0 ✅ | Two phones, QR join, shared clock | Transport + clock sync | **Done 2026-11-07** (two Chromium tabs, same machine): rtt 1.6 ms, offset error ≤ 2 ms, both on the same beat. **Real phones 2026-11-07** (iPhone host, iPhone + Windows Chromium peers, home Wi-Fi, Vite dev server over self-signed HTTPS): rtt 5–8 ms, beats in sync; raw Δoffset 284577.7 ms (Windows) / 288643.5 ms (iPhone), stable. Android still unmeasured. |
+| M1 ✅ | Shape-template layout + Surface | Alignment v1 | **Done 2026-11-07** (host + 2 peers, row/grid): grid lines continue across bezels at the expected sub-mm offsets; the shared-time ball is on exactly one tile per sample and crosses tiles continuously. `pxPerMm` is a UA heuristic (Android 6.3, iPhone 6.1, iPad 5.2, desktop 3.78) until calibration. **Two iPhones 2026-11-07**: lines meet across the bezel at the expected ratio. Defect: Safari's bottom toolbar covered the tile's bottom edge (iOS lays out `position: fixed` against the large viewport) → canvas and `DeviceInfo` now sized from `visualViewport`; the peer strip's gradient still hides the top border a little; a standalone (installed) PWA removes both, see M5. |
 | M2 | Pong across bezels, built against `@mgc/sdk` in-process | Input routing, host-authoritative loop, the SDK seam, persisted `deviceId` | Ball crosses screens without visible stutter; paddles on outer phones; `games/pong` imports only `@mgc/sdk`; pause on peer drop. |
 | M3 | iframe sandbox + `postMessage` bridge; pong unchanged | Plugin model survives serialisation | Pong runs in sandboxed iframes with no source change; a second trivial game built only from `games/_template` with no core/sdk changes. |
 | M4 | Cross-bezel swipe alignment | Alignment v2 | Arbitrary 2-phone placement aligned by one swipe, rotation included. |
@@ -89,5 +89,5 @@ docs/                this plan, ADRs (docs/adr), agent config (docs/agents)
 
 ## 8. Next steps
 
-1. Test M0/M1 on 2 real phones (one iOS, one Android) on the same Wi-Fi; record rtt/offset from the host roster and whether the grid lines meet at the bezel.
+1. Done 2026-11-07 on two iPhones (see M0/M1 rows). Still open: an Android phone, and re-check the bottom edge after the `visualViewport` fix.
 2. Done 2026-11-07: `/setup-matt-pocock-skills`, `/grill-with-docs` on the SDK seam → `GLOSSARY.md` + ADR-0001…0005, §4 rewritten; `git init` + initial commit; `/codebase-design` design-it-twice on `packages/sdk` → `docs/sdk-design.md` (prerequisites in §8 there: decouple `layout` from `core`, `deviceId` in `core`). Still to do before M2: `/setup-ts-deep-modules`, then `/to-spec` → `/to-tickets` for M2–M5. UI/UX: `/impeccable init` (PRODUCT.md) then new-work for the committed visual world; the current look is M0/M1 scaffolding, not a design decision.

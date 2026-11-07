@@ -13,12 +13,14 @@ export function guessPxPerMm(ua = navigator.userAgent, maxTouchPoints = navigato
   return 3.78;
 }
 
+/** Visible area in CSS px; `visualViewport` excludes browser toolbars where `innerHeight` may not. */
 export function deviceInfo(): DeviceInfo {
   const ua = navigator as Navigator & { userAgentData?: { platform?: string } };
+  const vv = window.visualViewport;
   return {
     name: ua.userAgentData?.platform ?? navigator.platform,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: vv?.width ?? window.innerWidth,
+    height: vv?.height ?? window.innerHeight,
     dpr: window.devicePixelRatio || 1,
     pxPerMm: guessPxPerMm(),
   };
