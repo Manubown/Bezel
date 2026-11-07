@@ -1,0 +1,10 @@
+{
+  "name": "MobileGameConnect",
+  "short_name": "MGC",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "icons": []
+}

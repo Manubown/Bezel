@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#121212" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>MobileGameConnect</title>
+    <style>
+      :root {
+        --bg: #121212;
+        --fg: #f2f0ea;
+        --fg-2: #a8a59c;
+        --line: #2a2a2a;
+        --raise: #1b1b1b;
+        --ok: #5bc46a;
+        --wait: #e0b94a;
+        --off: #5a5a5a;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; overflow: hidden; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+      ::selection { background: var(--ok); color: var(--bg); }
+      :focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
+      #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+      .code { font-weight: 600; font-size: 20px; letter-spacing: 0.18em; }
+      .dot { vertical-align: 0; margin-right: 2px; }
+      .dot-ok { fill: var(--ok); }
+      .dot-wait { fill: var(--wait); }
+      .dot-off { fill: var(--off); }
+
+      /* Host: bottom sheet. Collapsed it is one bar so the tile stays visible. */
+      .sheet { position: fixed; left: 0; right: 0; bottom: 0; background: var(--raise); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45); padding-bottom: env(safe-area-inset-bottom, 0); transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+      .sheet .bar { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: baseline; width: 100%; padding: 14px 16px; text-align: left; }
+      .sheet .bar-meta { color: var(--fg-2); }
+      .sheet .bar-action { color: var(--ok); font-weight: 500; }
+      .sheet .body { display: none; padding: 0 16px 16px; }
+      .sheet[data-open] .body { display: grid; gap: 16px; }
+      .join { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+      .qr { background: var(--fg); padding: 8px; border-radius: 6px; line-height: 0; }
+      .qr canvas { display: block; }
+      .hint { margin: 0; color: var(--fg-2); max-width: 28ch; }
+      .hint b { color: var(--fg); font-weight: 500; }
+      .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+      .seg button { padding: 10px 0; color: var(--fg-2); transition: background 120ms, color 120ms; }
+      .seg button + button { border-left: 1px solid var(--line); }
+      .seg button[aria-checked="true"] { background: var(--fg); color: var(--bg); font-weight: 500; }
+      .roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+      .roster li { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+      .roster li:first-child { border-top: 0; }
+      .roster .n { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: var(--line); font-weight: 600; }
+      .roster .who { font-weight: 500; }
+      .roster .meta { grid-column: 2; color: var(--fg-2); margin-top: -8px; }
+      .roster .sync { grid-row: 1 / span 2; grid-column: 3; color: var(--fg-2); }
+      .roster .pending { color: var(--fg-2); }
+
+      /* Peer: one slim strip at the top. */
+      .strip { position: fixed; top: 0; left: 0; right: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: baseline; padding: calc(10px + env(safe-area-inset-top, 0)) 14px 14px; background: linear-gradient(var(--bg) 55%, transparent); pointer-events: none; }
+      .strip .code { font-size: 16px; grid-row: 1; }
+      .strip .state { grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+      @media (prefers-reduced-motion: reduce) { .sheet, .seg button { transition: none; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <section id="hud" aria-live="polite"></section>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

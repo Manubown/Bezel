@@ -1,0 +1,22 @@
+{
+  "name": "@mgc/pwa",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mgc/core": "workspace:*",
+    "@mgc/layout": "workspace:*",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "@vitejs/plugin-basic-ssl": "^2.1.0",
+    "vite": "^7.1.0"
+  }
+}
