@@ -1,4 +1,5 @@
 import { TrysteroTransport, hostSession, joinSession } from '@mgc/core';
+import pass from '@mgc/pass';
 import pong from '@mgc/pong';
 import { inProcessLink, runMatch, type MatchHandle, type MatchInfo, type MatchResult, type NetFrame } from '@mgc/sdk';
 import { claimDeviceId, claimPlayerId, deviceInfo } from './device';
@@ -16,9 +17,8 @@ const APP_ID = 'mobilegameconnect';
 const MATCH_CHANNEL = 'match';
 // No 0/O/1/I/L: codes stay readable when typed by hand.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-/** The Game the Host's Start runs. */
-const GAME = pong;
-const link = inProcessLink(() => Promise.resolve({ default: GAME }));
+/** The Games the Host can start (its HUD picks the first until told otherwise); every Device runs the one its lobby names. */
+const GAMES = [pong, pass];
 
 const stage = document.getElementById('stage') as HTMLCanvasElement;
 /** A running Match's view: a positioned layer over the stage. */
@@ -51,7 +51,7 @@ async function start(): Promise<void> {
   let current: { matchId: string; handle: MatchHandle } | undefined;
   /** A Device runs a Match once: after it closed here, it is not rejoined, unless it closed because the Session dropped. */
   let joined: string | undefined;
-  const hud = await openHud(hudRoot, { session, lobby, code, game: GAME.manifest, play, abort: () => current?.handle.stop('aborted') });
+  const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted') });
   /** At most one HUD render per animation frame for the game log: a game may log on every frame. */
   let logRender = 0;
   const renderLog = (): void => {
@@ -63,6 +63,11 @@ async function start(): Promise<void> {
 
   const begin = (match: MatchInfo): void => {
     joined = match.matchId;
+    const game = GAMES.find((g) => g.manifest.id === lobby.game);
+    if (!game) {
+      console.error(`This phone has no Game ${lobby.game ?? '(none named)'}: it sits Match ${match.matchId} out`);
+      return;
+    }
     play.running = true;
     play.paused = undefined;
     play.stopped = undefined;
@@ -80,14 +85,14 @@ async function start(): Promise<void> {
     );
     let unfollow = (): void => {};
     const handle = runMatch({
-      link,
+      link: inProcessLink(() => Promise.resolve({ default: game })),
       match,
       self: { deviceId, pxPerMm: self.pxPerMm, mount: gameLayer },
       now: () => session.clock.now(),
       // A Peer's frames are for the Host alone; the Host's go where its runtime says.
       send: (frame, to) => session.send(MATCH_CHANNEL, frame, session.role === 'host' ? to : host()),
       onEvent: (e) => {
-        const name = GAME.manifest.name;
+        const name = game.manifest.name;
         if (e.t === 'fault') console.warn(`${name}: fault in ${e.where}: ${e.message}`, ...(e.stack ? [`\n${e.stack}`] : []));
         if (e.t === 'log') console.log(`${name} ${e.side}:`, ...e.args);
         if (e.t === 'view-closed' || e.t === 'closed') console.info(`${name}: ${e.t === 'closed' ? 'match' : 'this phone’s view'} closed (${e.reason}): ${e.detail}`);

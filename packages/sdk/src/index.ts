@@ -3,6 +3,7 @@ export type {
   CloseReason,
   Device,
   DeviceId,
+  HolderEntry,
   Input,
   JsonValue,
   Manifest,

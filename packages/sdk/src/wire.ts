@@ -1,4 +1,18 @@
-import type { CloseReason, Device, DeviceId, Input, JsonValue, MatchInfo, MatchResult, PauseReason, RawInput } from './types';
+import { isJson } from './json';
+import type {
+  CloseReason,
+  Device,
+  DeviceId,
+  HolderEntry,
+  Input,
+  JsonValue,
+  MatchInfo,
+  MatchResult,
+  PauseReason,
+  PlayerId,
+  RawInput,
+  Sender,
+} from './types';
 
 /**
  * The link between a game and the platform. Each side of a Match (host game,
@@ -24,6 +38,8 @@ export interface ClockWire {
 
 /** In both Down unions. */
 export type Shared =
+  /** Every Controller's Holder, after the host game changed one. */
+  | { v: 1; t: 'holders'; holders: HolderEntry[] }
   | { v: 1; t: 'clock'; clock: ClockWire }
   /** `now`: shared time of the pause. Sent again with the new reason when the reason changes while paused. */
   | { v: 1; t: 'pause'; reason: PauseReason; now: number }
@@ -34,11 +50,15 @@ export type Shared =
 
 export type HostDown =
   | Shared
-  | { v: 1; t: 'init'; side: 'host'; match: MatchInfo; clock: ClockWire }
+  | { v: 1; t: 'init'; side: 'host'; match: MatchInfo; holders: HolderEntry[]; clock: ClockWire }
   /** `n` strictly +1; `now` non-decreasing. */
   | { v: 1; t: 'tick'; n: number; dt: number; now: number }
   /** Stamped by the host runtime; in arrival order, so ordered per Device. */
   | { v: 1; t: 'input'; inputs: Input[] }
+  /** A view's `send`, stamped by the host runtime like input. */
+  | { v: 1; t: 'msg'; msg: JsonValue; from: Sender }
+  /** A timer the host game set elapsed; `now` is the shared time it was due. */
+  | { v: 1; t: 'timer'; tag: string; now: number }
   /** The host runtime refused a request; nothing changed. It also reports a `log` line to the platform. */
   | { v: 1; t: 'reject'; of: RejectOf; reason: string };
 
@@ -47,7 +67,7 @@ export type RejectOf = 'publish' | 'set-holder' | 'timer' | 'end';
 
 export type ViewDown =
   | Shared
-  | { v: 1; t: 'init'; side: 'view'; match: MatchInfo; self: Omit<Device, 'name'> & { pxPerMm: number }; clock: ClockWire }
+  | { v: 1; t: 'init'; side: 'view'; match: MatchInfo; self: Omit<Device, 'name'> & { pxPerMm: number }; holders: HolderEntry[]; clock: ClockWire }
   /** `at` is the host time of `state`; `to` is set when the state was published to this Device alone. */
   | { v: 1; t: 'state'; state: JsonValue; at: number; to?: DeviceId };
 
@@ -66,7 +86,12 @@ export type HostUp =
   | Log
   /** The first frame on any link; `v` is whatever the game speaks. */
   | { v: number; t: 'ready'; side: 'host'; sdk: string }
+  /** Once, right after the host factory returned: without `tick` the platform runs the host event-driven. */
+  | { v: 1; t: 'handlers'; tick: boolean }
   | { v: 1; t: 'publish'; state: JsonValue; to?: DeviceId; at: number }
+  | { v: 1; t: 'set-holder'; deviceId: DeviceId; playerId: PlayerId | null }
+  /** Arms timer `tag` (replacing one with the same tag), or cancels it with `null`. */
+  | { v: 1; t: 'timer'; tag: string; delayMs: number | null }
   | { v: 1; t: 'end'; result: MatchResult };
 
 export type ViewUp =
@@ -74,13 +99,15 @@ export type ViewUp =
   | Log
   | { v: number; t: 'ready'; side: 'view'; sdk: string }
   /** One per view per animation frame at most; moves coalesced to one per pointer. */
-  | { v: 1; t: 'input'; inputs: RawInput[] };
+  | { v: 1; t: 'input'; inputs: RawInput[] }
+  /** `ctx.send(msg)`: for the host game's `onMessage`. */
+  | { v: 1; t: 'send'; msg: JsonValue };
 
 export type Down = HostDown | ViewDown;
 export type Up = HostUp | ViewUp;
 
 /** Between Devices over the platform Transport: the subset of the view grammar that is not local. */
-export type NetDown = Extract<ViewDown, { t: 'state' | 'pause' | 'resume' | 'close' }>;
+export type NetDown = Extract<ViewDown, { t: 'state' | 'holders' | 'pause' | 'resume' | 'close' }>;
 export type NetUp = Extract<ViewUp, { t: 'input' | 'send' }>;
 export type NetFrame = NetDown | NetUp;
 
@@ -92,12 +119,19 @@ export function isNetDown(f: unknown): f is NetDown {
   const r = f as Record<string, unknown>;
   if (r['v'] !== WIRE_VERSION) return false;
   if (r['t'] === 'state') return 'state' in r && typeof r['at'] === 'number' && (r['to'] === undefined || typeof r['to'] === 'string');
+  if (r['t'] === 'holders') return Array.isArray(r['holders']) && r['holders'].every(isHolderEntry);
   if (r['t'] === 'pause') return Number.isFinite(r['now']) && isPauseReason(r['reason']);
   if (r['t'] === 'resume') return Number.isFinite(r['now']) && isClockWire(r['clock']);
   if (r['t'] === 'close') {
     return typeof r['reason'] === 'string' && CLOSE_REASONS.includes(r['reason']) && (r['detail'] === undefined || typeof r['detail'] === 'string');
   }
   return false;
+}
+
+function isHolderEntry(e: unknown): e is HolderEntry {
+  if (!e || typeof e !== 'object') return false;
+  const r = e as Record<string, unknown>;
+  return typeof r['deviceId'] === 'string' && (r['playerId'] === null || typeof r['playerId'] === 'string');
 }
 
 function isPauseReason(p: unknown): p is PauseReason {
@@ -119,7 +153,9 @@ const PHASES: readonly string[] = ['down', 'move', 'up', 'cancel'] satisfies Inp
 export function isNetUp(f: unknown): f is NetUp {
   if (!f || typeof f !== 'object') return false;
   const r = f as Record<string, unknown>;
-  return r['v'] === WIRE_VERSION && r['t'] === 'input' && Array.isArray(r['inputs']) && r['inputs'].every(isRawInput);
+  if (r['v'] !== WIRE_VERSION) return false;
+  if (r['t'] === 'input') return Array.isArray(r['inputs']) && r['inputs'].every(isRawInput);
+  return r['t'] === 'send' && isJson(r['msg']);
 }
 
 /** True if `i` is a well-formed input from a view, whatever else it carries. */

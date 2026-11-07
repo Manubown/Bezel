@@ -63,6 +63,7 @@ packages/core/       session, clock sync, transport (WebRTC + signaling adapters
 packages/layout/     shape templates, swipe-alignment solver, world transforms
 packages/sdk/        game API types, GameHost/GameView contexts, in-process bridge (M2) + postMessage bridge (M3), input capture, Surface re-export; depends on layout only
 games/pong/          reference game
+games/pass/          reference game for a Controller passed between Players (Holders, timers, event-driven host)
 games/_template/     starter for community games
 docs/                this plan, ADRs (docs/adr), agent config (docs/agents)
 ```

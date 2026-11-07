@@ -1,4 +1,4 @@
-import type { Session } from '@mgc/core';
+import type { RosterEntry, Session } from '@mgc/core';
 import { TEMPLATE_IDS, type Layout, type TemplateId } from '@mgc/layout';
 import type { CloseReason, Manifest, MatchResult, Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
@@ -42,8 +42,8 @@ export interface HudOptions {
   lobby: Lobby;
   /** The room code Peers join with. */
   code: string;
-  /** What the Host's Start starts. */
-  game: Manifest;
+  /** What the Host's Start can start; the first is picked until the Host picks another. */
+  games: readonly Manifest[];
   play: Readonly<Play>;
   /** Host: ends the running Match. */
   abort(): void;
@@ -55,10 +55,10 @@ export interface Hud {
 
 /**
  * The platform overlay, rendered from the lobby, the Session, and `play`: the
- * Host's bottom sheet (join code, arrangement, Player names, Start, game log,
- * roster) or a Peer's top strip, plus the last Match's close (its result, or
- * why it stopped) and a paused Match's notice on every Device. They step aside
- * while this Device runs a Match.
+ * Host's bottom sheet (join code, Game, arrangement, Controllers, Player
+ * names, Start, game log, roster) or a Peer's top strip, plus the last Match's
+ * close (its result, or why it stopped) and a paused Match's notice on every
+ * Device. They step aside while this Device runs a Match.
  */
 export async function openHud(root: HTMLElement, o: HudOptions): Promise<Hud> {
   const panel = o.session.role === 'host' ? await hostSheet(root, o) : peerStrip(root, o);
@@ -119,7 +119,7 @@ function pauseCard(play: Readonly<Play>): () => void {
 }
 
 async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
-  const { session, lobby, code, game, play } = o;
+  const { session, lobby, code, games, play } = o;
   const joinUrl = new URL(location.href);
   joinUrl.search = `?room=${code}`;
   const qr = document.createElement('canvas');
@@ -138,12 +138,19 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
         <div class="qr"></div>
         <p class="hint">Scan to join, or open <b>${esc(joinUrl.host)}</b> and enter the code.</p>
       </div>
-      <div class="seg" role="radiogroup" aria-label="Arrangement">
+      <div class="seg games" role="radiogroup" aria-label="Game">
+        ${games.map((g, i) => `<button type="button" role="radio" data-g="${i}">${esc(g.name)}</button>`).join('')}
+      </div>
+      <div class="seg arrangement" role="radiogroup" aria-label="Arrangement">
         ${TEMPLATE_IDS.map((t) => `<button type="button" role="radio" data-t="${t}">${TEMPLATE_LABEL[t]}</button>`).join('')}
+      </div>
+      <div class="roles">
+        <p class="roles-label">Controllers <span>held in hand, not on the table</span></p>
+        <div class="chips" role="group" aria-label="Controllers"></div>
       </div>
       <ol class="players" aria-label="Players"></ol>
       <div class="go">
-        <button class="start" type="button">Start ${esc(game.name)}</button>
+        <button class="start" type="button"></button>
         <button class="end" type="button">End match</button>
         <p class="reason" role="status"></p>
       </div>
@@ -154,7 +161,9 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
   const bar = root.querySelector<HTMLButtonElement>('.bar')!;
   const barMeta = root.querySelector('.bar-meta')!;
   const barAction = root.querySelector('.bar-action')!;
-  const seg = root.querySelector('.seg')!;
+  const gameSeg = root.querySelector<HTMLElement>('.games')!;
+  const seg = root.querySelector<HTMLElement>('.arrangement')!;
+  const chips = root.querySelector<HTMLElement>('.chips')!;
   const players = root.querySelector<HTMLOListElement>('.players')!;
   const start = root.querySelector<HTMLButtonElement>('.start')!;
   const end = root.querySelector<HTMLButtonElement>('.end')!;
@@ -170,9 +179,23 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     barAction.textContent = open ? 'Hide' : 'Setup';
   };
   bar.addEventListener('click', () => setOpen(!('open' in root.dataset)));
+  /** The Game Start starts. */
+  let game = games[0]!;
+  gameSeg.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-g]');
+    if (!btn) return;
+    game = games[Number(btn.dataset['g'])] ?? game;
+    refusal = '';
+    render();
+  });
   seg.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-t]');
     if (btn) lobby.setTemplate(btn.dataset['t'] as TemplateId);
+  });
+  // A pressed chip is a Controller: out of the Layout, held in hand.
+  chips.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-device]');
+    if (btn) lobby.setRole(btn.dataset['device']!, btn.getAttribute('aria-pressed') === 'true' ? 'tile' : 'controller');
   });
   players.addEventListener('change', (e) => {
     const input = e.target as HTMLInputElement;
@@ -192,6 +215,7 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
   end.addEventListener('click', () => o.abort());
 
   let playersKey = '';
+  let chipsKey = '';
   let wasRunning = false;
   let shownLog: Play['log'] | undefined;
   setOpen(true);
@@ -205,13 +229,19 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     }
     const placed = layout?.devices.length ?? 0;
     const faults = play.log.filter((l) => l.kind === 'fault').length;
+    const running = games.find((g) => g.id === lobby.game) ?? game;
     barMeta.textContent = play.running
-      ? `${game.name} · ${play.paused ? 'paused' : 'playing'}${faults ? ` · ${faults} fault${faults === 1 ? '' : 's'}` : ''}`
+      ? `${running.name} · ${play.paused ? 'paused' : 'playing'}${faults ? ` · ${faults} fault${faults === 1 ? '' : 's'}` : ''}`
       : `${placed} phone${placed === 1 ? '' : 's'}${layout ? ` · ${TEMPLATE_LABEL[layout.template]}` : ''}`;
+    gameSeg.querySelectorAll<HTMLButtonElement>('button[data-g]').forEach((b) => {
+      b.setAttribute('aria-checked', String(games[Number(b.dataset['g'])] === (match ? running : game)));
+      b.disabled = match !== undefined;
+    });
     seg.querySelectorAll<HTMLButtonElement>('button[data-t]').forEach((b) => {
       b.setAttribute('aria-checked', String(b.dataset['t'] === layout?.template));
       b.disabled = match !== undefined;
     });
+    start.textContent = `Start ${game.name}`;
     start.hidden = match !== undefined;
     end.hidden = !play.running;
     const described = play.last && describeLast(play.last);
@@ -259,17 +289,38 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     }
 
     const entries = session.roster();
+    const present = entries.filter((e) => e.present);
+    const nameOf = (e: RosterEntry): string => (e.info.deviceId === session.self.deviceId ? 'This phone' : e.info.name);
+    // One chip per present phone, rebuilt only when phones or roles change, so a tap is never lost to a re-render.
+    const roleKey = `${match ? 'frozen' : 'open'}|${present.map((e) => `${e.info.deviceId}:${lobby.roleOf(e.info.deviceId)}:${nameOf(e)}`).join(',')}`;
+    if (roleKey !== chipsKey) {
+      chipsKey = roleKey;
+      chips.innerHTML = present
+        .map((e) => {
+          const pressed = lobby.roleOf(e.info.deviceId) === 'controller';
+          return `<button type="button" class="chip" data-device="${esc(e.info.deviceId)}" aria-pressed="${pressed}"${match ? ' disabled' : ''}>${esc(nameOf(e))}</button>`;
+        })
+        .join('');
+    }
+
     const byId = new Map(entries.map((e) => [e.info.deviceId, e]));
+    const syncOf = (e: RosterEntry | undefined, self: boolean): string => {
+      const synced = e?.sync.synced === true;
+      return self ? '' : `<span class="sync">${statusDot(synced ? 'ok' : 'wait')} ${synced ? syncStats(e.sync) : 'syncing'}</span>`;
+    };
+    const late = (id: string) => match !== undefined && !match.devices.some((m) => m.deviceId === id) && 'joins the next match';
     const rows = (layout?.devices ?? []).map((d, i) => {
       const e = byId.get(d.id);
       const self = d.id === session.self.deviceId;
       const seated = lobby.players.find((p) => lobby.seatOf(p.playerId) === d.id);
-      const late = match !== undefined && !match.devices.some((m) => m.deviceId === d.id);
-      const meta = [placementHint(layout!, i), seated && esc(seated.name), late && 'joins the next match'].filter(Boolean).join(' · ');
-      const synced = e?.sync.synced === true;
-      const sync = self ? '' : `<span class="sync">${statusDot(synced ? 'ok' : 'wait')} ${synced ? syncStats(e.sync) : 'syncing'}</span>`;
-      return `<li><span class="n">${i + 1}</span><span class="who">${self ? 'This phone' : esc(e?.info.name ?? d.id.slice(0, 6))}</span><span class="meta">${meta}</span>${sync}</li>`;
+      const meta = [placementHint(layout!, i), seated && esc(seated.name), late(d.id)].filter(Boolean).join(' · ');
+      return `<li><span class="n">${i + 1}</span><span class="who">${self ? 'This phone' : esc(e?.info.name ?? d.id.slice(0, 6))}</span><span class="meta">${meta}</span>${syncOf(e, self)}</li>`;
     });
+    for (const e of present) {
+      if (lobby.roleOf(e.info.deviceId) !== 'controller') continue;
+      const meta = ['Controller', late(e.info.deviceId)].filter(Boolean).join(' · ');
+      rows.push(`<li><span class="n">C</span><span class="who">${esc(nameOf(e))}</span><span class="meta">${meta}</span>${syncOf(e, e.info.deviceId === session.self.deviceId)}</li>`);
+    }
     for (const e of entries) if (!e.present) rows.push(`<li class="pending"><span class="n">·</span><span class="who">${esc(e.info.name)}</span><span class="meta">disconnected</span></li>`);
     roster.innerHTML = rows.join('');
   };
@@ -298,6 +349,9 @@ function peerStrip(root: HTMLElement, o: HudOptions): Hud {
       } else if (match && !match.devices.some((d) => d.deviceId === me)) {
         state.innerHTML = `${statusDot('wait')} Match in progress`;
         meta.textContent = `you join the next one · ${syncStats(sync)}`;
+      } else if (lobby.roleOf(me) === 'controller') {
+        state.innerHTML = `${statusDot('ok')} Controller`;
+        meta.textContent = `hold this phone in hand · ${syncStats(sync)}`;
       } else if (layout && index >= 0) {
         const seated = lobby.players.find((p) => lobby.seatOf(p.playerId) === me);
         state.innerHTML = `${statusDot('ok')} Phone ${index + 1} of ${layout.devices.length}`;

@@ -12,6 +12,7 @@
   "dependencies": {
     "@mgc/core": "workspace:*",
     "@mgc/layout": "workspace:*",
+    "@mgc/pass": "workspace:*",
     "@mgc/pong": "workspace:*",
     "@mgc/sdk": "workspace:*",
     "qrcode": "^1.5.4"

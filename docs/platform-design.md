@@ -73,6 +73,8 @@ export interface Lobby {
   readonly players: readonly Player[];                 // setPlayers' choice, else the Players at the two outer Tiles
   seatOf(playerId: PlayerId): DeviceId | undefined;    // the Device a Player sits at
   readonly match: MatchInfo | undefined;               // set by start, deep-frozen, until the Host's close
+  readonly game: string | undefined;                   // the manifest id of the Game `match` runs (M2 08); set and cleared with it
+  roleOf(deviceId: DeviceId): 'tile' | 'controller';   // as the Host set it (M2 08); on a Peer, as the Host said
   onChange(h: () => void): () => void;
   // Host only; no-ops on a Peer, ignored while `match` is set:
   setTemplate(t: TemplateId): void;
@@ -96,7 +98,12 @@ Faults and closes (M2 07):
 - **Host's own view.** A `view-closed` sets `play.stopped`, a notice over the empty Tile ("The game stopped on this phone · The game crashed · the match goes on for the others"); the Host keeps End match.
 - **Wake lock.** `wake.ts` `keepAwakeOnTouch()` from `begin`: the first touch of a Match requests a screen wake lock, a touch after the system dropped it (the page was hidden) asks again, and the Match's `closed` releases it. It replaces the page-wide lock on the first tap.
 
-Tests at the interface: with a `Session` built over `MemoryHub` — `start()` throws on a manifest the roster cannot satisfy; the `MatchInfo` a Peer's lobby receives deep-equals the Host's; `setTemplate` after `start` is ignored; a Device joining after `start` is not in the Match. `pause.test.ts`: losing a Match Device pauses (a non-Match Device does not); the Device being back but unsynced does not resume; once it is synced the pause moves to the next lost Device, then resumes. `result.test.ts`: the result and close texts, and which events become game-log lines.
+Controllers and the Game (M2 08):
+- **Roles.** `setRole(deviceId, 'controller')` takes a roster Device out of the Layout (the default Players then sit at the new outer Tiles); `start` counts the present Controllers against the manifest's `controllers` range ("Pong needs no Controllers; 1 present") and puts each in `match.devices` with `role: 'controller'`, no Tile and its `screenMm`. Roles are fixed while a Match runs. The lobby state sends every Device's role (`controllers`), so a Peer's `roleOf` and its strip ("Controller · hold this phone in hand") follow the Host.
+- **Host sheet.** A Game picker (Pong, Pass) above the arrangement; Start reads "Start <Game>". Under it, "Controllers": one chip per present phone, pressed = Controller; the chips are rebuilt only when phones or roles change, so a tap is never lost to a re-render. Controllers appear in the roster as "C · Controller".
+- **Which Game runs.** `start(game)` records `game.id`, and the lobby state carries it with the Match (`lobby.game`). `main.ts` keeps `GAMES = [pong, pass]` and every Device runs the module with that id; a Device without it logs the fact and sits the Match out.
+
+Tests at the interface: with a `Session` built over `MemoryHub` — `start()` throws on a manifest the roster cannot satisfy; the `MatchInfo` a Peer's lobby receives deep-equals the Host's; `setTemplate` after `start` is ignored; a Device joining after `start` is not in the Match; a Device marked `controller` leaves the Layout and `match.tiles`, stays in `match.devices` with that role, counts against the Controller range, carries the Game's id to the Peer, and can be a Tile again after the Match. `pause.test.ts`: losing a Match Device pauses (a non-Match Device does not); the Device being back but unsynced does not resume; once it is synced the pause moves to the next lost Device, then resumes. `result.test.ts`: the result and close texts, and which events become game-log lines.
 
 ## 6. Order of work (M2 tickets, in dependency order)
 

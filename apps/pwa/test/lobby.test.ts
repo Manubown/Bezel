@@ -123,4 +123,42 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect(peer.layout?.template).toBe('column');
     expect(host.start(DUEL).matchId).not.toBe(undefined);
   });
+
+  it('takes a Device marked Controller out of the Layout and the Match’s Tiles, keeps it in the Match’s Devices with that role, and counts it as a Controller', () => {
+    const { host, lobby } = table(['d1', 'd2']);
+    const peer = lobby('d2');
+    host.setRole('d2', 'controller');
+    host.setRole('d9', 'controller'); // not in the roster: ignored
+    vi.advanceTimersByTime(100);
+    expect(host.layout?.devices.map((d) => d.id)).toEqual(['d0', 'd1']);
+    expect([host.roleOf('d2'), host.roleOf('d1'), host.roleOf('d9')]).toEqual(['controller', 'tile', 'tile']);
+    expect([peer.roleOf('d2'), peer.roleOf('d1')]).toEqual(['controller', 'tile']);
+    // The default Players sit at the outer Tiles, which are now d0 and d1.
+    expect(host.players.map((p) => p.playerId)).toEqual([seat('d0'), seat('d1')]);
+
+    expect(() => host.start(DUEL)).toThrow('Duel needs no Controllers; 1 present');
+    expect(() => host.start({ ...DUEL, controllers: { min: 2, max: 2 } })).toThrow('Duel needs 2 Controllers; 1 present');
+    const match = host.start({ ...DUEL, id: 'test.pass', controllers: { min: 1, max: 1 } });
+    expect(match.tiles.map((t) => t.deviceId)).toEqual(['d0', 'd1']);
+    expect(match.devices.map((d) => [d.deviceId, d.role])).toEqual([
+      ['d0', 'tile'],
+      ['d1', 'tile'],
+      ['d2', 'controller'],
+    ]);
+    expect(match.devices[2]).toEqual({ deviceId: 'd2', role: 'controller', name: 'phone d2', screenMm: { x: 65, y: 140 } });
+    expect(match.bounds).toEqual({ x: 0, y: 0, w: 134, h: 140 });
+    expect(host.game).toBe('test.pass');
+    vi.advanceTimersByTime(100);
+    expect(peer.match).toEqual(match);
+    expect(peer.game).toBe('test.pass');
+
+    // Fixed while the Match runs; after it, the Device can be a Tile again.
+    host.setRole('d2', 'tile');
+    expect(host.roleOf('d2')).toBe('controller');
+    host.close();
+    host.setRole('d2', 'tile');
+    vi.advanceTimersByTime(100);
+    expect(host.layout?.devices.map((d) => d.id)).toEqual(['d0', 'd1', 'd2']);
+    expect([peer.roleOf('d2'), peer.game]).toEqual(['tile', undefined]);
+  });
 });

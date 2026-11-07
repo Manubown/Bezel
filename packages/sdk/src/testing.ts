@@ -26,8 +26,9 @@ export interface TestMatch<S extends JsonValue = JsonValue> {
   tick(ms: number): Promise<void>;
   /**
    * A pointer event on `deviceId`'s view at `at` (a Tile: world mm; a
-   * Controller: its screen mm), then one animation frame at the current time:
-   * it reaches the host game before the next tick.
+   * Controller: its screen mm), on its topmost element (the SDK's capture, or
+   * a DOM view's own button), then one animation frame at the current time:
+   * it reaches the host game before the next tick (at once when event-driven).
    */
   input(deviceId: DeviceId, phase: Input['phase'], at: Vec2, pointerId?: number): Promise<void>;
   /**

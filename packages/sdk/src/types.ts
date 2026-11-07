@@ -71,6 +71,12 @@ export interface Input extends Sender {
 /** An input as a view sends it: the host runtime stamps who sent it. */
 export type RawInput = Omit<Input, 'deviceId' | 'role' | 'playerId'>;
 
+/** Who holds a Controller: one entry per Controller Device of the Match; `null` while nobody does. */
+export interface HolderEntry {
+  deviceId: DeviceId;
+  playerId: PlayerId | null;
+}
+
 export type PauseReason = { kind: 'device-lost'; deviceId: DeviceId } | { kind: 'platform'; note?: string };
 
 export type CloseReason = 'ended' | 'aborted' | 'version' | 'protocol' | 'fault' | 'link-lost';

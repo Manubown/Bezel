@@ -13,6 +13,7 @@ import {
   type Game,
   type HostContext,
   type Input,
+  type JsonValue,
   type LinkFactory,
   type MatchEvent,
   type MatchHandle,
@@ -20,6 +21,8 @@ import {
   type MatchResult,
   type NetFrame,
   type PauseReason,
+  type PlayerId,
+  type Sender,
   type Tile,
   type Up,
   type ViewContext,
@@ -62,8 +65,13 @@ export interface Probe {
   rec: ProbeRecord;
 }
 
-/** What one view saw, in order: states, the local echo of its own input, pauses and resumes. */
-export type Seen = { state: ProbeState } | { input: Input } | { pause: PauseReason } | { resume: number };
+/** What one view saw, in order: states, the local echo of its own input, pauses and resumes, Holder changes. */
+export type Seen =
+  | { state: ProbeState }
+  | { input: Input }
+  | { pause: PauseReason }
+  | { resume: number }
+  | { holder: { controller: DeviceId; playerId: PlayerId | null } };
 
 /** A host `onPause`/`onResume`, with how many ticks and inputs had run before it. */
 export type HostPause = ({ pause: PauseReason } | { resume: number }) & { afterTicks: number; afterInputs: number };
@@ -73,13 +81,26 @@ export interface ProbeRecord {
   ticks: { dt: number; now: number }[];
   /** Host `onInput` in order, with how many ticks had run before it. */
   inputs: { input: Input; afterTicks: number }[];
+  /** Host `onMessage` in order, with how many ticks had run before it. */
+  messages: { msg: JsonValue; from: Sender; afterTicks: number }[];
+  /** Host `onTimer` in order, with how many ticks had run before it. */
+  timers: { tag: string; now: number; afterTicks: number }[];
   /** Host `onPause`/`onResume` in order. */
   pauses: HostPause[];
-  host: HostContext<ProbeState, never> | undefined;
-  views: Map<DeviceId, ViewContext<ProbeState, never>>;
+  /**
+   * Host `onInput`/`onMessage`/`onHolder`/`onTimer` and every view's
+   * `onHolder`, in the one order they happened: `host input d3:2 down by
+   * p-ann`, `host msg {"n":1} from d3 by p-ann`, `host holder d3=p-ann`,
+   * `d1 holder d3=p-ann`, `host timer turn`.
+   */
+  journal: string[];
+  host: HostContext<ProbeState, JsonValue> | undefined;
+  views: Map<DeviceId, ViewContext<ProbeState, JsonValue>>;
+  /** What each view's `mount` was handed. */
+  mounts: Map<DeviceId, HTMLElement>;
   /** Every state each view received, in order. */
   states: Map<DeviceId, { state: ProbeState; t: number }[]>;
-  /** States, input echoes, pauses and resumes per view, interleaved as they happened. */
+  /** States, input echoes, pauses, resumes and Holder changes per view, interleaved as they happened. */
   seen: Map<DeviceId, Seen[]>;
   /** Each view's `onEnd`. */
   ends: Map<DeviceId, { reason: CloseReason; result?: MatchResult }[]>;
@@ -87,24 +108,43 @@ export interface ProbeRecord {
   draws: Map<DeviceId, { frame: Frame<ProbeState>; transform: Matrix }[]>;
 }
 
+const by = (s: Sender): string => `${s.deviceId}${s.playerId === undefined ? '' : ` by ${s.playerId}`}`;
+
 /**
  * A recording Game. Its host publishes `{ n }` on tick n unless `onTick` takes
- * over, and hands every input to `onInput`; its views record states, input
- * echoes and the end, and frames when `draw` is on (a function is also called
- * on each frame, after it was recorded, and may throw). `view` runs first in
- * every view's factory and may throw.
+ * over (`tick: false`: it has no `tick` at all), and hands every input to
+ * `onInput`; its views record states, input echoes, Holder changes and the
+ * end, what `mount` got when `mount` is on, and frames when `draw` is on (a
+ * function is also called on each frame, after it was recorded, and may
+ * throw). `view` runs first in every view's factory and may throw.
  */
 export function probeGame(
   o: {
-    onTick?: (ctx: HostContext<ProbeState, never>, n: number) => void;
-    onInput?: (ctx: HostContext<ProbeState, never>, i: Input) => void;
-    view?: (ctx: ViewContext<ProbeState, never>) => void;
+    tick?: false;
+    onTick?: (ctx: HostContext<ProbeState, JsonValue>, n: number) => void;
+    onInput?: (ctx: HostContext<ProbeState, JsonValue>, i: Input) => void;
+    view?: (ctx: ViewContext<ProbeState, JsonValue>) => void;
+    mount?: true;
     draw?: true | ((deviceId: DeviceId, n: number) => void);
     input?: 'off';
   } = {},
 ): Probe {
-  const rec: ProbeRecord = { ticks: [], inputs: [], pauses: [], host: undefined, views: new Map(), states: new Map(), seen: new Map(), ends: new Map(), draws: new Map() };
-  const game = defineGame<ProbeState, never>({
+  const rec: ProbeRecord = {
+    ticks: [],
+    inputs: [],
+    messages: [],
+    timers: [],
+    pauses: [],
+    journal: [],
+    host: undefined,
+    views: new Map(),
+    mounts: new Map(),
+    states: new Map(),
+    seen: new Map(),
+    ends: new Map(),
+    draws: new Map(),
+  };
+  const game = defineGame<ProbeState, JsonValue>({
     manifest: {
       id: 'mgc.probe',
       name: 'Probe',
@@ -118,15 +158,29 @@ export function probeGame(
     host(ctx) {
       rec.host = ctx;
       return {
-        tick(dt, now) {
-          rec.ticks.push({ dt, now });
-          const n = rec.ticks.length;
-          if (o.onTick) o.onTick(ctx, n);
-          else ctx.publish({ n });
-        },
+        ...(o.tick !== false && {
+          tick(dt: number, now: number) {
+            rec.ticks.push({ dt, now });
+            const n = rec.ticks.length;
+            if (o.onTick) o.onTick(ctx, n);
+            else ctx.publish({ n });
+          },
+        }),
         onInput(input) {
           rec.inputs.push({ input, afterTicks: rec.ticks.length });
+          rec.journal.push(`host input ${input.deviceId}:${input.pointerId} ${input.phase}${input.playerId === undefined ? '' : ` by ${input.playerId}`}`);
           o.onInput?.(ctx, input);
+        },
+        onMessage(msg, from) {
+          rec.messages.push({ msg, from, afterTicks: rec.ticks.length });
+          rec.journal.push(`host msg ${JSON.stringify(msg)} from ${by(from)}`);
+        },
+        onHolder(controller, playerId) {
+          rec.journal.push(`host holder ${controller}=${playerId}`);
+        },
+        onTimer(tag, now) {
+          rec.timers.push({ tag, now, afterTicks: rec.ticks.length });
+          rec.journal.push(`host timer ${tag}`);
         },
         onPause(reason) {
           rec.pauses.push({ pause: reason, afterTicks: rec.ticks.length, afterInputs: rec.inputs.length });
@@ -155,6 +209,10 @@ export function probeGame(
         onInput(input) {
           seen.push({ input });
         },
+        onHolder(controller, playerId) {
+          seen.push({ holder: { controller, playerId } });
+          rec.journal.push(`${ctx.deviceId} holder ${controller}=${playerId}`);
+        },
         onPause(reason) {
           seen.push({ pause: reason });
         },
@@ -164,6 +222,11 @@ export function probeGame(
         onEnd(r) {
           ends.push(r);
         },
+        ...(o.mount && {
+          mount(root: HTMLElement) {
+            rec.mounts.set(ctx.deviceId, root);
+          },
+        }),
         ...(o.draw && {
           draw(frame: Frame<ProbeState>) {
             const m = frame.ctx.getTransform();

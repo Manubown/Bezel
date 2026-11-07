@@ -3,8 +3,9 @@ import { version as SDK_VERSION } from '../package.json';
 import { GameClock } from './clock';
 import { REAL_ENV, type Env } from './env';
 import type { Frame, Game, HostContext, HostHandlers, ViewContext, ViewHandlers } from './game';
+import { holderRefusal } from './holders';
 import { assertJson } from './json';
-import type { Input, JsonValue, MatchInfo, RawInput } from './types';
+import type { DeviceId, HolderEntry, Input, JsonValue, MatchInfo, PlayerId, RawInput } from './types';
 import { WIRE_VERSION, type Down, type Fault, type Up } from './wire';
 
 /** The game's end of a link. */
@@ -128,6 +129,10 @@ class HostSide extends GameSide {
   private tickNow: number | undefined;
   /** Set by `end`: frames already in flight run no handler. */
   private ended = false;
+  /** Each Controller's Holder as the host game set it: what `holderOf` says. */
+  private readonly holders = new Map<DeviceId, PlayerId | null>();
+  /** The same as the platform last broadcast it: `onHolder` fires on its changes. */
+  private readonly heard = new Map<DeviceId, PlayerId | null>();
 
   constructor(
     private readonly game: Game,
@@ -138,15 +143,26 @@ class HostSide extends GameSide {
   }
 
   protected start(f: Extract<Down, { t: 'init' }>): void {
+    const { match } = f;
+    for (const { deviceId, playerId } of f.holders) {
+      this.holders.set(deviceId, playerId);
+      this.heard.set(deviceId, playerId);
+    }
+    // After `end` these still go out, refused or not: the host runtime is the one that rejects them.
     const ctx: HostContext<JsonValue, JsonValue> = {
-      match: f.match,
+      match,
       now: () => this.clock.now(),
-      // After `end` these still go out: the host runtime is the one that rejects them.
       publish: (state, to) => {
         assertJson(state, 'publish: state');
         const at = this.tickNow ?? this.clock.now();
         this.post(to === undefined ? { v: 1, t: 'publish', state, at } : { v: 1, t: 'publish', state, to, at });
       },
+      setHolder: (controller, playerId) => {
+        if (!this.ended && holderRefusal(match, controller, playerId) === undefined) this.holders.set(controller, playerId);
+        this.post({ v: 1, t: 'set-holder', deviceId: controller, playerId });
+      },
+      holderOf: (controller) => this.holders.get(controller) ?? null,
+      timer: (tag, delayMs) => this.post({ v: 1, t: 'timer', tag, delayMs }),
       end: (result) => {
         assertJson(result, 'end: result');
         this.ended = true;
@@ -154,7 +170,9 @@ class HostSide extends GameSide {
       },
       log: (...args) => this.log(args),
     };
-    this.guard('factory', () => (this.handlers = handlersOf(this.game.host(ctx), 'host')), true);
+    if (!this.guard('factory', () => (this.handlers = handlersOf(this.game.host(ctx), 'host')), true)) return;
+    // The platform steps a host with `tick` only; it waits for this before the first step.
+    this.post({ v: 1, t: 'handlers', tick: typeof this.handlers.tick === 'function' });
   }
 
   protected frame(f: Exclude<Down, { t: 'init' | 'clock' | 'close' }>): void {
@@ -167,13 +185,25 @@ class HostSide extends GameSide {
       }
       return;
     }
+    if (f.t === 'holders') return this.hear(f.holders);
     if (this.ended) return;
-    if (f.t === 'pause') this.guard('onPause', () => this.handlers.onPause?.(f.reason));
+    if (f.t === 'msg') this.guard('onMessage', () => this.handlers.onMessage?.(f.msg, f.from));
+    else if (f.t === 'timer') this.guard('onTimer', () => this.handlers.onTimer?.(f.tag, f.now));
+    else if (f.t === 'pause') this.guard('onPause', () => this.handlers.onPause?.(f.reason));
     else if (f.t === 'resume') this.guard('onResume', () => this.handlers.onResume?.(f.now));
     else if (f.t === 'tick' && this.handlers.tick) {
       this.tickNow = f.now;
       this.guard('tick', () => this.handlers.tick?.(f.dt, f.now));
       this.tickNow = undefined;
+    }
+  }
+
+  /** `onHolder` for each Controller whose Holder the broadcast changed. */
+  private hear(holders: readonly HolderEntry[]): void {
+    for (const { deviceId, playerId } of holders) {
+      if (this.heard.get(deviceId) === playerId) continue;
+      this.heard.set(deviceId, playerId);
+      if (!this.ended) this.guard('onHolder', () => this.handlers.onHolder?.(deviceId, playerId));
     }
   }
 
@@ -194,6 +224,8 @@ class ViewSide extends GameSide {
   private latest: { state: JsonValue; t: number } | undefined;
   private root: HTMLElement | undefined;
   private sender: Pick<Input, 'deviceId' | 'role'> | undefined;
+  /** Each Controller's Holder, as the platform last said. */
+  private readonly holders = new Map<DeviceId, PlayerId | null>();
   /** The paint loop behind `draw`: it runs while not paused and not hidden, until closed. */
   private painter = { pause: (): void => {}, resume: (): void => {}, close: (): void => {} };
   private stopCapture = (): void => {};
@@ -219,6 +251,7 @@ class ViewSide extends GameSide {
     this.mount.append(root);
     this.root = root;
     this.sender = { deviceId: self.deviceId, role: self.role };
+    for (const { deviceId, playerId } of f.holders) this.holders.set(deviceId, playerId);
 
     const tile = self.tile;
     const surface = tile && new Surface({ id: self.deviceId, x: tile.x, y: tile.y, w: tile.w, h: tile.h, rot: tile.rot }, self.pxPerMm);
@@ -234,10 +267,16 @@ class ViewSide extends GameSide {
       root,
       now: () => this.clock.now(),
       latest: () => this.latest,
+      holder: (controller = self.deviceId) => this.holders.get(controller) ?? null,
+      send: (msg) => {
+        assertJson(msg, 'send: msg');
+        this.post({ v: 1, t: 'send', msg });
+      },
       log: (...args) => this.log(args),
     };
     // Without handlers there is nothing to run: the platform closes this view.
     if (!this.guard('factory', () => (this.handlers = handlersOf(this.game.view(ctx), 'view')), true)) return;
+    if (this.handlers.mount) this.guard('mount', () => this.handlers.mount?.(root));
     if (!win) {
       if (this.handlers.draw) this.post(fault('view.draw', new Error('the view root is not in a window'), true));
       return;
@@ -257,6 +296,12 @@ class ViewSide extends GameSide {
     } else if (f.t === 'resume') {
       this.guard('onResume', () => this.handlers.onResume?.(f.now));
       this.painter.resume();
+    } else if (f.t === 'holders') {
+      for (const { deviceId, playerId } of f.holders) {
+        if (this.holders.get(deviceId) === playerId) continue;
+        this.holders.set(deviceId, playerId);
+        this.guard('onHolder', () => this.handlers.onHolder?.(deviceId, playerId));
+      }
     }
   }
 
@@ -334,8 +379,11 @@ class ViewSide extends GameSide {
     const inputs = this.pending;
     this.pending = [];
     const { deviceId, role } = this.sender;
+    // Stamped as the host will: a Controller's input carries its Holder.
+    const playerId = this.holders.get(deviceId) ?? undefined;
+    const sender = playerId === undefined ? { deviceId, role } : { deviceId, role, playerId };
     for (const { pointerId, phase, t, world } of inputs) {
-      this.guard('onInput', () => this.handlers.onInput?.({ deviceId, role, pointerId, phase, t, world: { ...world } }));
+      this.guard('onInput', () => this.handlers.onInput?.({ ...sender, pointerId, phase, t, world: { ...world } }));
     }
     this.post({ v: 1, t: 'input', inputs });
   }

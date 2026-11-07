@@ -10,6 +10,16 @@ export function assertJson(value: unknown, path: string): asserts value is JsonV
   check(value, path, new Set());
 }
 
+/** `assertJson` as a check, for values off a link or the net. */
+export function isJson(value: unknown): value is JsonValue {
+  try {
+    check(value, '', new Set());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function check(v: unknown, path: string, open: Set<object>): void {
   switch (typeof v) {
     case 'string':

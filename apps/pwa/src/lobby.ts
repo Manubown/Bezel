@@ -25,7 +25,11 @@ export interface Lobby {
   seatOf(playerId: PlayerId): DeviceId | undefined;
   /** Set by `start`, deep-frozen and identical on every Device, until the Host's `close`. */
   readonly match: MatchInfo | undefined;
-  /** `layout`, `players`, a seat, or `match` changed. */
+  /** The manifest id of the Game `match` runs; set and cleared with it. */
+  readonly game: string | undefined;
+  /** A Device's role in the next Match, as the Host set it (`setRole`); `'tile'` unless marked a Controller. */
+  roleOf(deviceId: DeviceId): Role;
+  /** `layout`, `players`, a seat, a role, or `match` changed. */
   onChange(handler: () => void): () => void;
 
   // Host only: no-ops on a Peer, and ignored while `match` is set.
@@ -53,10 +57,21 @@ interface Shown {
   layout: Layout | undefined;
   players: readonly Player[];
   seats: Readonly<Record<PlayerId, DeviceId>>;
+  /** The Devices marked Controller. */
+  controllers: readonly DeviceId[];
   match: MatchInfo | undefined;
+  game: string | undefined;
 }
 
-type StateMessage = { t: 'state'; layout: Layout | null; players: readonly Player[]; seats: Readonly<Record<PlayerId, DeviceId>>; match: MatchInfo | null };
+type StateMessage = {
+  t: 'state';
+  layout: Layout | null;
+  players: readonly Player[];
+  seats: Readonly<Record<PlayerId, DeviceId>>;
+  controllers: readonly DeviceId[];
+  match: MatchInfo | null;
+  game: string | null;
+};
 type SeatMessage = { t: 'seat'; playerId: PlayerId };
 
 abstract class LobbyBase {
@@ -64,7 +79,9 @@ abstract class LobbyBase {
   surface: Surface | undefined;
   players: readonly Player[] = [];
   match: MatchInfo | undefined;
+  game: string | undefined;
   private seats: Readonly<Record<PlayerId, DeviceId>> = {};
+  private controllers: readonly DeviceId[] = [];
   private readonly listeners = new Set<() => void>();
   private shown = '';
 
@@ -75,6 +92,10 @@ abstract class LobbyBase {
 
   seatOf(playerId: PlayerId): DeviceId | undefined {
     return this.seats[playerId];
+  }
+
+  roleOf(deviceId: DeviceId): Role {
+    return this.controllers.includes(deviceId) ? 'controller' : 'tile';
   }
 
   onChange(handler: () => void): () => void {
@@ -91,8 +112,10 @@ abstract class LobbyBase {
     this.layout = s.layout;
     this.players = s.players;
     this.seats = s.seats;
+    this.controllers = s.controllers;
     this.match = s.match;
-    const key = JSON.stringify([s.layout, s.players, s.seats, s.match?.matchId]);
+    this.game = s.game;
+    const key = JSON.stringify([s.layout, s.players, s.seats, s.controllers, s.match?.matchId]);
     if (key === this.shown) return;
     this.shown = key;
     this.listeners.forEach((h) => h());
@@ -110,6 +133,8 @@ class HostLobby extends LobbyBase implements Lobby {
   /** `setPlayers`' choice; dropped when the Tiles change. */
   private chosen: readonly Player[] | undefined;
   private frozen: MatchInfo | undefined;
+  /** The manifest id of the Game `frozen` runs. */
+  private frozenGame: string | undefined;
   /** `template|id:w×h,…` that `layout` was built from: clock reports alone rebuild nothing. */
   private tilesKey = '';
   /** The last state sent to every Peer, as JSON. */
@@ -137,7 +162,7 @@ class HostLobby extends LobbyBase implements Lobby {
   }
 
   setRole(deviceId: DeviceId, role: Role): void {
-    if (this.frozen || this.roleOf(deviceId) === role || !this.session.roster().some((e) => e.info.deviceId === deviceId)) return;
+    if (this.frozen || this.assigned(deviceId) === role || !this.session.roster().some((e) => e.info.deviceId === deviceId)) return;
     this.roles.set(deviceId, role);
     this.refresh();
   }
@@ -171,6 +196,7 @@ class HostLobby extends LobbyBase implements Lobby {
       bounds: this.layout ? { ...this.layout.bounds } : { x: 0, y: 0, w: 0, h: 0 },
     });
     this.frozen = match;
+    this.frozenGame = game.id;
     this.refresh();
     return match;
   }
@@ -181,14 +207,14 @@ class HostLobby extends LobbyBase implements Lobby {
     this.refresh();
   }
 
-  private roleOf(deviceId: DeviceId): Role {
+  private assigned(deviceId: DeviceId): Role {
     return this.roles.get(deviceId) ?? 'tile';
   }
 
   private refresh(): void {
     const present = this.session.roster().filter((e) => e.present);
     const sizes = present
-      .filter((e) => this.roleOf(e.info.deviceId) === 'tile')
+      .filter((e) => this.assigned(e.info.deviceId) === 'tile')
       .map(({ info }) => ({ id: info.deviceId, w: info.width / info.pxPerMm, h: info.height / info.pxPerMm }));
     const key = `${this.template}|${sizes.map((s) => `${s.id}:${s.w.toFixed(1)}x${s.h.toFixed(1)}`).join(',')}`;
     let layout = this.layout;
@@ -200,7 +226,11 @@ class HostLobby extends LobbyBase implements Lobby {
     const players = this.chosen ?? this.outerPlayers(layout);
     const seats: Record<PlayerId, DeviceId> = {};
     for (const [deviceId, playerId] of this.seatIds) if (players.some((p) => p.playerId === playerId)) seats[playerId] = deviceId;
-    const state: Shown = { layout, players, seats, match: this.frozen };
+    const controllers = this.session
+      .roster()
+      .map((e) => e.info.deviceId)
+      .filter((id) => this.assigned(id) === 'controller');
+    const state: Shown = { layout, players, seats, controllers, match: this.frozen, game: this.frozen && this.frozenGame };
     // Peers hear of it before anything here reacts to it (a Match start, say).
     this.publish(state, present);
     this.show(state);
@@ -218,7 +248,7 @@ class HostLobby extends LobbyBase implements Lobby {
 
   /** Sends the state to every Peer when it changed, else only to Peers that were not there last time. */
   private publish(s: Shown, present: readonly RosterEntry[]): void {
-    const msg: StateMessage = { t: 'state', layout: s.layout ?? null, players: s.players, seats: s.seats, match: s.match ?? null };
+    const msg: StateMessage = { t: 'state', layout: s.layout ?? null, players: s.players, seats: s.seats, controllers: s.controllers, match: s.match ?? null, game: s.game ?? null };
     const json = JSON.stringify(msg);
     const peers = new Set(present.map((e) => e.info.deviceId).filter((id) => id !== this.session.self.deviceId));
     if (json !== this.sent) {
@@ -234,7 +264,7 @@ class HostLobby extends LobbyBase implements Lobby {
     if (game.templates && layout && !game.templates.includes(layout.template)) {
       return `${game.name} needs the ${game.templates.join(' or ')} arrangement, not ${layout.template}`;
     }
-    const controllers = present.filter((e) => this.roleOf(e.info.deviceId) === 'controller').length;
+    const controllers = present.filter((e) => this.assigned(e.info.deviceId) === 'controller').length;
     const count = outside(game.tiles, tiles.length, 'Tile', 'present') ?? outside(game.controllers, controllers, 'Controller', 'present');
     if (count !== undefined) return `${game.name} needs ${count}`;
     const min = game.minTileMm;
@@ -289,7 +319,7 @@ class PeerLobby extends LobbyBase implements Lobby {
     if (this.status === was) return;
     if (this.status === 'ready') this.session.send(LOBBY_CHANNEL, { t: 'seat', playerId: this.playerId } satisfies SeatMessage);
     // The Host is gone and the Session with it (ADR-0002).
-    if (this.status === 'searching') this.show({ layout: undefined, players: [], seats: {}, match: undefined });
+    if (this.status === 'searching') this.show({ layout: undefined, players: [], seats: {}, controllers: [], match: undefined, game: undefined });
   }
 }
 
@@ -340,9 +370,18 @@ function readState(d: unknown): Shown | undefined {
   const layout = d['layout'] === null ? null : isLayout(d['layout']) ? structuredClone(d['layout']) : undefined;
   const players = all(d['players'], readPlayer);
   const seats = d['seats'];
+  const controllers = all(d['controllers'], (x) => (isStr(x) ? x : undefined));
   const match = d['match'] === null ? null : readMatch(d['match']);
-  if (layout === undefined || !players || !isObj(seats) || !Object.values(seats).every(isStr) || match === undefined) return undefined;
-  return { layout: layout ?? undefined, players, seats: { ...(seats as Record<PlayerId, DeviceId>) }, match: match ?? undefined };
+  const game = d['game'] === null ? null : isStr(d['game']) ? d['game'] : undefined;
+  if (layout === undefined || !players || !isObj(seats) || !Object.values(seats).every(isStr) || !controllers || match === undefined || game === undefined) return undefined;
+  return {
+    layout: layout ?? undefined,
+    players,
+    seats: { ...(seats as Record<PlayerId, DeviceId>) },
+    controllers,
+    match: match ?? undefined,
+    game: game ?? undefined,
+  };
 }
 
 function readPlayer(v: unknown): Player | undefined {

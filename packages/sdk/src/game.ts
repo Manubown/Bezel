@@ -1,5 +1,5 @@
 import type { Rect, Surface, Vec2 } from '@mgc/layout';
-import type { CloseReason, DeviceId, Input, JsonValue, Manifest, MatchInfo, MatchResult, PauseReason, Tile } from './types';
+import type { CloseReason, DeviceId, Input, JsonValue, Manifest, MatchInfo, MatchResult, PauseReason, PlayerId, Sender, Tile } from './types';
 
 /**
  * A Game is two factories. `host` runs once, on the Host Device; `view` runs
@@ -39,10 +39,28 @@ export interface HostContext<S extends JsonValue, M extends JsonValue> {
    */
   publish(state: S, to?: DeviceId): void;
   /**
+   * Hands Controller `controller` to Player `playerId` (`null`: nobody holds
+   * it). The platform tells the host game (`onHolder`) and every view, and
+   * stamps every input and message from that Controller with its Holder from
+   * then on. A Device that is not a Controller or a Player not in the Match is
+   * refused (a log line on the Host) and changes nothing.
+   */
+  setHolder(controller: DeviceId, playerId: PlayerId | null): void;
+  /** Who holds `controller` as of the last accepted `setHolder` (at once, before `onHolder`); `null` for nobody or a Tile. */
+  holderOf(controller: DeviceId): PlayerId | null;
+  /**
+   * Calls `onTimer(tag, now)` `delayMs` from now, replacing the timer with the
+   * same tag; `null` cancels it. Paused time does not count: a pause freezes
+   * the remaining delay until the resume. A delay that is not a finite
+   * number ≥ 0 is refused with a log line on the Host.
+   */
+  timer(tag: string, delayMs: number | null): void;
+  /**
    * Ends the Match on every Device with `result`. Afterwards only `dispose`
-   * still runs. Nothing published after it reaches a view: a `publish` or a
-   * second `end` made in the same turn is rejected with a log line on the
-   * Host, and once the Match has closed they are dropped.
+   * still runs. Nothing published after it reaches a view: a `publish`, a
+   * second `end`, a `setHolder` or a `timer` made in the same turn is
+   * rejected with a log line on the Host, and once the Match has closed they
+   * are dropped.
    */
   end(result: MatchResult): void;
   /** Reaches the Host platform's console and HUD: JSON values as they are, anything else as text. Never throws. */
@@ -52,8 +70,10 @@ export interface HostContext<S extends JsonValue, M extends JsonValue> {
 export interface HostHandlers<M extends JsonValue> {
   /**
    * Fixed step: `dt = 1 / tickHz` seconds, `now` the shared time of this step.
-   * Absent or `tickHz` 0 → never called. Never called while paused; after a
-   * resume, steps restart at the resume's `now`.
+   * Never called while paused; after a resume, steps restart at the resume's
+   * `now`. Without `tick`, or with `tickHz` 0, the host is event-driven: no
+   * steps at all, and every input, message and timer is handed over as it
+   * arrives.
    */
   tick?(dt: number, now: number): void;
   /**
@@ -64,7 +84,21 @@ export interface HostHandlers<M extends JsonValue> {
    * (a `cancel` before `onPause`); input sent while paused never arrives.
    */
   onInput?(i: Input): void;
-  /** The Match paused: no `tick` and no input until `onResume`. Called again if the reason changes while paused. */
+  /**
+   * A view's `send(msg)`, in arrival order with input (before the step's
+   * `tick`). `from` is stamped like an input's: the sending Device, and the
+   * Controller's Holder when it was received. Sent while paused: dropped.
+   */
+  onMessage?(msg: M, from: Sender): void;
+  /**
+   * `controller`'s Holder changed (an accepted `setHolder`). Everything that
+   * arrived before the change came first, stamped with the previous Holder;
+   * everything after it carries the new one.
+   */
+  onHolder?(controller: DeviceId, playerId: PlayerId | null): void;
+  /** Timer `tag` elapsed; `now` is the shared time it was due (paused time not counted). */
+  onTimer?(tag: string, now: number): void;
+  /** The Match paused: no `tick`, input, message or timer until `onResume`. Called again if the reason changes while paused. */
   onPause?(reason: PauseReason): void;
   /** The Match resumed at shared time `now`; a game that publishes only on change re-publishes here. */
   onResume?(now: number): void;
@@ -75,17 +109,26 @@ export interface ViewContext<S extends JsonValue, M extends JsonValue> {
   readonly match: MatchInfo;
   readonly deviceId: DeviceId;
   readonly role: 'tile' | 'controller';
-  /** Tile Devices only. */
+  /** Tile Devices only: a Controller is not part of the Layout. */
   readonly tile?: Tile;
   readonly surface?: Surface;
+  /** This Device's own screen, mm; a Controller's input and `draw` use it (origin top-left). */
   readonly screenMm: Vec2;
   readonly dpr: number;
-  /** SDK-owned element the view may fill (DOM UIs). */
+  /** SDK-owned element the view may fill (DOM UIs); `mount` is handed the same element. */
   readonly root: HTMLElement;
   /** Shared clock, ms. */
   now(): number;
   /** Last applied state and its host time. */
   latest(): { state: S; t: number } | undefined;
+  /** Who holds Controller `controller` (default: this Device), as the platform last said; `null` for nobody or a Tile. */
+  holder(controller?: DeviceId): PlayerId | null;
+  /**
+   * For the host game's `onMessage`, stamped there with this Device (and, on a
+   * Controller, its Holder). Throws a `TypeError` here if `msg` is not plain
+   * JSON. Sent while the Match is paused: dropped by the host.
+   */
+  send(msg: M): void;
   /** Reaches this Device's platform console (and the HUD on the Host): JSON values as they are, anything else as text. Never throws. */
   log(...args: unknown[]): void;
 }
@@ -97,9 +140,22 @@ export interface ViewHandlers<S extends JsonValue, M extends JsonValue> {
    * ten in a row close this view.
    */
   draw?(f: Frame<S>): void;
+  /**
+   * The DOM alternative to `draw` (both may be used: the canvas lies below):
+   * called once, right after the factory, with the view's `root` to fill. A
+   * DOM view that handles its own events sets `input: 'off'`.
+   */
+  mount?(root: HTMLElement): void;
   onState?(state: S, t: number): void;
-  /** This Device's own input, as it leaves for the host: local echo for prediction. */
+  /** This Device's own input, as it leaves for the host: local echo for prediction (`playerId`: this Controller's Holder). */
   onInput?(i: Input): void;
+  /**
+   * Controller `controller`'s Holder changed; every view hears of every
+   * Controller, a Controller's own view checks `controller === ctx.deviceId`.
+   * The host game heard first; input stamped with the new Holder reaches it
+   * only after this.
+   */
+  onHolder?(controller: DeviceId, playerId: PlayerId | null): void;
   /** The Match paused: `draw` stops (the canvas keeps its last frame) until `onResume`. Again if the reason changes. */
   onPause?(reason: PauseReason): void;
   /**
