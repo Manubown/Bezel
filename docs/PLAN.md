@@ -34,7 +34,7 @@ Nobody has shipped "tiled phones as the game surface + open plugin platform".
 
 ## 4. Core abstractions (the SDK contract)
 
-Decided 2026-11-07 via `/grill-with-docs`; terms in `GLOSSARY.md`, rationale in `docs/adr/0001`–`0005`.
+Decided 2026-11-07 via `/grill-with-docs`; terms in `GLOSSARY.md`, rationale in `docs/adr/0001`–`0005`. **The authoritative interface is `docs/sdk-design.md`** (design-it-twice result); the sketch below is the summary.
 
 ```
 Session        host + peers, lifecycle; ends when the host leaves (ADR-0002)
@@ -90,4 +90,4 @@ docs/                this plan, ADRs (docs/adr), agent config (docs/agents)
 ## 8. Next steps
 
 1. Test M0/M1 on 2 real phones (one iOS, one Android) on the same Wi-Fi; record rtt/offset from the host roster and whether the grid lines meet at the bezel.
-2. Done 2026-11-07: `/setup-matt-pocock-skills`, `/grill-with-docs` on the SDK seam → `GLOSSARY.md` + ADR-0001…0005, §4 rewritten. Still to do before M2: `git init` + first commit, `/codebase-design` design-it-twice on `packages/sdk`, `/setup-ts-deep-modules`, then `/to-spec` → `/to-tickets` for M2–M5. UI/UX: `/impeccable init` (PRODUCT.md) then new-work for the committed visual world; the current look is M0/M1 scaffolding, not a design decision.
+2. Done 2026-11-07: `/setup-matt-pocock-skills`, `/grill-with-docs` on the SDK seam → `GLOSSARY.md` + ADR-0001…0005, §4 rewritten; `git init` + initial commit; `/codebase-design` design-it-twice on `packages/sdk` → `docs/sdk-design.md` (prerequisites in §8 there: decouple `layout` from `core`, `deviceId` in `core`). Still to do before M2: `/setup-ts-deep-modules`, then `/to-spec` → `/to-tickets` for M2–M5. UI/UX: `/impeccable init` (PRODUCT.md) then new-work for the committed visual world; the current look is M0/M1 scaffolding, not a design decision.

@@ -58,6 +58,10 @@ _Avoid_: User, account, seat
 The role of a Device that is held in hand during a Match, not part of the Layout, and shows a private view. A Controller may be passed between Players.
 _Avoid_: Gamepad, remote, hand device
 
+**Holder**:
+The Player currently holding a given Controller. Changes when the Controller is passed; the Game decides when.
+_Avoid_: Owner, assignee, current user
+
 **Input**:
 One touch or pointer event from a Device, expressed in world coordinates with a shared timestamp.
 _Avoid_: Event, touch, gesture
