@@ -1,3 +1,4 @@
+import { REAL_ENV, type Env } from './env';
 import type { ClockWire } from './wire';
 
 /** Largest rate change a correction may apply: the clock runs between 0.98× and 1.02×. */
@@ -12,15 +13,17 @@ export const MAX_SLEW = 0.02;
  */
 export class GameClock {
   private anchored = false;
-  /** Reading at `p0` (performance.now()); runs at `1 + rate` until `until`, then at 1. */
+  /** Reading at `p0` (the monotonic clock); runs at `1 + rate` until `until`, then at 1. */
   private s0 = 0;
   private p0 = 0;
   private rate = 0;
   private until = 0;
 
+  constructor(private readonly env: Pick<Env, 'wall' | 'mono'> = REAL_ENV) {}
+
   receive(c: ClockWire): void {
-    const p = performance.now();
-    const target = Date.now() + c.epochOffset;
+    const p = this.env.mono();
+    const target = this.env.wall() + c.epochOffset;
     if (!this.anchored) {
       this.anchored = true;
       this.s0 = target;
@@ -37,7 +40,7 @@ export class GameClock {
   }
 
   now(): number {
-    return this.at(performance.now());
+    return this.at(this.env.mono());
   }
 
   private at(p: number): number {

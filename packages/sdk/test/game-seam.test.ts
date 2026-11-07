@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Surface, defineGame, type JsonValue, type Tile } from '../src';
-import { matchFromTiles, matchOf, probeGame, settle, startMatch, step, type FakeContext2D, type Matrix } from './harness';
+import type { CanvasOp, Matrix, RecordingContext2D } from '../src/headless';
+import { matchFromTiles, matchOf, probeGame, settle, startMatch, step } from './harness';
 
 /** One fixed step at 50 Hz. */
 const STEP_MS = 20;
@@ -12,14 +13,14 @@ describe('what a game sees across the in-process link (Host Device alone)', () =
   it('draws on an SDK-owned canvas, cleared and transformed so world mm land at Surface px × dpr', async () => {
     const tile: Tile = { deviceId: 'd0', x: 20, y: 5, w: 70, h: 150, rot: 0.4 };
     const match = matchFromTiles([tile], { x: 0, y: 0, w: 200, h: 200 }, [], 50);
-    const draws: { state: JsonValue | undefined; t: number; now: number; tile: Tile | undefined; transform: Matrix; opsBefore: string[] }[] = [];
+    const draws: { state: JsonValue | undefined; t: number; now: number; tile: Tile | undefined; transform: Matrix; opsBefore: CanvasOp[] }[] = [];
     const game = defineGame<JsonValue, never>({
       manifest: { id: 'mgc.draw-probe', name: 'Draw probe', version: '0.0.0', tiles: { min: 1, max: 1 }, controllers: { min: 0, max: 0 }, players: { min: 0, max: 0 }, host: './p.js', view: './p.js' },
       host: (ctx) => ({ tick: (_dt, now) => ctx.publish({ at: now }) }),
       view: () => ({
         draw(f) {
           const m = f.ctx.getTransform();
-          const fake = f.ctx as unknown as FakeContext2D;
+          const fake = f.ctx as unknown as RecordingContext2D;
           draws.push({ state: f.state, t: f.t, now: f.now, tile: f.tile, transform: { a: m.a, b: m.b, c: m.c, d: m.d, e: m.e, f: m.f }, opsBefore: [...fake.ops] });
         },
       }),
@@ -38,7 +39,7 @@ describe('what a game sees across the in-process link (Host Device alone)', () =
     // The whole backing store (CSS px × dpr) was cleared before draw ran.
     const [canvas] = rig.devices.get('d0')!.screen.canvases;
     expect([canvas!.width, canvas!.height]).toEqual([780, 1688]);
-    expect(first!.opsBefore).toEqual(['clearRect 0 0 780 1688']);
+    expect(first!.opsBefore.filter(([op]) => op === 'clearRect')).toEqual([['clearRect', 0, 0, 780, 1688]]);
     expect(first!.tile).toEqual(tile);
     expect(first!.state).toBeUndefined();
 

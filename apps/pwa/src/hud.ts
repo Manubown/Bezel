@@ -1,8 +1,9 @@
 import type { Session } from '@mgc/core';
 import { TEMPLATE_IDS, type Layout, type TemplateId } from '@mgc/layout';
-import type { CloseReason, Manifest } from '@mgc/sdk';
+import type { CloseReason, Manifest, MatchResult, Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
 import type { Lobby } from './lobby';
+import { describeResult } from './result';
 
 const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column', grid: 'Grid' };
 
@@ -10,8 +11,16 @@ const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column
 export interface Play {
   /** A Match runs on this Device now: the screen is the Game's. */
   running: boolean;
-  /** Why the last Match on this Device closed. */
-  closed: CloseReason | undefined;
+  /** The last Match that ran on this Device. */
+  last: LastMatch | undefined;
+}
+
+export interface LastMatch {
+  /** Why it closed. */
+  reason: CloseReason;
+  players: readonly Player[];
+  /** Set when the Game ended it. */
+  result?: MatchResult;
 }
 
 export interface HudOptions {
@@ -33,14 +42,46 @@ export interface Hud {
 /**
  * The platform overlay, rendered from the lobby, the Session, and `play`: the
  * Host's bottom sheet (join code, arrangement, Player names, Start, roster) or
- * a Peer's top strip. Both step aside while this Device runs a Match.
+ * a Peer's top strip, plus the last Match's result on every Device. They step
+ * aside while this Device runs a Match.
  */
 export async function openHud(root: HTMLElement, o: HudOptions): Promise<Hud> {
-  const hud = o.session.role === 'host' ? await hostSheet(root, o) : peerStrip(root, o);
+  const panel = o.session.role === 'host' ? await hostSheet(root, o) : peerStrip(root, o);
+  const result = resultCard(o.play);
+  const hud: Hud = {
+    render() {
+      panel.render();
+      result();
+    },
+  };
   o.session.onChange(hud.render);
   o.lobby.onChange(hud.render);
   hud.render();
   return hud;
+}
+
+/** The last Match's result over the lobby, naming the winner, until tapped or the next Match starts. */
+function resultCard(play: Readonly<Play>): () => void {
+  const card = document.createElement('section');
+  card.className = 'result';
+  card.setAttribute('role', 'status');
+  card.hidden = true;
+  document.body.append(card);
+  let shown: LastMatch | undefined;
+  let dismissed: LastMatch | undefined;
+  card.addEventListener('click', () => {
+    dismissed = play.last;
+    card.hidden = true;
+  });
+  return () => {
+    const last = play.last;
+    card.hidden = play.running || !last?.result || last === dismissed;
+    if (card.hidden || !last?.result || last === shown) return;
+    shown = last;
+    const { headline, detail } = describeResult(last.players, last.result);
+    card.innerHTML =
+      `<p class="result-head">${esc(headline)}</p>` + (detail ? `<p class="result-detail">${esc(detail)}</p>` : '') + `<p class="result-hint">Tap to close</p>`;
+  };
 }
 
 async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
@@ -133,7 +174,10 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     });
     start.hidden = match !== undefined;
     end.hidden = !play.running;
-    reason.textContent = refusal || (play.closed && !match ? `Last match: ${play.closed}` : '');
+    const last = play.last;
+    const described = last?.result && describeResult(last.players, last.result);
+    const lastLine = described ? [described.headline, described.detail].filter(Boolean).join(' · ') : last?.reason;
+    reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
 
     // Player names: rebuilt only when who plays where changes, so typing is never interrupted.
     const list = match?.players ?? lobby.players;

@@ -1,5 +1,16 @@
-import type { CloseReason, DeviceId, MatchInfo, MatchResult, PauseReason } from './types';
-import { WIRE_VERSION, isNetDown, type ClockWire, type Down, type Link, type LinkFactory, type NetFrame, type Up } from './wire';
+import { REAL_ENV, type Env } from './env';
+import type { CloseReason, DeviceId, Input, MatchInfo, MatchResult, PauseReason, RawInput } from './types';
+import {
+  WIRE_VERSION,
+  isNetDown,
+  isNetUp,
+  type ClockWire,
+  type Down,
+  type Link,
+  type LinkFactory,
+  type NetFrame,
+  type Up,
+} from './wire';
 
 export interface MatchOptions {
   link: LinkFactory;
@@ -9,7 +20,11 @@ export interface MatchOptions {
   self: { deviceId: DeviceId; pxPerMm: number; mount: HTMLElement };
   /** The shared clock (core `Session.clock.now`, bound). */
   now(): number;
-  /** Forwards `frame` over the platform Transport; `to` omitted = every other Device. */
+  /**
+   * Forwards `frame` over the platform Transport. On the Host, `to` omitted =
+   * every other Device. A Peer's frames are all for the Host and carry no `to`:
+   * the platform delivers them there.
+   */
   send(frame: NetFrame, to?: DeviceId): void;
   onEvent(e: MatchEvent): void;
   /** True on the Host: also runs the host side of the Game. */
@@ -17,7 +32,7 @@ export interface MatchOptions {
 }
 
 export interface MatchHandle {
-  /** Frames arriving off the Transport. */
+  /** Frames arriving off the Transport; `from` is the Device whose channel carried it. */
   deliver(frame: NetFrame, from: DeviceId): void;
   /** Host only. Wire v1 as implemented has no pause frames yet: accepted, no effect. */
   setPaused(reason: PauseReason | null): void;
@@ -46,11 +61,19 @@ type CloseFrame = Extract<Down, { t: 'close' }>;
  * Transport.
  */
 export function runMatch(o: MatchOptions): MatchHandle {
+  return runMatchWith(o, REAL_ENV);
+}
+
+/** `runMatch` on `env`'s clocks and timer (the test harness's fake ones). */
+export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   const me = o.match.devices.find((d) => d.deviceId === o.self.deviceId);
   if (!me) throw new Error(`runMatch: Device ${o.self.deviceId} is not in Match ${o.match.matchId}`);
   const win = o.self.mount.ownerDocument.defaultView;
   if (!win) throw new Error('runMatch: mount is not in a window');
   const { pxPerMm } = o.self;
+  /** The fixed step; 0 = an event-driven host, no ticks. */
+  const dt = o.match.tickHz > 0 ? 1 / o.match.tickHz : 0;
+  const dtMs = o.match.tickHz > 0 ? 1000 / o.match.tickHz : 0;
 
   let over = false;
   let opening = o.authority ? 2 : 1;
@@ -59,13 +82,14 @@ export function runMatch(o: MatchOptions): MatchHandle {
   };
   const clockWire = (): ClockWire => {
     const shared = o.now();
-    return { epochOffset: shared - Date.now(), sentAt: shared };
+    return { epochOffset: shared - env.wall(), sentAt: shared };
   };
   const onFault = (f: Extract<Up, { t: 'fault' }>): void => o.onEvent({ t: 'fault', where: f.where, message: f.message });
   const fail = (reason: CloseReason, detail: string): void => close({ v: 1, t: 'close', reason }, detail);
 
   // This Device's view. It keeps the last broadcast and the last state sent to
   // it alone, in arrival order, so a view that becomes ready late starts from them.
+  // Its input goes to the host runtime: here on the Host, over the net on a Peer.
   const retained: StateFrame[] = [];
   const view: GameLink = new GameLink('view', o.link({ side: 'view', root: o.self.mount }), {
     open() {
@@ -76,7 +100,9 @@ export function runMatch(o: MatchOptions): MatchHandle {
     },
     frame(f) {
       if (f.t === 'fault') onFault(f);
-      else fail('protocol', `unexpected ${f.t} on the view link`);
+      else if (!isNetUp(f)) fail('protocol', `unexpected ${f.t} on the view link`);
+      else if (o.authority) ingest(f.inputs, me.deviceId);
+      else o.send(f);
     },
     fail,
   });
@@ -87,9 +113,36 @@ export function runMatch(o: MatchOptions): MatchHandle {
     view.post(f);
   };
 
+  // Host input ingest. Who sent an input is the channel it came on, never what
+  // it says; per Device and pointer only `down → move* → (up | cancel)` passes.
+  const roleOf = new Map(o.match.devices.map((d) => [d.deviceId, d.role]));
+  const openPointers = new Map<DeviceId, Set<number>>();
+  /** Accepted since the last step, in arrival order. */
+  let inbox: Input[] = [];
+  let hostOpen = false;
+  const ingest = (raw: readonly RawInput[], from: DeviceId): void => {
+    const role = roleOf.get(from);
+    if (over || role === undefined) return;
+    let pointers = openPointers.get(from);
+    if (!pointers) openPointers.set(from, (pointers = new Set()));
+    for (const { pointerId, phase, t, world } of raw) {
+      if (phase === 'down') {
+        if (pointers.has(pointerId)) continue;
+        pointers.add(pointerId);
+      } else if (!pointers.has(pointerId)) continue;
+      else if (phase !== 'move') pointers.delete(pointerId);
+      inbox.push({ deviceId: from, role, pointerId, phase, t, world: { x: world.x, y: world.y } });
+    }
+    if (dt === 0) drain(); // no steps: inputs go at once
+  };
+  /** Inbound input goes to the host game before the step's tick. */
+  const drain = (): void => {
+    if (!hostOpen || inbox.length === 0) return;
+    host?.post({ v: 1, t: 'input', inputs: inbox });
+    inbox = [];
+  };
+
   // The host side: a fixed-step accumulator on this window's animation frames.
-  const dt = o.match.tickHz > 0 ? 1 / o.match.tickHz : 0;
-  const dtMs = o.match.tickHz > 0 ? 1000 / o.match.tickHz : 0;
   let raf = 0;
   let n = 0;
   /** Shared time of the last step; steps are exactly `dtMs` apart until a stall is dropped. */
@@ -101,6 +154,7 @@ export function runMatch(o: MatchOptions): MatchHandle {
     stepAt = Math.max(stepAt, now - MAX_CATCH_UP_STEPS * dtMs);
     while (stepAt + dtMs <= now) {
       stepAt += dtMs;
+      drain();
       host?.post({ v: 1, t: 'tick', n: ++n, dt, now: stepAt });
     }
   };
@@ -117,10 +171,11 @@ export function runMatch(o: MatchOptions): MatchHandle {
     ? new GameLink('host', o.link({ side: 'host' }), {
         open() {
           host?.post({ v: 1, t: 'init', side: 'host', match: o.match, clock: clockWire() });
+          hostOpen = true;
           if (dt > 0) {
             stepAt = o.now();
             raf = win.requestAnimationFrame(advance);
-          }
+          } else drain();
           opened();
         },
         frame(f) {
@@ -133,18 +188,19 @@ export function runMatch(o: MatchOptions): MatchHandle {
       })
     : undefined;
 
-  const clockTimer = setInterval(() => {
+  const stopClock = env.every(CLOCK_EVERY_MS, () => {
     const clock = clockWire();
     host?.post({ v: 1, t: 'clock', clock });
     view.post({ v: 1, t: 'clock', clock });
-  }, CLOCK_EVERY_MS);
+  });
 
   /** Closes this Device's part; on the Host, the Match on every Device. */
   const close = (frame: CloseFrame, detail?: string): void => {
     if (over) return;
     over = true;
+    inbox = [];
     win.cancelAnimationFrame(raf);
-    clearInterval(clockTimer);
+    stopClock();
     host?.close(frame);
     view.close(frame);
     if (o.authority) o.send(frame);
@@ -153,11 +209,15 @@ export function runMatch(o: MatchOptions): MatchHandle {
   };
 
   return {
-    deliver(frame) {
-      // Down frames originate on the Host; it never takes them from the net.
-      if (over || o.authority || !isNetDown(frame)) return;
-      if (frame.t === 'state') show(frame);
-      else close(frame);
+    deliver(frame, from) {
+      if (over) return;
+      // Down frames originate on the Host and up frames are for it alone.
+      if (o.authority) {
+        if (from !== o.self.deviceId && isNetUp(frame)) ingest(frame.inputs, from);
+      } else if (isNetDown(frame)) {
+        if (frame.t === 'state') show(frame);
+        else close(frame);
+      }
     },
     setPaused() {},
     stop(reason) {

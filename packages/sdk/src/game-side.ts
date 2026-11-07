@@ -1,9 +1,10 @@
-import { Surface } from '@mgc/layout';
+import { Surface, type Vec2 } from '@mgc/layout';
 import { version as SDK_VERSION } from '../package.json';
 import { GameClock } from './clock';
+import { REAL_ENV, type Env } from './env';
 import type { Frame, Game, HostContext, HostHandlers, ViewContext, ViewHandlers } from './game';
 import { assertJson } from './json';
-import type { JsonValue, MatchInfo } from './types';
+import type { Input, JsonValue, MatchInfo, RawInput } from './types';
 import { WIRE_VERSION, type Down, type Up } from './wire';
 
 /** The game's end of a link. */
@@ -12,6 +13,9 @@ export interface GamePort {
   onFrame(h: (f: Down) => void): void;
 }
 
+type CloseFrame = Extract<Down, { t: 'close' }>;
+type ViewSelf = Extract<Down, { t: 'init'; side: 'view' }>['self'];
+
 /**
  * Runs one side of `game` in this realm, speaking the wire protocol over
  * `port`: `ready` first, nothing before `init`, every handler call guarded so a
@@ -19,17 +23,17 @@ export interface GamePort {
  * behind every link adapter. The returned teardown disposes the game side if
  * the link goes away without a `close` frame.
  */
-export function serveGame(game: Game, side: 'host' | 'view', port: GamePort, root?: HTMLElement): () => void {
+export function serveGame(game: Game, side: 'host' | 'view', port: GamePort, root?: HTMLElement, env: Env = REAL_ENV): () => void {
   let runtime: GameSide;
-  if (side === 'host') runtime = new HostSide(game, port);
-  else if (root) runtime = new ViewSide(game, port, root);
+  if (side === 'host') runtime = new HostSide(game, port, env);
+  else if (root) runtime = new ViewSide(game, port, root, env);
   else throw new Error('a view needs a root element');
   runtime.open();
   return () => runtime.shutdown();
 }
 
 abstract class GameSide {
-  protected readonly clock = new GameClock();
+  protected readonly clock: GameClock;
   private phase: 'waiting' | 'running' | 'closed' = 'waiting';
   private outbox: Up[] = [];
   private depth = 0;
@@ -37,18 +41,22 @@ abstract class GameSide {
   constructor(
     private readonly side: 'host' | 'view',
     private readonly port: GamePort,
-  ) {}
+    env: Env,
+  ) {
+    this.clock = new GameClock(env);
+  }
 
   open(): void {
     this.port.onFrame((f) => this.receive(f));
     this.port.post({ v: WIRE_VERSION, t: 'ready', side: this.side, sdk: SDK_VERSION });
   }
 
-  shutdown(): void {
+  /** `close` is the frame that closed the Match, if one arrived. */
+  shutdown(close?: CloseFrame): void {
     if (this.phase === 'closed') return;
     const started = this.phase === 'running';
     this.phase = 'closed';
-    if (started) this.stop();
+    if (started) this.stop(close);
   }
 
   /** Frames posted while game code runs leave after it returns, in order; none leave after close. */
@@ -76,7 +84,7 @@ abstract class GameSide {
 
   protected abstract start(f: Extract<Down, { t: 'init' }>): void;
   protected abstract frame(f: Exclude<Down, { t: 'init' | 'clock' | 'close' }>): void;
-  protected abstract stop(): void;
+  protected abstract stop(close: CloseFrame | undefined): void;
 
   private receive(f: Down): void {
     if (this.phase === 'closed') return;
@@ -86,7 +94,7 @@ abstract class GameSide {
       this.clock.receive(f.clock);
       this.start(f);
     } else if (f.t === 'clock') this.clock.receive(f.clock);
-    else if (f.t === 'close') this.shutdown();
+    else if (f.t === 'close') this.shutdown(f);
     else if (f.t !== 'init') this.frame(f);
   }
 }
@@ -95,14 +103,15 @@ class HostSide extends GameSide {
   private handlers: HostHandlers<JsonValue> = {};
   /** Shared time of the step being ticked; stamps what `tick` publishes. */
   private tickNow: number | undefined;
-  /** Set by `end`: steps already in flight are not ticked. */
+  /** Set by `end`: frames already in flight run no handler, and `publish` is dropped. */
   private ended = false;
 
   constructor(
     private readonly game: Game,
     port: GamePort,
+    env: Env,
   ) {
-    super('host', port);
+    super('host', port, env);
   }
 
   protected start(f: Extract<Down, { t: 'init' }>): void {
@@ -110,11 +119,13 @@ class HostSide extends GameSide {
       match: f.match,
       now: () => this.clock.now(),
       publish: (state, to) => {
+        if (this.ended) return;
         assertJson(state, 'publish: state');
         const at = this.tickNow ?? this.clock.now();
         this.post(to === undefined ? { v: 1, t: 'publish', state, at } : { v: 1, t: 'publish', state, to, at });
       },
       end: (result) => {
+        if (this.ended) return;
         assertJson(result, 'end: result');
         this.ended = true;
         this.post({ v: 1, t: 'end', result });
@@ -126,6 +137,13 @@ class HostSide extends GameSide {
   }
 
   protected frame(f: Exclude<Down, { t: 'init' | 'clock' | 'close' }>): void {
+    if (f.t === 'input') {
+      for (const i of f.inputs) {
+        if (this.ended) return;
+        this.guard('onInput', () => this.handlers.onInput?.(i));
+      }
+      return;
+    }
     if (f.t !== 'tick' || this.ended || !this.handlers.tick) return;
     this.tickNow = f.now;
     this.guard('tick', () => this.handlers.tick?.(f.dt, f.now));
@@ -137,18 +155,30 @@ class HostSide extends GameSide {
   }
 }
 
+const PHASE_OF: Readonly<Record<string, Input['phase']>> = {
+  pointerdown: 'down',
+  pointermove: 'move',
+  pointerup: 'up',
+  pointercancel: 'cancel',
+};
+
 class ViewSide extends GameSide {
   private handlers: ViewHandlers<JsonValue, JsonValue> = {};
   private latest: { state: JsonValue; t: number } | undefined;
   private root: HTMLElement | undefined;
+  private sender: Pick<Input, 'deviceId' | 'role'> | undefined;
   private stopDrawing = (): void => {};
+  private stopCapture = (): void => {};
+  /** Captured since the last animation frame, in order; at most one move per pointer. */
+  private pending: RawInput[] = [];
 
   constructor(
     private readonly game: Game,
     port: GamePort,
     private readonly mount: HTMLElement,
+    env: Env,
   ) {
-    super('view', port);
+    super('view', port, env);
   }
 
   protected start(f: Extract<Down, { t: 'init' }>): void {
@@ -160,6 +190,7 @@ class ViewSide extends GameSide {
     root.style.cssText = 'position:absolute;inset:0;overflow:hidden';
     this.mount.append(root);
     this.root = root;
+    this.sender = { deviceId: self.deviceId, role: self.role };
 
     const tile = self.tile;
     const surface = tile && new Surface({ id: self.deviceId, x: tile.x, y: tile.y, w: tile.w, h: tile.h, rot: tile.rot }, self.pxPerMm);
@@ -179,9 +210,12 @@ class ViewSide extends GameSide {
     this.guard('factory', () => {
       this.handlers = this.game.view(ctx);
     });
-    if (!this.handlers.draw) return;
-    if (win) this.draw(win, root, match, self, surface);
-    else this.post(fault('view.draw', new Error('the view root is not in a window')));
+    if (!win) {
+      if (this.handlers.draw) this.post(fault('view.draw', new Error('the view root is not in a window')));
+      return;
+    }
+    if (this.handlers.input !== 'off') this.capture(win, root, self, surface);
+    if (this.handlers.draw) this.draw(win, root, match, self, surface);
   }
 
   protected frame(f: Exclude<Down, { t: 'init' | 'clock' | 'close' }>): void {
@@ -190,10 +224,84 @@ class ViewSide extends GameSide {
     this.guard('onState', () => this.handlers.onState?.(f.state, f.at));
   }
 
-  protected stop(): void {
+  protected stop(close: CloseFrame | undefined): void {
     this.stopDrawing();
+    this.stopCapture();
+    if (close) {
+      const r = close.result === undefined ? { reason: close.reason } : { reason: close.reason, result: close.result };
+      this.guard('onEnd', () => this.handlers.onEnd?.(r));
+    }
     this.guard('dispose', () => this.handlers.dispose?.());
     this.root?.remove();
+  }
+
+  /**
+   * Pointer capture on the view's root: `touch-action: none`, pointer capture
+   * on down, px → mm through the Surface (a Controller: its screen mm), `t` on
+   * the shared clock. Only pointers that went down here are followed, so a
+   * hovering mouse sends nothing. Samples leave on the next animation frame.
+   */
+  private capture(win: Window, root: HTMLElement, self: ViewSelf, surface: Surface | undefined): void {
+    const toMm = (e: PointerEvent): Vec2 => {
+      const r = root.getBoundingClientRect();
+      const px = { x: e.clientX - r.left, y: e.clientY - r.top };
+      return surface ? surface.pxToWorld(px) : { x: px.x / self.pxPerMm, y: px.y / self.pxPerMm };
+    };
+    const down = new Set<number>();
+    let raf = 0;
+    const flush = (): void => {
+      raf = 0;
+      this.flushInput();
+    };
+    const on = (e: PointerEvent): void => {
+      const phase = PHASE_OF[e.type];
+      const id = e.pointerId;
+      if (!phase) return;
+      if (phase === 'down') {
+        if (down.has(id)) return;
+        down.add(id);
+        try {
+          root.setPointerCapture(id);
+        } catch {
+          // Not an active pointer (a scripted event): the root still hears it.
+        }
+      } else if (!down.has(id)) return;
+      else if (phase !== 'move') down.delete(id);
+      this.sample({ pointerId: id, phase, t: this.clock.now(), world: toMm(e) });
+      if (raf === 0) raf = win.requestAnimationFrame(flush);
+    };
+    root.style.touchAction = 'none';
+    for (const type of Object.keys(PHASE_OF)) root.addEventListener(type, on as EventListener);
+    this.stopCapture = () => {
+      for (const type of Object.keys(PHASE_OF)) root.removeEventListener(type, on as EventListener);
+      win.cancelAnimationFrame(raf);
+      this.pending = [];
+    };
+  }
+
+  /** Queues `i`; a move replaces the same pointer's move still waiting since its last down/up/cancel. */
+  private sample(i: RawInput): void {
+    if (i.phase === 'move') {
+      for (let k = this.pending.length - 1; k >= 0; k--) {
+        const p = this.pending[k]!;
+        if (p.pointerId !== i.pointerId) continue;
+        if (p.phase === 'move') this.pending.splice(k, 1);
+        break;
+      }
+    }
+    this.pending.push(i);
+  }
+
+  /** One `input` frame with everything captured since the last one, echoed to this view's `onInput` first. */
+  private flushInput(): void {
+    if (this.pending.length === 0 || !this.sender) return;
+    const inputs = this.pending;
+    this.pending = [];
+    const { deviceId, role } = this.sender;
+    for (const { pointerId, phase, t, world } of inputs) {
+      this.guard('onInput', () => this.handlers.onInput?.({ deviceId, role, pointerId, phase, t, world: { ...world } }));
+    }
+    this.post({ v: 1, t: 'input', inputs });
   }
 
   /** The SDK-owned canvas and animation loop behind `draw`. */
@@ -210,6 +318,8 @@ class ViewSide extends GameSide {
     let raf = 0;
     const paint = (): void => {
       raf = win.requestAnimationFrame(paint);
+      // Input captured since the last frame leaves now, so this frame's draw already sees its echo.
+      this.flushInput();
       const dpr = win.devicePixelRatio || 1;
       const w = Math.round(root.clientWidth * dpr);
       const h = Math.round(root.clientHeight * dpr);
@@ -230,8 +340,6 @@ class ViewSide extends GameSide {
     this.stopDrawing = () => win.cancelAnimationFrame(raf);
   }
 }
-
-type ViewSelf = Extract<Down, { t: 'init'; side: 'view' }>['self'];
 
 function fault(where: string, e: unknown): Up {
   const err = e instanceof Error ? e : undefined;

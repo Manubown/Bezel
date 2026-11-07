@@ -1,6 +1,6 @@
 import { TrysteroTransport, hostSession, joinSession } from '@mgc/core';
-import { inProcessLink, runMatch, type MatchHandle, type MatchInfo, type NetFrame } from '@mgc/sdk';
-import tracer from '@mgc/tracer';
+import pong from '@mgc/pong';
+import { inProcessLink, runMatch, type MatchHandle, type MatchInfo, type MatchResult, type NetFrame } from '@mgc/sdk';
 import { claimDeviceId, claimPlayerId, deviceInfo } from './device';
 import { openHud, type Play } from './hud';
 import { openLobby } from './lobby';
@@ -13,7 +13,7 @@ const MATCH_CHANNEL = 'match';
 // No 0/O/1/I/L: codes stay readable when typed by hand.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 /** The Game the Host's Start runs. */
-const GAME = tracer;
+const GAME = pong;
 const link = inProcessLink(() => Promise.resolve({ default: GAME }));
 
 const stage = document.getElementById('stage') as HTMLCanvasElement;
@@ -51,7 +51,7 @@ async function start(): Promise<void> {
   const lobby = openLobby(session, self.pxPerMm, claimPlayerId(deviceId));
   const host = () => session.roster()[0]?.info.deviceId;
 
-  const play: Play = { running: false, closed: undefined };
+  const play: Play = { running: false, last: undefined };
   /** The Match running on this Device. */
   let current: { matchId: string; handle: MatchHandle } | undefined;
   /** A Device runs a Match once: after it closed here, it is not rejoined. */
@@ -62,6 +62,7 @@ async function start(): Promise<void> {
     joined = match.matchId;
     play.running = true;
     gameLayer.hidden = false;
+    let result: MatchResult | undefined;
     const handle = runMatch({
       link,
       match,
@@ -71,10 +72,11 @@ async function start(): Promise<void> {
       send: (frame, to) => session.send(MATCH_CHANNEL, frame, session.role === 'host' ? to : host()),
       onEvent: (e) => {
         if (e.t === 'fault') console.warn(`${GAME.manifest.name}: fault in ${e.where}: ${e.message}`);
+        if (e.t === 'ended') result = e.result;
         if (e.t !== 'closed' || current?.matchId !== match.matchId) return;
         current = undefined;
         play.running = false;
-        play.closed = e.reason;
+        play.last = { reason: e.reason, players: match.players, ...(result && { result }) };
         gameLayer.hidden = true;
         lobby.close(); // the Host's reopens the lobby on every Device; on a Peer, a no-op
         hud.render();

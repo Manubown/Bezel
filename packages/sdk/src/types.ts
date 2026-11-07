@@ -50,6 +50,27 @@ export interface MatchResult {
   ranking?: PlayerId[];
 }
 
+/** Who produced an input or a message, stamped by the host runtime from the channel it arrived on. */
+export interface Sender {
+  deviceId: DeviceId;
+  role: 'tile' | 'controller';
+  /** The Controller's Holder, when it has one. */
+  playerId?: PlayerId;
+}
+
+/** One pointer sample. Per `(deviceId, pointerId)` the host sees `down → move* → (up | cancel)`. */
+export interface Input extends Sender {
+  pointerId: number;
+  phase: 'down' | 'move' | 'up' | 'cancel';
+  /** Shared clock at capture, ms. Not monotone across Devices. */
+  t: number;
+  /** Tile: world mm. Controller: its own screen mm, origin top-left. */
+  world: Vec2;
+}
+
+/** An input as a view sends it: the host runtime stamps who sent it. */
+export type RawInput = Omit<Input, 'deviceId' | 'role' | 'playerId'>;
+
 export type PauseReason = { kind: 'device-lost'; deviceId: DeviceId } | { kind: 'platform'; note?: string };
 
 export type CloseReason = 'ended' | 'aborted' | 'version' | 'protocol' | 'fault' | 'link-lost';

@@ -5,152 +5,22 @@ import {
   defineGame,
   inProcessLink,
   runMatch,
+  type CloseReason,
   type Device,
   type DeviceId,
   type Frame,
   type Game,
   type HostContext,
+  type Input,
   type MatchEvent,
   type MatchHandle,
   type MatchInfo,
+  type MatchResult,
   type NetFrame,
   type Tile,
   type ViewContext,
 } from '../src';
-
-/** Animation frames that fire only when a test steps them, all together, at the fake clock's time. */
-export class SteppedFrames {
-  private readonly pending = new Map<number, FrameRequestCallback>();
-  private next = 1;
-
-  readonly request = (cb: FrameRequestCallback): number => {
-    const id = this.next++;
-    this.pending.set(id, cb);
-    return id;
-  };
-
-  readonly cancel = (id: number): void => {
-    this.pending.delete(id);
-  };
-
-  fire(): void {
-    const due = [...this.pending.values()];
-    this.pending.clear();
-    const t = performance.now();
-    for (const cb of due) cb(t);
-  }
-}
-
-export interface Matrix {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
-  e: number;
-  f: number;
-}
-
-/** The slice of CanvasRenderingContext2D the SDK and the probe use, recording what happened. */
-export class FakeContext2D {
-  readonly ops: string[] = [];
-  private m: Matrix = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
-  private readonly saved: Matrix[] = [];
-
-  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void {
-    this.m = { a, b, c, d, e, f };
-  }
-  getTransform(): Matrix {
-    return { ...this.m };
-  }
-  clearRect(x: number, y: number, w: number, h: number): void {
-    this.ops.push(`clearRect ${x} ${y} ${w} ${h}`);
-  }
-  save(): void {
-    this.saved.push(this.m);
-  }
-  restore(): void {
-    this.m = this.saved.pop() ?? this.m;
-  }
-}
-
-class FakeElement {
-  readonly style = { cssText: '' };
-  readonly children: FakeElement[] = [];
-  private parent: FakeElement | undefined;
-
-  constructor(readonly ownerDocument: FakeDocument) {}
-
-  get clientWidth(): number {
-    return this.ownerDocument.screen.widthPx;
-  }
-  get clientHeight(): number {
-    return this.ownerDocument.screen.heightPx;
-  }
-  append(child: FakeElement): void {
-    child.parent = this;
-    this.children.push(child);
-  }
-  prepend(child: FakeElement): void {
-    child.parent = this;
-    this.children.unshift(child);
-  }
-  remove(): void {
-    const siblings = this.parent?.children;
-    siblings?.splice(siblings.indexOf(this), 1);
-    this.parent = undefined;
-  }
-}
-
-class FakeCanvas extends FakeElement {
-  width = 300;
-  height = 150;
-  readonly context = new FakeContext2D();
-  getContext(kind: string): FakeContext2D | null {
-    return kind === '2d' ? this.context : null;
-  }
-}
-
-class FakeDocument {
-  readonly defaultView: { requestAnimationFrame: SteppedFrames['request']; cancelAnimationFrame: SteppedFrames['cancel']; devicePixelRatio: number };
-  readonly canvases: FakeCanvas[] = [];
-
-  constructor(
-    readonly screen: FakeScreenOptions,
-    frames: SteppedFrames,
-  ) {
-    this.defaultView = { requestAnimationFrame: frames.request, cancelAnimationFrame: frames.cancel, devicePixelRatio: screen.dpr };
-  }
-
-  createElement(tag: string): FakeElement {
-    if (tag !== 'canvas') return new FakeElement(this);
-    const canvas = new FakeCanvas(this);
-    this.canvases.push(canvas);
-    return canvas;
-  }
-}
-
-export interface FakeScreenOptions {
-  /** CSS px of the mount. */
-  widthPx: number;
-  heightPx: number;
-  dpr: number;
-}
-
-export interface FakeScreen {
-  /** Passed to `runMatch` as `self.mount`. */
-  mount: HTMLElement;
-  /** Every canvas the SDK created on this screen. */
-  canvases: FakeCanvas[];
-  /** What the SDK appended to the mount. */
-  children: readonly unknown[];
-}
-
-/** A headless mount: the SDK reaches the window (frames, dpr) and creates its DOM through it. */
-export function fakeScreen(frames: SteppedFrames, screen: FakeScreenOptions = { widthPx: 390, heightPx: 844, dpr: 3 }): FakeScreen {
-  const doc = new FakeDocument(screen, frames);
-  const mount = new FakeElement(doc);
-  return { mount: mount as unknown as HTMLElement, canvases: doc.canvases, children: mount.children };
-}
+import { SteppedFrames, headlessScreen, type HeadlessScreen, type HeadlessScreenOptions, type Matrix } from '../src/headless';
 
 export const TILE_MM = { w: 70, h: 150 };
 
@@ -180,30 +50,48 @@ export function matchFromTiles(tiles: Tile[], bounds: MatchInfo['bounds'], contr
   };
 }
 
-export type ProbeState = { n: number; to?: DeviceId };
+/** `got`: the phase of the input the host published this state for. */
+export type ProbeState = { n: number; to?: DeviceId; got?: Input['phase'] };
 
 export interface Probe {
   game: Game;
   rec: ProbeRecord;
 }
 
+/** What one view saw, in order: states, and the local echo of its own input. */
+export type Seen = { state: ProbeState } | { input: Input };
+
 export interface ProbeRecord {
   /** Host ticks in order. */
   ticks: { dt: number; now: number }[];
+  /** Host `onInput` in order, with how many ticks had run before it. */
+  inputs: { input: Input; afterTicks: number }[];
   host: HostContext<ProbeState, never> | undefined;
   views: Map<DeviceId, ViewContext<ProbeState, never>>;
   /** Every state each view received, in order. */
   states: Map<DeviceId, { state: ProbeState; t: number }[]>;
+  /** States and input echoes per view, interleaved as they happened. */
+  seen: Map<DeviceId, Seen[]>;
+  /** Each view's `onEnd`. */
+  ends: Map<DeviceId, { reason: CloseReason; result?: MatchResult }[]>;
   /** Every frame each view drew, with the transform it was handed. */
   draws: Map<DeviceId, { frame: Frame<ProbeState>; transform: Matrix }[]>;
 }
 
 /**
  * A recording Game. Its host publishes `{ n }` on tick n unless `onTick` takes
- * over; its views record states, and frames when `draw` is on.
+ * over, and hands every input to `onInput`; its views record states, input
+ * echoes and the end, and frames when `draw` is on.
  */
-export function probeGame(o: { onTick?: (ctx: HostContext<ProbeState, never>, n: number) => void; draw?: boolean } = {}): Probe {
-  const rec: ProbeRecord = { ticks: [], host: undefined, views: new Map(), states: new Map(), draws: new Map() };
+export function probeGame(
+  o: {
+    onTick?: (ctx: HostContext<ProbeState, never>, n: number) => void;
+    onInput?: (ctx: HostContext<ProbeState, never>, i: Input) => void;
+    draw?: boolean;
+    input?: 'off';
+  } = {},
+): Probe {
+  const rec: ProbeRecord = { ticks: [], inputs: [], host: undefined, views: new Map(), states: new Map(), seen: new Map(), ends: new Map(), draws: new Map() };
   const game = defineGame<ProbeState, never>({
     manifest: {
       id: 'mgc.probe',
@@ -224,17 +112,32 @@ export function probeGame(o: { onTick?: (ctx: HostContext<ProbeState, never>, n:
           if (o.onTick) o.onTick(ctx, n);
           else ctx.publish({ n });
         },
+        onInput(input) {
+          rec.inputs.push({ input, afterTicks: rec.ticks.length });
+          o.onInput?.(ctx, input);
+        },
       };
     },
     view(ctx) {
       rec.views.set(ctx.deviceId, ctx);
       const states: { state: ProbeState; t: number }[] = [];
+      const seen: Seen[] = [];
+      const ends: { reason: CloseReason; result?: MatchResult }[] = [];
       const draws: { frame: Frame<ProbeState>; transform: Matrix }[] = [];
       rec.states.set(ctx.deviceId, states);
+      rec.seen.set(ctx.deviceId, seen);
+      rec.ends.set(ctx.deviceId, ends);
       rec.draws.set(ctx.deviceId, draws);
       return {
         onState(state, t) {
           states.push({ state, t });
+          seen.push({ state });
+        },
+        onInput(input) {
+          seen.push({ input });
+        },
+        onEnd(r) {
+          ends.push(r);
         },
         ...(o.draw && {
           draw(frame: Frame<ProbeState>) {
@@ -242,6 +145,7 @@ export function probeGame(o: { onTick?: (ctx: HostContext<ProbeState, never>, n:
             draws.push({ frame, transform: { a: m.a, b: m.b, c: m.c, d: m.d, e: m.e, f: m.f } });
           },
         }),
+        ...(o.input && { input: o.input }),
       };
     },
   });
@@ -250,7 +154,7 @@ export function probeGame(o: { onTick?: (ctx: HostContext<ProbeState, never>, n:
 
 export interface Rig {
   frames: SteppedFrames;
-  devices: Map<DeviceId, { handle: MatchHandle; events: MatchEvent[]; screen: FakeScreen; session: Session }>;
+  devices: Map<DeviceId, { handle: MatchHandle; events: MatchEvent[]; screen: HeadlessScreen; session: Session }>;
   /** Added to every Device's shared clock as `runMatch` sees it: a test's stand-in for a clock re-estimate. */
   skewMs: number;
   /** The Host's shared clock, skew included. */
@@ -263,7 +167,8 @@ const MATCH_CHANNEL = 'match';
 /**
  * One Session per Device of `match` over a MemoryHub (`host` hosts, the rest
  * join and sync), then `runMatch` on each with `send`/`deliver` bound to the
- * Session, as the app wires it. `host` gets `authority`.
+ * Session, as the app wires it: a Peer's frames go to the Host. `host` gets
+ * `authority`.
  */
 export function startMatch(o: {
   game: Game;
@@ -273,7 +178,7 @@ export function startMatch(o: {
   /** Per-Device module load; defaults to resolving `game` at once. */
   load?: (id: DeviceId) => Promise<{ default: Game }>;
   pxPerMm?: number;
-  screen?: FakeScreenOptions;
+  screen?: HeadlessScreenOptions;
 }): Rig {
   const hub = new MemoryHub(() => o.latencyMs ?? 0);
   const pxPerMm = o.pxPerMm ?? 6;
@@ -294,7 +199,7 @@ export function startMatch(o: {
     sharedNow: () => sessions.get(o.host)!.clock.now() + rig.skewMs,
   };
   for (const [id, session] of sessions) {
-    const fake = fakeScreen(frames, screen);
+    const fake = headlessScreen(frames, screen);
     const events: MatchEvent[] = [];
     const load = o.load ?? (() => Promise.resolve({ default: o.game }));
     const handle = runMatch({
@@ -302,7 +207,7 @@ export function startMatch(o: {
       match: o.match,
       self: { deviceId: id, pxPerMm, mount: fake.mount },
       now: () => session.clock.now() + rig.skewMs,
-      send: (frame, to) => session.send(MATCH_CHANNEL, frame, to),
+      send: (frame, to) => session.send(MATCH_CHANNEL, frame, id === o.host ? to : o.host),
       onEvent: (e) => events.push(e),
       ...(id === o.host && { authority: true }),
     });
@@ -320,6 +225,6 @@ export async function settle(ms = 0): Promise<void> {
 /** One animation frame `ms` after the previous one, then everything it set off locally. */
 export async function step(rig: Rig, ms: number): Promise<void> {
   await vi.advanceTimersByTimeAsync(ms);
-  rig.frames.fire();
+  rig.frames.fire(performance.now());
   await vi.advanceTimersByTimeAsync(0);
 }

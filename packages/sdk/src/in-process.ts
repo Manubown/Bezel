@@ -1,3 +1,4 @@
+import { REAL_ENV, type Env } from './env';
 import type { Game } from './game';
 import { serveGame } from './game-side';
 import type { Down, LinkFactory, Up } from './wire';
@@ -10,11 +11,16 @@ import type { Down, LinkFactory, Up } from './wire';
  * pixel ratio come from that root's window.
  */
 export function inProcessLink(load: () => Promise<{ default: Game }>): LinkFactory {
+  return linkInProcess(load, REAL_ENV);
+}
+
+/** `inProcessLink` with the game side on `env`'s clocks (the test harness's fake one). */
+export function linkInProcess(load: () => Promise<{ default: Game }>, env: Env): LinkFactory {
   return async ({ side, root }) => {
     const { default: game } = await load();
     const down = new Mailbox<Down>();
     const up = new Mailbox<Up>();
-    const teardown = serveGame(game, side, { post: (f) => up.post(f), onFrame: (h) => down.listen(h) }, root);
+    const teardown = serveGame(game, side, { post: (f) => up.post(f), onFrame: (h) => down.listen(h) }, root, env);
     return {
       post: (f) => down.post(f),
       onFrame: (h) => up.listen(h),

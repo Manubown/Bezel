@@ -1,4 +1,4 @@
-import type { CloseReason, Device, DeviceId, JsonValue, MatchInfo, MatchResult } from './types';
+import type { CloseReason, Device, DeviceId, Input, JsonValue, MatchInfo, MatchResult, RawInput } from './types';
 
 /**
  * The link between a game and the platform. Each side of a Match (host game,
@@ -31,7 +31,9 @@ export type HostDown =
   | Shared
   | { v: 1; t: 'init'; side: 'host'; match: MatchInfo; clock: ClockWire }
   /** `n` strictly +1; `now` non-decreasing. */
-  | { v: 1; t: 'tick'; n: number; dt: number; now: number };
+  | { v: 1; t: 'tick'; n: number; dt: number; now: number }
+  /** Stamped by the host runtime; in arrival order, so ordered per Device. */
+  | { v: 1; t: 'input'; inputs: Input[] };
 
 export type ViewDown =
   | Shared
@@ -48,7 +50,11 @@ export type HostUp =
   | { v: 1; t: 'publish'; state: JsonValue; to?: DeviceId; at: number }
   | { v: 1; t: 'end'; result: MatchResult };
 
-export type ViewUp = Fault | { v: number; t: 'ready'; side: 'view'; sdk: string };
+export type ViewUp =
+  | Fault
+  | { v: number; t: 'ready'; side: 'view'; sdk: string }
+  /** One per view per animation frame at most; moves coalesced to one per pointer. */
+  | { v: 1; t: 'input'; inputs: RawInput[] };
 
 export type Down = HostDown | ViewDown;
 export type Up = HostUp | ViewUp;
@@ -68,4 +74,30 @@ export function isNetDown(f: unknown): f is NetDown {
   if (r['t'] === 'state') return 'state' in r && typeof r['at'] === 'number' && (r['to'] === undefined || typeof r['to'] === 'string');
   if (r['t'] === 'close') return typeof r['reason'] === 'string' && CLOSE_REASONS.includes(r['reason']);
   return false;
+}
+
+const PHASES: readonly string[] = ['down', 'move', 'up', 'cancel'] satisfies Input['phase'][];
+
+/** Frames from the network are untrusted until they pass this check. */
+export function isNetUp(f: unknown): f is NetUp {
+  if (!f || typeof f !== 'object') return false;
+  const r = f as Record<string, unknown>;
+  return r['v'] === WIRE_VERSION && r['t'] === 'input' && Array.isArray(r['inputs']) && r['inputs'].every(isRawInput);
+}
+
+/** True if `i` is a well-formed input from a view, whatever else it carries. */
+export function isRawInput(i: unknown): i is RawInput {
+  if (!i || typeof i !== 'object') return false;
+  const r = i as Record<string, unknown>;
+  const w = r['world'] as Record<string, unknown> | null | undefined;
+  return (
+    Number.isFinite(r['pointerId']) &&
+    typeof r['phase'] === 'string' &&
+    PHASES.includes(r['phase']) &&
+    Number.isFinite(r['t']) &&
+    typeof w === 'object' &&
+    w !== null &&
+    Number.isFinite(w['x']) &&
+    Number.isFinite(w['y'])
+  );
 }

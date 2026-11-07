@@ -23,12 +23,12 @@ importers:
       '@mgc/layout':
         specifier: workspace:*
         version: link:../../packages/layout
+      '@mgc/pong':
+        specifier: workspace:*
+        version: link:../../games/pong
       '@mgc/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@mgc/tracer':
-        specifier: workspace:*
-        version: link:../../games/tracer
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -43,7 +43,7 @@ importers:
         specifier: ^7.1.0
         version: 7.3.7(@types/node@26.6.6)
 
-  games/tracer:
+  games/pong:
     dependencies:
       '@mgc/sdk':
         specifier: workspace:*

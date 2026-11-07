@@ -3,6 +3,7 @@ export type {
   CloseReason,
   Device,
   DeviceId,
+  Input,
   JsonValue,
   Manifest,
   MatchInfo,
@@ -11,6 +12,8 @@ export type {
   Player,
   PlayerId,
   Range,
+  RawInput,
+  Sender,
   Tile,
 } from './types';
 export {

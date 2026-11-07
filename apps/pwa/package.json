@@ -12,8 +12,8 @@
   "dependencies": {
     "@mgc/core": "workspace:*",
     "@mgc/layout": "workspace:*",
+    "@mgc/pong": "workspace:*",
     "@mgc/sdk": "workspace:*",
-    "@mgc/tracer": "workspace:*",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

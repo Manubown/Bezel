@@ -107,11 +107,11 @@ interface MatchOptions {
   match: MatchInfo;                                 // the lobby froze it; identical on every Device
   self: { deviceId: DeviceId; pxPerMm: number; mount: HTMLElement };
   now(): number;                                    // core SharedClock.now, bound
-  send(frame: NetFrame, to?: DeviceId): void;       // platform forwards over its Transport; `to` omitted = all
+  send(frame: NetFrame, to?: DeviceId): void;       // Host: `to` omitted = every other Device. Peer: always for the Host, no `to`
   onEvent(e: MatchEvent): void;
   authority?: boolean }                             // true on the Host: also runs the GameHost
 interface MatchHandle {
-  deliver(frame: NetFrame, from: DeviceId): void;   // frames arriving off the Transport
+  deliver(frame: NetFrame, from: DeviceId): void;   // frames arriving off the Transport; `from` = the channel's Device
   setPaused(reason: PauseReason | null): void;      // Host only; broadcast to every Device
   stop(reason: 'aborted' | 'link-lost'): void }
 type MatchEvent = { t: 'started' } | { t: 'paused'; reason: PauseReason } | { t: 'resumed' }
@@ -122,7 +122,7 @@ export function inProcessLink(load: () => Promise<{ default: Game }>): LinkFacto
 export function iframeLink(entries: { host: string; view: string }): LinkFactory;     // M3
 ```
 
-`authority: true` makes `runMatch` open a host link *and* a view link through the same factory: the Host's own Tile is an ordinary view whose frames are cloned like a Peer's. `send`/`deliver` are closures: `@mgc/sdk` never sees `Transport` or `PeerId`; `PeerId ↔ DeviceId` is `@mgc/core`'s (see §8).
+`authority: true` makes `runMatch` open a host link *and* a view link through the same factory: the Host's own Tile is an ordinary view whose frames are cloned like a Peer's. `send`/`deliver` are closures: `@mgc/sdk` never sees `Transport` or `PeerId`; `PeerId ↔ DeviceId` is `@mgc/core`'s (see §8). `MatchInfo` does not name the Host, so a Peer's runtime never addresses it: every frame a Peer sends (its view's `input`, later `send`) is for the Host, and the platform delivers it there (`apps/pwa` sends to `roster()[0]`). The Host takes `NetUp` frames from any Match Device and ignores `NetDown`; a Peer takes only `NetDown`.
 
 ## 4. The link port and wire protocol
 
@@ -188,13 +188,13 @@ Clock: `epochOffset = shared.now() − Date.now()` at send. The game-side runtim
 
 ## 5. Invariants, ordering, errors, performance
 
-- **Ordering.** `ready` is the only Up frame before `init`; `init` is the only Down frame until `ready` is seen. No `tick` between `pause` and `resume`. `holders` precedes the first `input`/`msg` stamped with the new holder; an input in flight during a handover is stamped with the *new* holder. Per `(deviceId, pointerId)` the host runtime enforces `down → move* → (up | cancel)`, drops orphans, and emits a synthetic `cancel` for every open pointer on pause, Device drop, or close. Up frames after `close` are dropped.
+- **Ordering.** `ready` is the only Up frame before `init`; `init` is the only Down frame until `ready` is seen. No `tick` between `pause` and `resume`. `holders` precedes the first `input`/`msg` stamped with the new holder; an input in flight during a handover is stamped with the *new* holder. Per `(deviceId, pointerId)` the host runtime enforces `down → move* → (up | cancel)`, drops orphans (and a second `down` on an open pointer), and emits a synthetic `cancel` for every open pointer on pause, Device drop, or close. Up frames after `close` are dropped.
 - **Authority.** The host runtime overwrites `deviceId`/`role` (from the authenticated channel) and `playerId` (from its holder map) on every inbound `input`/`send` at ingest. A view cannot forge another Device's input.
 - **Retention and replay.** The host runtime retains the last broadcast state and the last per-Device state. A view that becomes `ready` late receives them at once (no iframe-load race); on `resume` they are re-posted to every view *before* the first tick, so a game that ignores `onPause`/`onResume` is still correct. A `state` frame carries `to` when it was published to that Device alone, so each Device's runtime keeps its last broadcast and its last targeted state apart; games never see `to`.
-- **Fixed step.** `dt = 1 / tickHz` exactly, driven by an accumulator on the host's rAF; ≤ 5 catch-up steps per animation frame, then the remainder is dropped (`now` jumps forward). Pause clears the accumulator. Per step: drain inbound `input`/`msg`/`timer` in arrival order, then `tick`, then flush outbound. Hooks never fire *during* `tick`.
+- **Fixed step.** `dt = 1 / tickHz` exactly, driven by an accumulator on the host's rAF; ≤ 5 catch-up steps per animation frame, then the remainder is dropped (`now` jumps forward). Pause clears the accumulator. Per step: drain inbound `input`/`msg`/`timer` in arrival order, then `tick`, then flush outbound. Inputs accepted since the previous step leave as one `input` frame right before the step's `tick` (the first step of a catch-up burst); with `tickHz` 0 each arriving batch leaves at once. Hooks never fire *during* `tick`.
 - **Paused.** No ticks, no `draw`; inbound input is dropped (a paddle must not teleport on resume); pending timers freeze with their remaining delay; `publish` is accepted and retained.
 - **Errors.** `ready.v ≠ WIRE_VERSION` → `close{'version'}`. Unknown or out-of-order frame → `close{'protocol'}`. A throw in any game handler is caught game-side and reported as `fault`; a throw in a factory, or > 3 faults in 5 s, → `close{'fault'}`. No `ready` within 5 s of `open()`, or iframe unload → `close{'link-lost'}`. Bad `set-holder`/`timer`/`publish`-after-`end` → `reject`, state unchanged. A throw in `draw` skips the frame; 10 consecutive → that view closes. Every one of these reaches `apps/pwa` only as a `MatchEvent`; nothing throws across the seam.
-- **Performance.** ≤ 1 `move` per `pointerId` per rAF, one `input` frame per view per rAF; `down/up/cancel` never coalesced. One `structuredClone` per crossing in both adapters. `draw` stops when `document.hidden` or paused. Pong reference: ~200 B state at 60 Hz × 3 Peers ≈ 36 KB/s host upload — JSON only until phones are measured (ADR-0003).
+- **Performance.** ≤ 1 `move` per `pointerId` per rAF, one `input` frame per view per rAF; `down/up/cancel` never coalesced. The view follows only pointers that went down on it, so a hovering mouse sends nothing; the local echo (`onInput`) runs as the frame leaves, before that animation frame's `draw`. One `structuredClone` per crossing in both adapters. `draw` stops when `document.hidden` or paused. Pong reference: ~200 B state at 60 Hz × 3 Peers ≈ 36 KB/s host upload — JSON only until phones are measured (ADR-0003).
 
 ## 6. Usage
 
@@ -255,7 +255,7 @@ export default defineGame<S, M>({
 });
 ```
 
-Every view draws the whole World; its Tile transform clips it. No canvas, DPR, rAF, pointer, px→mm, clock, pause, or link code in the game.
+Every view draws the whole World; its Tile transform clips it. No canvas, DPR, rAF, pointer, px→mm, clock, pause, or link code in the game. (The shipped `games/pong` is this sketch with phone-sized geometry, a short rest before each serve, return angles from where the ball meets the paddle, and its constants exported as `PONG` for its tests.)
 
 ### `apps/pwa` call site (Host Device; a Peer is the same minus `authority`)
 
@@ -295,7 +295,7 @@ Clock transport and monotone re-derivation; pointer capture (`touch-action: none
 **Tests at the interface.**
 1. *Link conformance*: a table of frame sequences replayed against both adapters asserting identical game-visible effects; proves M2 ≡ M3.
 2. *End-to-end*: `packages/sdk/test/match.e2e.test.ts` — `MemoryHub` (core as devDependency) + 4 `runMatch` handles (3 Tiles, 1 Controller, `authority` on d0) cross-delivering frames, fake clock, stepped rAF, a recording probe game built with `defineGame`. Asserts: ticks fan out to every view including the Host's own; world-mm input from a Tile; `playerId`-stamped input from a Controller after `setHolder`; pause on drop (no ticks, no state); resume + re-publish after rebinding; `ended` with scores.
-3. *Game tests*: `createTestMatch({ game, match })` from `@mgc/sdk/test` gives a game author `t.tick(ms)`, `t.input(deviceId, …)`, `t.state(deviceId)`, `t.result()` over the in-process link — so "passes in M2" means "serialises in M3".
+3. *Game tests*: `await createTestMatch({ game, match, host?, pxPerMm? })` from `@mgc/sdk/test` runs `runMatch` for every Device of `match` (host default `match.devices[0]`) over the in-process link with a headless screen each and in-memory JSON delivery between Devices, on its own fake clock (shared time starts at 0; no global timers touched). It gives a game author `await t.tick(ms)` (one animation frame per fixed step), `await t.input(deviceId, phase, at, pointerId?)` (a pointer event through that view's own capture, `at` in world mm on a Tile / screen mm on a Controller, delivered before the next tick), `t.state(deviceId)` (that view's `latest()`), `t.result()`, `t.events(deviceId)`, `t.now()`, `await t.stop()` — so "passes in M2" means "serialises in M3".
 
 ## 9. Rejected
 

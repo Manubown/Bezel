@@ -1,5 +1,5 @@
 import type { Rect, Surface, Vec2 } from '@mgc/layout';
-import type { DeviceId, JsonValue, Manifest, MatchInfo, MatchResult, Tile } from './types';
+import type { CloseReason, DeviceId, Input, JsonValue, Manifest, MatchInfo, MatchResult, Tile } from './types';
 
 /**
  * A Game is two factories. `host` runs once, on the Host Device; `view` runs
@@ -30,13 +30,20 @@ export interface HostContext<S extends JsonValue, M extends JsonValue> {
    * JSON. Stamped with the current tick's `now` inside `tick`, else `now()`.
    */
   publish(state: S, to?: DeviceId): void;
-  /** Ends the Match on every Device with `result`. */
+  /** Ends the Match on every Device with `result`. Afterwards `publish` is dropped and only `dispose` still runs. */
   end(result: MatchResult): void;
 }
 
 export interface HostHandlers<M extends JsonValue> {
   /** Fixed step: `dt = 1 / tickHz` seconds, `now` the shared time of this step. Absent or `tickHz` 0 → never called. */
   tick?(dt: number, now: number): void;
+  /**
+   * Every input in arrival order, before the `tick` of the step it arrived for
+   * (at once when there is no tick). `deviceId`/`role` are stamped by the
+   * platform from the channel it arrived on; per Device and pointer the phases
+   * run `down → move* → (up | cancel)`.
+   */
+  onInput?(i: Input): void;
   dispose?(): void;
 }
 
@@ -61,7 +68,18 @@ export interface ViewHandlers<S extends JsonValue, M extends JsonValue> {
   /** Called on every animation frame with the SDK-owned canvas; see `Frame`. */
   draw?(f: Frame<S>): void;
   onState?(state: S, t: number): void;
+  /** This Device's own input, as it leaves for the host: local echo for prediction. */
+  onInput?(i: Input): void;
+  /** The Match closed: `result` when the host ended it. `dispose` follows. */
+  onEnd?(r: { reason: CloseReason; result?: MatchResult }): void;
   dispose?(): void;
+  /**
+   * `'coalesced'` (default): the SDK captures pointers on the view's root
+   * (`touch-action: none`, pointer capture), maps px to mm, and sends at most
+   * one move per pointer per animation frame. `'off'`: no capture; a DOM view
+   * handles its own events.
+   */
+  input?: 'coalesced' | 'off';
 }
 
 export interface Frame<S extends JsonValue> {
