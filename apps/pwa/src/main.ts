@@ -3,8 +3,7 @@ import {
   Surface,
   TEMPLATE_IDS,
   buildLayout,
-  publishLayout,
-  subscribeLayout,
+  isLayout,
   type DeviceSize,
   type Layout,
   type TemplateId,
@@ -15,6 +14,8 @@ import { drawMetronome, startCanvasLoop } from './metronome';
 import { drawScene } from './scene';
 
 const APP_ID = 'mobilegameconnect';
+/** Host → everyone: the current arrangement. */
+const LAYOUT_CHANNEL = 'layout';
 // No 0/O/1/I/L: codes stay readable when typed by hand.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column', grid: 'Grid' };
@@ -126,7 +127,7 @@ async function runHost(): Promise<void> {
       layoutKey = key;
       layout = buildLayout(template, sizes);
       surface = new Surface(layout.devices[0]!, self.pxPerMm);
-      publishLayout(session.transport, layout);
+      session.transport.send(LAYOUT_CHANNEL, layout);
     }
     render();
   };
@@ -194,7 +195,9 @@ function runPeer(code: string): void {
   };
 
   session.onChange(render);
-  subscribeLayout(session.transport, () => session.hostId, applyLayout);
+  session.transport.onMessage(LAYOUT_CHANNEL, (data, from) => {
+    if (from === session.hostId && isLayout(data)) applyLayout(data);
+  });
   render();
   startCanvasLoop(canvas, (f) => {
     const t = session.clock.now();

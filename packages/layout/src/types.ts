@@ -1,4 +1,4 @@
-import type { PeerId } from '@mgc/core';
+import { TEMPLATE_IDS } from './templates';
 
 /** All lengths are millimetres in "world" space unless stated otherwise. */
 export interface Vec2 {
@@ -15,7 +15,8 @@ export interface Rect {
 
 /** Physical screen size of one device, derived from CSS px / pxPerMm. */
 export interface DeviceSize {
-  id: PeerId;
+  /** The Device id; layout treats it as an opaque string. */
+  id: string;
   w: number;
   h: number;
 }
@@ -39,4 +40,38 @@ export interface Layout {
   devices: DeviceRect[];
   /** Axis-aligned world bounding box of all devices. */
   bounds: Rect;
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function isDeviceRect(v: unknown): v is DeviceRect {
+  if (!v || typeof v !== 'object') return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r['id'] === 'string' &&
+    isFiniteNumber(r['x']) &&
+    isFiniteNumber(r['y']) &&
+    isFiniteNumber(r['w']) &&
+    isFiniteNumber(r['h']) &&
+    isFiniteNumber(r['rot'])
+  );
+}
+
+/** Pure validator for a `Layout` received from elsewhere (e.g. over the wire). */
+export function isLayout(v: unknown): v is Layout {
+  if (!v || typeof v !== 'object') return false;
+  const l = v as Record<string, unknown>;
+  const b = l['bounds'] as Record<string, unknown> | undefined;
+  return (
+    TEMPLATE_IDS.includes(l['template'] as TemplateId) &&
+    Array.isArray(l['devices']) &&
+    l['devices'].every(isDeviceRect) &&
+    !!b &&
+    isFiniteNumber(b['x']) &&
+    isFiniteNumber(b['y']) &&
+    isFiniteNumber(b['w']) &&
+    isFiniteNumber(b['h'])
+  );
 }

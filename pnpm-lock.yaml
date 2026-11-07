@@ -43,11 +43,7 @@ importers:
         specifier: ^0.26.0
         version: 0.26.0
 
-  packages/layout:
-    dependencies:
-      '@mgc/core':
-        specifier: workspace:*
-        version: link:../core
+  packages/layout: {}
 
 packages:
 
