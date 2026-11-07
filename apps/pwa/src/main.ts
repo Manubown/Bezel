@@ -1,8 +1,7 @@
 import { TrysteroTransport, hostSession, joinSession } from '@mgc/core';
-import pass from '@mgc/pass';
-import pong from '@mgc/pong';
 import { inProcessLink, runMatch, type MatchHandle, type MatchInfo, type MatchResult, type NetFrame } from '@mgc/sdk';
 import { claimDeviceId, claimPlayerId, deviceInfo } from './device';
+import { GAMES } from './games';
 import { LOG_LINES, logLineOf } from './gamelog';
 import { openHud, type Play } from './hud';
 import { openLobby } from './lobby';
@@ -19,8 +18,6 @@ const MATCH_CHANNEL = 'match';
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 /** sessionStorage: the room this tab hosts; a reloaded Host keeps its code, so its Peers find it again. */
 const HOST_ROOM_KEY = 'mgc.hostRoom';
-/** The Games the Host can start (its HUD picks the first until told otherwise); every Device runs the one its lobby names. */
-const GAMES = [pong, pass];
 
 const stage = document.getElementById('stage') as HTMLCanvasElement;
 /** A running Match's view: a positioned layer over the stage. */

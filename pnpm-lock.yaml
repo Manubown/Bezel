@@ -23,12 +23,6 @@ importers:
       '@mgc/layout':
         specifier: workspace:*
         version: link:../../packages/layout
-      '@mgc/pass':
-        specifier: workspace:*
-        version: link:../../games/pass
-      '@mgc/pong':
-        specifier: workspace:*
-        version: link:../../games/pong
       '@mgc/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -46,6 +40,36 @@ importers:
         specifier: ^7.1.0
         version: 7.3.7(@types/node@26.6.6)
 
+  games/_template:
+    dependencies:
+      '@mgc/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+
+  games/air-hockey:
+    dependencies:
+      '@mgc/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+
+  games/breakout:
+    dependencies:
+      '@mgc/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+
   games/pass:
     dependencies:
       '@mgc/sdk':
@@ -57,6 +81,36 @@ importers:
         version: 26.6.6
 
   games/pong:
+    dependencies:
+      '@mgc/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+
+  games/quiz:
+    dependencies:
+      '@mgc/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+
+  games/snake:
+    dependencies:
+      '@mgc/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+
+  games/tap-race:
     dependencies:
       '@mgc/sdk':
         specifier: workspace:*

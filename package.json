@@ -8,7 +8,8 @@
     "dev": "pnpm --filter @mgc/pwa dev",
     "build": "pnpm --filter @mgc/pwa build",
     "test": "vitest run",
-    "typecheck": "tsc -p packages/core && tsc -p packages/layout && tsc -p packages/sdk && tsc -p games/pong && tsc -p games/pass && tsc -p apps/pwa"
+    "typecheck": "pnpm -r exec tsc -p .",
+    "new-game": "node scripts/new-game.mjs"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
