@@ -10,8 +10,12 @@ import { CLOCK_CHANNEL, type PeerId, type Transport } from '@mgc/core';
 export interface Recorder {
   /** One event. `data` must be JSON. */
   log(kind: string, data?: Record<string, unknown>): void;
-  /** Counts every frame and byte that crosses `inner` per channel and Device, logs peer joins and leaves, and (on a Peer) every clock sample. */
-  transport(inner: Transport): Transport;
+  /**
+   * Counts every frame and byte that crosses `inner` per channel and Device, logs peer joins and leaves, and (on a Peer)
+   * every clock sample. With `connections`, every peer connection's ICE/connection state changes and its selected
+   * candidate pair (types, protocol, mDNS, rtt) are logged too: on join, on each change, and at the leave.
+   */
+  transport(inner: Transport, connections?: () => Record<PeerId, RTCPeerConnection>): Transport;
   /** Starts the per-second `tick` line (frame rate, wire totals) and the page listeners (visibility, viewport, errors); returns the stop. */
   observe(): () => void;
   /** The whole log as NDJSON text, summary line first. */
@@ -98,16 +102,54 @@ export function createRecorder(o: RecorderOptions): Recorder {
   const recorder: Recorder = {
     log: line,
 
-    transport(inner) {
+    transport(inner, connections) {
       const peers = new Map<PeerId, number>();
+      const watched = new WeakSet<RTCPeerConnection>();
+      /** The selected candidate pair, from `getStats`: what kind of path carries this connection. */
+      const pairOf = async (pc: RTCPeerConnection): Promise<Record<string, unknown> | undefined> => {
+        const stats = await pc.getStats();
+        const byId = new Map<string, Record<string, unknown>>();
+        stats.forEach((s: Record<string, unknown>) => byId.set(String(s['id']), s));
+        let pair: Record<string, unknown> | undefined;
+        for (const s of byId.values()) {
+          if (s['type'] === 'transport' && typeof s['selectedCandidatePairId'] === 'string') pair = byId.get(s['selectedCandidatePairId']);
+        }
+        if (!pair) for (const s of byId.values()) if (s['type'] === 'candidate-pair' && s['nominated'] === true && s['state'] === 'succeeded') pair = s;
+        if (!pair) return undefined;
+        const side = (id: unknown): Record<string, unknown> | undefined => {
+          const c = typeof id === 'string' ? byId.get(id) : undefined;
+          if (!c) return undefined;
+          const address = typeof c['address'] === 'string' ? c['address'] : '';
+          return { type: c['candidateType'], proto: c['protocol'], mdns: address.endsWith('.local'), v6: address.includes(':'), relayProto: c['relayProtocol'] };
+        };
+        return { state: pair['state'], rtt: pair['currentRoundTripTime'], sent: pair['bytesSent'], recv: pair['bytesReceived'], local: side(pair['localCandidateId']), remote: side(pair['remoteCandidateId']) };
+      };
+      const ice = (id: PeerId, event: string, pc: RTCPeerConnection): void => {
+        const states = { connection: pc.connectionState, ice: pc.iceConnectionState, gathering: pc.iceGatheringState, signaling: pc.signalingState };
+        pairOf(pc).then(
+          (pair) => line('ice', { peer: id, event, ...states, ...(pair && { pair }) }),
+          () => line('ice', { peer: id, event, ...states }),
+        );
+      };
+      const watch = (id: PeerId): void => {
+        const pc = connections?.()[id];
+        if (!pc || watched.has(pc)) return;
+        watched.add(pc);
+        ice(id, 'join', pc);
+        pc.addEventListener('connectionstatechange', () => ice(id, 'connection', pc));
+        pc.addEventListener('iceconnectionstatechange', () => ice(id, 'ice', pc));
+      };
       inner.onPeerJoin((id) => {
         peers.set(id, wall());
         line('peer-join', { peer: id, peers: inner.peers().length });
+        watch(id);
       });
       inner.onPeerLeave((id) => {
         const since = peers.get(id);
         peers.delete(id);
         line('peer-leave', { peer: id, peers: inner.peers().length, ...(since !== undefined && { afterMs: wall() - since }) });
+        const pc = connections?.()[id];
+        if (pc) ice(id, 'leave', pc);
       });
       // A Peer's clock samples, as `ClockSync` computes them: t0 sent, t1/t2 at the Host, t3 now.
       if (o.role === 'peer') {
@@ -206,7 +248,8 @@ export function createRecorder(o: RecorderOptions): Recorder {
       const nav = navigator as Navigator & { canShare?(data: ShareData): boolean };
       if (nav.canShare?.({ files: [file] })) {
         try {
-          await nav.share({ files: [file], title: name });
+          // No `title`: iOS hands it to some share targets as a text item of its own, which they save as "Text.txt".
+          await nav.share({ files: [file] });
           return;
         } catch (e) {
           if (e instanceof DOMException && e.name === 'AbortError') return; // the user closed the share sheet

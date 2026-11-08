@@ -153,6 +153,36 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 - **Cause:** the PWA imports every Game into one bundle (`apps/pwa/src/games.ts:8`), so the dev server answers a change to any Game's source, yours or another Game's, with a full page reload of every tab connected to it (seen in the Quiz Game's browser smoke). The reloaded Host keeps its code and the Peers find it again, but the Match is over and the lobby starts afresh.
 - **Fix:** do not save while a Match on phones matters. An automated browser run that must survive other people's edits blocks Vite's live-reload connection in its tabs before loading the page (abort requests whose URL contains `/@vite/client`).
 
+## On phones (from live test 1, `.scratch/live-test-1/findings.md`)
+
+### A phone shows "Syncing clocks" forever, or "Looking for the host" comes and goes
+
+- **Symptom in its log:** `peer-join` → `roster` → one or two `clock` samples → `peer-leave` after ~11 s → `peer-join` again, for minutes.
+- **Cause:** the WebRTC data channel stops passing packets within ~0.2 s of opening; Safari reports ICE `disconnected` ~5 s later and Trystero closes the connection 5 s after that. Seen between iPhones on a Personal Hotspot; the Android phones on the same table connected first time. The exact ICE cause is still open: the `ice` lines in the log (connection/ICE state, selected candidate pair: `host`/`srflx`/`relay`, mDNS, rtt) are what settles it.
+- **Fix to try:** open the Host with `?turn` appended (`https://manubown.github.io/Bezel/?turn`); the QR then carries the flag to every Peer and a TURN relay is added to the ICE servers (more latency, but a path that cannot die with the hotspot). Also try a normal Wi-Fi router instead of a phone's hotspot. Export the logs either way.
+
+### The page reloads under my finger; the Host's Match dies, a Controller phone keeps pausing the Match
+
+- **Cause:** iOS Safari pull-to-refresh on a downward swipe. Fixed in the current build (`html, body { overscroll-behavior: none; touch-action: none }`); the installed app ("Add to Home Screen") never had it.
+- **Fix:** update, or install the app.
+
+### One phone's Tile is a third too big; lines do not meet across its bezel
+
+- **Cause:** Safari's Page Zoom (the `Aa` menu) at 75 % lays out 1.33× the CSS px across the same screen; the phone's log shows `viewport 520×932` with `screen 390×844`. The current build corrects `pxPerMm` for the zoom (`apps/pwa/src/device.ts` `pageZoom`); the `device` line logs `zoom`.
+- **Fix:** update, or set Page Zoom back to 100 %.
+
+### The lobby sheet cannot scroll; the QR code is cut off; the Game row is out of reach
+
+- **Cause:** the sheet was taller than the phone and not scrollable. Fixed: the sheet's body scrolls (`.sheet .body { overflow-y: auto }`).
+
+### The phone turned sideways and the Layout is wrong
+
+- **Cause:** phones are measured upright; a turned phone keeps the size it had at load. The current build asks for portrait (`manifest.webmanifest` `orientation: portrait`, locked when installed; in a browser tab a "Turn your phone upright" overlay covers a landscape screen).
+
+### Export log shared a 37-byte "Text.txt" with just the file name
+
+- **Cause:** iOS passed the share's `title` to Notes/Files as a text item. Fixed: no `title` is passed; share the `.txt` file.
+
 ## In tests
 
 ### `t.state()` did not change after `t.input()`

@@ -127,8 +127,15 @@ Every page keeps a log of what it saw (`apps/pwa/src/recorder.ts`), in IndexedDB
 | `match:<event>` | every `runMatch` event on this page: `started`, `paused`, `resumed`, `holders`, `ended`, `closed`, `view-closed`, `fault` (with the stack), `log` (every `ctx.log`, not just the last 50) | the event's fields and `matchId` |
 | `visibility` | the page went to the background or came back | `hidden` |
 | `error` | an uncaught error or rejection on the page | `message`, `stack` |
+| `ice` | a peer connection joined, changed connection/ICE state, or left | `peer`, `event`, `connection`, `ice`, `gathering`, `signaling`, `pair` (selected candidate pair: `local`/`remote` `type` host/srflx/prflx/relay, `proto`, `mdns`, `v6`; `rtt`, bytes) |
 
 Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Peer's sync; `select(.k=="tick") | .fps` the frame rate; the gap between a `peer-leave` and the `device-lost` that follows is the leave-detection latency; `match:paused`/`match:resumed` and `match:fault` carry their reasons. Faults with stacks and every `ctx.log` line are in there even after the HUD's 50-line log has rolled over.
+
+## Connectivity flags
+
+- `?turn` on the Host's address adds a TURN relay to the ICE servers (Open Relay's public test servers, `apps/pwa/src/main.ts` `TURN_SERVERS`); the QR carries the flag so every Peer uses it too. For networks where the direct path fails (live test 1: iPhones on a Personal Hotspot looped on an 11 s connect/drop cycle). A relay adds latency; off by default. The `device` log line records `turn`.
+- Phones are measured upright: the manifest asks for portrait (locked when installed), and a browser tab turned sideways shows "Turn your phone upright" until turned back.
+- Safari Page Zoom is corrected for (`device.ts` `pageZoom`): 75 % zoom no longer makes a phone's Tile a third too large.
 
 ## Two hosted builds: the latest and a known-good one
 

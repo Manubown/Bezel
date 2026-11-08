@@ -13,6 +13,10 @@ export interface TrysteroOptions {
   roomId: string;
   /** Optional shared secret; peers without it cannot join. */
   password?: string;
+  /** Extra `RTCPeerConnection` configuration (ICE servers, transport policy); Trystero's default STUN servers stay. */
+  rtcConfig?: RTCConfiguration;
+  /** TURN servers appended to the ICE servers, for networks where a direct path fails. */
+  turnConfig?: RTCIceServer[];
 }
 
 /**
@@ -28,6 +32,8 @@ export class TrysteroTransport implements Transport {
   constructor(opts: TrysteroOptions) {
     const config: NostrRoomConfig = { appId: opts.appId };
     if (opts.password !== undefined) config.password = opts.password;
+    if (opts.rtcConfig !== undefined) config.rtcConfig = opts.rtcConfig;
+    if (opts.turnConfig !== undefined) config.turnConfig = opts.turnConfig;
     this.room = joinRoom(config, opts.roomId);
     this.action = this.room.makeAction<JsonValue>('mgc');
     this.action.onMessage = (env, { peerId }) => {
@@ -53,6 +59,10 @@ export class TrysteroTransport implements Transport {
   }
   peers(): PeerId[] {
     return Object.keys(this.room.getPeers());
+  }
+  /** The live `RTCPeerConnection` per peer, for diagnostics (ICE state, selected candidate pair). */
+  connections(): Record<PeerId, RTCPeerConnection> {
+    return this.room.getPeers();
   }
   close(): void {
     void this.room.leave();

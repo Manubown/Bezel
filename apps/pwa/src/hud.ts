@@ -125,7 +125,8 @@ function pauseCard(play: Readonly<Play>): () => void {
 async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
   const { session, lobby, code, games, play } = o;
   const joinUrl = new URL(location.href);
-  joinUrl.search = `?room=${code}`;
+  // Peers join the same room with the same connectivity flags (`turn`), so a Match never mixes paths.
+  joinUrl.search = `?room=${code}${new URLSearchParams(location.search).has('turn') ? '&turn' : ''}`;
   /** The address to type: host plus the app's path, without the trailing slash (`manubown.github.io/Bezel`). */
   const address = (joinUrl.host + joinUrl.pathname).replace(/\/$/, '');
   const qr = document.createElement('canvas');
@@ -267,6 +268,9 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     if (play.running !== wasRunning) {
       wasRunning = play.running;
       setOpen(!play.running);
+      // Folded during a Match the bar is a corner pill (index.html `.sheet[data-playing]`).
+      if (play.running) root.dataset['playing'] = '';
+      else delete root.dataset['playing'];
     }
     const placed = layout?.devices.length ?? 0;
     const faults = play.log.filter((l) => l.kind === 'fault').length;

@@ -82,7 +82,27 @@ export function guessPxPerMm(ua = navigator.userAgent, maxTouchPoints = navigato
   return 3.78;
 }
 
-/** Visible area in CSS px; `visualViewport` excludes browser toolbars where `innerHeight` may not. */
+/** The zoom levels browsers offer (Safari's Aa menu, Chrome's page zoom), as CSS px per CSS px at 100 %. */
+const ZOOM_STEPS = [2, 1.75, 1.5, 1.333, 1.25, 1.176, 1.111, 1, 0.909, 0.87, 0.8, 0.75, 0.667, 0.571, 0.5];
+
+/**
+ * How many CSS px the page lays out per CSS px at 100 %: Safari's Page Zoom
+ * (Aa menu) changes the viewport's CSS width while `screen.width` stays at
+ * 100 %, so 75 % page zoom gives 1.333 (520 px across a 390 px screen) and the
+ * same millimetre holds 1.333× the px. Portrait sides on both (iOS reports the
+ * screen in portrait whatever the orientation). Only a ratio within 1.5 % of a
+ * zoom step counts: a window that is not the screen (a desktop, an emulated
+ * phone) gives some other ratio and is taken as 1.
+ */
+export function pageZoom(win: Pick<Window, 'innerWidth' | 'innerHeight' | 'screen'> = window): number {
+  const viewport = Math.min(win.innerWidth, win.innerHeight);
+  const screenPx = Math.min(win.screen.width, win.screen.height);
+  if (!(viewport > 0) || !(screenPx > 0)) return 1;
+  const ratio = viewport / screenPx;
+  return ZOOM_STEPS.find((z) => Math.abs(ratio / z - 1) < 0.015) ?? 1;
+}
+
+/** Visible area in CSS px; `visualViewport` excludes browser toolbars where `innerHeight` may not. `pxPerMm` is corrected for the page's zoom. */
 export function deviceInfo(deviceId: DeviceId): DeviceInfo {
   const ua = navigator as Navigator & { userAgentData?: { platform?: string } };
   const vv = window.visualViewport;
@@ -92,6 +112,6 @@ export function deviceInfo(deviceId: DeviceId): DeviceInfo {
     width: vv?.width ?? window.innerWidth,
     height: vv?.height ?? window.innerHeight,
     dpr: window.devicePixelRatio || 1,
-    pxPerMm: guessPxPerMm(),
+    pxPerMm: guessPxPerMm() * pageZoom(),
   };
 }

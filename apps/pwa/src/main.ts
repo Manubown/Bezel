@@ -1,6 +1,6 @@
 import { TrysteroTransport, hostSession, joinSession } from '@mgc/core';
 import { inProcessLink, runMatch, type MatchHandle, type MatchInfo, type MatchResult, type NetFrame } from '@mgc/sdk';
-import { claimDeviceId, claimPlayerId, deviceInfo } from './device';
+import { claimDeviceId, claimPlayerId, deviceInfo, pageZoom } from './device';
 import { GAMES } from './games';
 import { LOG_LINES, logLineOf } from './gamelog';
 import { openHud, type Play } from './hud';
@@ -19,6 +19,14 @@ const MATCH_CHANNEL = 'match';
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 /** sessionStorage: the room this tab hosts; a reloaded Host keeps its code, so its Peers find it again. */
 const HOST_ROOM_KEY = 'mgc.hostRoom';
+/**
+ * `?turn` adds a TURN relay to the ICE servers (Open Relay's public test servers; the credentials are
+ * public by design). For networks where the direct path dies (live test 1: iPhones on a Personal
+ * Hotspot); a relay adds latency, so it is opt-in and the QR carries the flag to every Peer.
+ */
+const TURN_SERVERS: RTCIceServer[] = [
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+];
 
 const stage = document.getElementById('stage') as HTMLCanvasElement;
 /** A running Match's view: a positioned layer over the stage. */
@@ -46,8 +54,10 @@ function hostRoomCode(): string {
 async function start(): Promise<void> {
   const deviceId = await claimDeviceId();
   const self = deviceInfo(deviceId);
-  const room = new URLSearchParams(location.search).get('room')?.toUpperCase();
+  const params = new URLSearchParams(location.search);
+  const room = params.get('room')?.toUpperCase();
   const code = room ?? hostRoomCode();
+  const turn = params.has('turn');
   // The session log: every event this page sees, kept across reloads, exported from the HUD.
   let sharedNow = (): number => performance.now();
   const rec = createRecorder({ now: () => sharedNow(), deviceId, role: room ? 'peer' : 'host', code });
@@ -55,6 +65,7 @@ async function start(): Promise<void> {
     ua: navigator.userAgent,
     platform: self.name,
     pxPerMm: self.pxPerMm,
+    zoom: pageZoom(),
     viewport: { w: self.width, h: self.height },
     screen: { w: screen.width, h: screen.height },
     dpr: self.dpr,
@@ -62,9 +73,13 @@ async function start(): Promise<void> {
     cores: navigator.hardwareConcurrency,
     standalone: matchMedia('(display-mode: standalone)').matches,
     url: location.href,
+    turn,
   });
   rec.observe();
-  const transport = rec.transport(new TrysteroTransport({ appId: APP_ID, roomId: code }));
+  // Phones are measured upright. The lock only works installed/fullscreen; in a browser tab index.html's `#rotate` overlay asks instead.
+  (screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> }).lock?.('portrait').catch(() => {});
+  const trystero = new TrysteroTransport({ appId: APP_ID, roomId: code, ...(turn && { turnConfig: TURN_SERVERS }) });
+  const transport = rec.transport(trystero, () => trystero.connections());
   const session = room ? joinSession(transport, self) : hostSession(transport, self);
   sharedNow = () => session.clock.now();
   const lobby = openLobby(session, self.pxPerMm, claimPlayerId(deviceId));

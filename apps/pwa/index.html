@@ -19,7 +19,9 @@
         color-scheme: dark;
       }
       * { box-sizing: border-box; }
-      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; overflow: hidden; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+      /* No scrolling, rubber-banding or pull-to-refresh on the page itself: a drag is always the Game's (or the sheet's, which re-enables panning below). */
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; overflow: hidden; overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+      input, textarea { -webkit-user-select: text; user-select: text; }
       ::selection { background: var(--ok); color: var(--bg); }
       :focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
       [hidden] { display: none !important; }
@@ -34,12 +36,18 @@
       .dot-off { fill: var(--off); }
 
       /* Host: bottom sheet. Collapsed it is one bar so the tile stays visible. */
-      .sheet { position: fixed; left: 0; right: 0; bottom: 0; background: var(--raise); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45); padding-bottom: env(safe-area-inset-bottom, 0); transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1); }
-      .sheet .bar { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: baseline; width: 100%; padding: 14px 16px; text-align: left; }
+      .sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 100dvh; display: flex; flex-direction: column; background: var(--raise); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45); padding-bottom: env(safe-area-inset-bottom, 0); transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+      .sheet .bar { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: baseline; width: 100%; padding: 14px 16px; text-align: left; flex: none; }
+      /* While the Host's Tile shows a Game the folded bar is a small pill in a corner, so the Tile stays the Game's. */
+      .sheet[data-playing]:not([data-open]) { left: auto; right: 8px; bottom: auto; top: calc(8px + env(safe-area-inset-top, 0)); border: 1px solid var(--line); border-radius: 999px; box-shadow: none; padding-bottom: 0; opacity: 0.7; }
+      .sheet[data-playing]:not([data-open]) .bar { display: flex; gap: 6px; padding: 5px 10px; font-size: 12px; }
+      .sheet[data-playing]:not([data-open]) .code, .sheet[data-playing]:not([data-open]) .bar-meta, .sheet[data-playing]:not([data-open]) .bar-log { display: none; }
       .sheet .bar-meta { color: var(--fg-2); }
       .sheet .bar-action { color: var(--ok); font-weight: 500; }
-      .sheet .body { display: none; padding: 0 16px 16px; }
-      .sheet[data-open] .body { display: grid; gap: 16px; }
+      /* The sheet's body scrolls on its own when the phone is shorter than the sheet (QR, Games, roster). */
+      .sheet .body { display: none; padding: 0 16px 16px; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; min-height: 0; }
+      /* `max-content` rows: a body shorter than its content (it scrolls) must not shrink the Game and arrangement rows (overflow items have a 0 minimum). */
+      .sheet[data-open] .body { display: grid; grid-auto-rows: max-content; gap: 16px; align-content: start; }
       .join { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
       .qr { background: var(--fg); padding: 8px; border-radius: 6px; line-height: 0; }
       .qr canvas { display: block; }
@@ -57,7 +65,7 @@
       .seg button + button { border-left: 1px solid var(--line); }
       .seg button[aria-checked="true"] { background: var(--fg); color: var(--bg); font-weight: 500; }
       /* The Game row grows with games/: it scrolls sideways instead of squeezing. */
-      .seg.games { grid-auto-columns: max-content; overflow-x: auto; scrollbar-width: none; }
+      .seg.games { grid-auto-columns: max-content; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; }
       .seg.games button { padding: 10px 14px; white-space: nowrap; }
       .roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
       .roster li { display: grid; grid-template-columns: 28px 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
@@ -127,12 +135,17 @@
       .result .result-hint { margin-top: 14px; color: var(--fg-2); font-size: 12px; }
 
       @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .chip, .move { transition: none; } }
+      /* Phones are used upright: the Layout is measured in portrait. A touch screen turned sideways is asked back; a desktop window is left alone. */
+      #rotate { display: none; position: fixed; inset: 0; z-index: 10; place-items: center; background: var(--bg); text-align: center; padding: 24px; }
+      #rotate p { margin: 0; font-size: 20px; color: var(--fg-2); }
+      @media (pointer: coarse) and (orientation: landscape) { #rotate { display: grid; } }
     </style>
   </head>
   <body>
     <canvas id="stage"></canvas>
     <div id="game" hidden></div>
     <section id="hud" aria-live="polite"></section>
+    <div id="rotate" role="status"><p>Turn your phone upright</p></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
