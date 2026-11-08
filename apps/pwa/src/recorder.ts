@@ -12,8 +12,9 @@ export interface Recorder {
   log(kind: string, data?: Record<string, unknown>): void;
   /**
    * Counts every frame and byte that crosses `inner` per channel and Device, logs peer joins and leaves, and (on a Peer)
-   * every clock sample. With `connections`, every peer connection's ICE/connection state changes and its selected
-   * candidate pair (types, protocol, mDNS, rtt) are logged too: on join, on each change, and at the leave.
+   * every clock sample. With `connections`, every peer connection gets an `ice` line (connection/ICE states, which
+   * side offered, the selected candidate pair with types, mDNS, rtt and STUN counters, the data channel's state and
+   * message counts): on join, on each state change, at the leave, and whenever `links` sees a link turn `weak` or `lost`.
    */
   transport(inner: Transport, connections?: () => Record<PeerId, RTCPeerConnection>): Transport;
   /** A `link` line `{ deviceId, link }` each time a Device's `link` in `session`'s roster changes, its first entry included; returns the stop. */
@@ -107,6 +108,55 @@ export function createRecorder(o: RecorderOptions): Recorder {
   };
   /** The transport `transport` wraps: how many connections it holds goes on each `tick` line. */
   let wrapped: Transport | undefined;
+  /** The connections `transport` was given to watch, by peer; kept past the leave so the leave's `ice` line can read them. */
+  const watched = new Map<PeerId, RTCPeerConnection>();
+  /**
+   * From `getStats`: the selected candidate pair (what kind of path carries this connection), every other pair ICE
+   * holds (a relay pair still answering STUN while the selected one stalls is the fail-over ICE could make), and
+   * the data channel on it.
+   */
+  const snapshot = async (pc: RTCPeerConnection): Promise<Record<string, unknown>> => {
+    const stats = await pc.getStats();
+    const byId = new Map<string, Record<string, unknown>>();
+    stats.forEach((s: Record<string, unknown>) => byId.set(String(s['id']), s));
+    let selectedId: string | undefined;
+    let dc: Record<string, unknown> | undefined;
+    const pairs: Record<string, unknown>[] = [];
+    for (const s of byId.values()) {
+      if (s['type'] === 'transport' && typeof s['selectedCandidatePairId'] === 'string') selectedId = s['selectedCandidatePairId'];
+      if (s['type'] === 'data-channel') dc = { state: s['state'], msgSent: s['messagesSent'], msgRecv: s['messagesReceived'], bytesSent: s['bytesSent'], bytesRecv: s['bytesReceived'] };
+      if (s['type'] === 'candidate-pair') pairs.push(s);
+    }
+    const side = (id: unknown): Record<string, unknown> | undefined => {
+      const c = typeof id === 'string' ? byId.get(id) : undefined;
+      if (!c) return undefined;
+      const address = typeof c['address'] === 'string' ? c['address'] : '';
+      return { type: c['candidateType'], proto: c['protocol'], mdns: address.endsWith('.local'), v6: address.includes(':'), relayProto: c['relayProtocol'] };
+    };
+    // STUN checks still answered on a pair say that path is alive even when no data crosses it.
+    const describe = (p: Record<string, unknown>): Record<string, unknown> => ({
+      state: p['state'],
+      nominated: p['nominated'],
+      rtt: p['currentRoundTripTime'],
+      sent: p['bytesSent'],
+      recv: p['bytesReceived'],
+      reqSent: p['requestsSent'],
+      respRecv: p['responsesReceived'],
+      reqRecv: p['requestsReceived'],
+      local: side(p['localCandidateId']),
+      remote: side(p['remoteCandidateId']),
+    });
+    const pair = (selectedId !== undefined ? byId.get(selectedId) : undefined) ?? pairs.find((p) => p['nominated'] === true && p['state'] === 'succeeded');
+    const others = pairs.filter((p) => p !== pair && p['state'] !== 'frozen' && p['state'] !== 'waiting').map(describe);
+    return { ...(pair && { pair: describe(pair) }), ...(others.length > 0 && { others }), ...(dc && { dc }) };
+  };
+  const ice = (id: PeerId, event: string, pc: RTCPeerConnection): void => {
+    const states = { connection: pc.connectionState, ice: pc.iceConnectionState, gathering: pc.iceGatheringState, signaling: pc.signalingState, sdp: pc.localDescription?.type };
+    snapshot(pc).then(
+      (snap) => line('ice', { peer: id, event, ...states, ...snap }),
+      () => line('ice', { peer: id, event, ...states }),
+    );
+  };
 
   const recorder: Recorder = {
     log: line,
@@ -114,37 +164,10 @@ export function createRecorder(o: RecorderOptions): Recorder {
     transport(inner, connections) {
       wrapped = inner;
       const peers = new Map<PeerId, number>();
-      const watched = new WeakSet<RTCPeerConnection>();
-      /** The selected candidate pair, from `getStats`: what kind of path carries this connection. */
-      const pairOf = async (pc: RTCPeerConnection): Promise<Record<string, unknown> | undefined> => {
-        const stats = await pc.getStats();
-        const byId = new Map<string, Record<string, unknown>>();
-        stats.forEach((s: Record<string, unknown>) => byId.set(String(s['id']), s));
-        let pair: Record<string, unknown> | undefined;
-        for (const s of byId.values()) {
-          if (s['type'] === 'transport' && typeof s['selectedCandidatePairId'] === 'string') pair = byId.get(s['selectedCandidatePairId']);
-        }
-        if (!pair) for (const s of byId.values()) if (s['type'] === 'candidate-pair' && s['nominated'] === true && s['state'] === 'succeeded') pair = s;
-        if (!pair) return undefined;
-        const side = (id: unknown): Record<string, unknown> | undefined => {
-          const c = typeof id === 'string' ? byId.get(id) : undefined;
-          if (!c) return undefined;
-          const address = typeof c['address'] === 'string' ? c['address'] : '';
-          return { type: c['candidateType'], proto: c['protocol'], mdns: address.endsWith('.local'), v6: address.includes(':'), relayProto: c['relayProtocol'] };
-        };
-        return { state: pair['state'], rtt: pair['currentRoundTripTime'], sent: pair['bytesSent'], recv: pair['bytesReceived'], local: side(pair['localCandidateId']), remote: side(pair['remoteCandidateId']) };
-      };
-      const ice = (id: PeerId, event: string, pc: RTCPeerConnection): void => {
-        const states = { connection: pc.connectionState, ice: pc.iceConnectionState, gathering: pc.iceGatheringState, signaling: pc.signalingState };
-        pairOf(pc).then(
-          (pair) => line('ice', { peer: id, event, ...states, ...(pair && { pair }) }),
-          () => line('ice', { peer: id, event, ...states }),
-        );
-      };
       const watch = (id: PeerId): void => {
         const pc = connections?.()[id];
-        if (!pc || watched.has(pc)) return;
-        watched.add(pc);
+        if (!pc || watched.get(id) === pc) return;
+        watched.set(id, pc);
         ice(id, 'join', pc);
         pc.addEventListener('connectionstatechange', () => ice(id, 'connection', pc));
         pc.addEventListener('iceconnectionstatechange', () => ice(id, 'ice', pc));
@@ -158,7 +181,8 @@ export function createRecorder(o: RecorderOptions): Recorder {
         const since = peers.get(id);
         peers.delete(id);
         line('peer-leave', { peer: id, peers: inner.peers().length, ...(since !== undefined && { afterMs: wall() - since }) });
-        const pc = connections?.()[id];
+        const pc = watched.get(id);
+        watched.delete(id);
         if (pc) ice(id, 'leave', pc);
       });
       // A Peer's clock samples, as `ClockSync` computes them: t0 sent, t1/t2 at the Host, t3 now.
@@ -200,8 +224,11 @@ export function createRecorder(o: RecorderOptions): Recorder {
       const follow = (): void => {
         for (const { info, link } of session.roster()) {
           if (seen.get(info.deviceId) === link) continue;
+          const first = !seen.has(info.deviceId);
           seen.set(info.deviceId, link);
           line('link', { deviceId: info.deviceId, link });
+          // A link going quiet: what every connection's path and data channel look like at that moment.
+          if (!first && link !== 'ok') for (const [id, pc] of watched) ice(id, link, pc);
         }
       };
       follow();
@@ -245,6 +272,16 @@ export function createRecorder(o: RecorderOptions): Recorder {
       const onError = (e: ErrorEvent): void => line('error', { message: e.message, source: e.filename, line: e.lineno, stack: e.error instanceof Error ? e.error.stack : undefined });
       const onRejection = (e: PromiseRejectionEvent): void => line('error', { message: String(e.reason instanceof Error ? e.reason.message : e.reason), stack: e.reason instanceof Error ? e.reason.stack : undefined });
       const onHide = (): void => void flush();
+      // Trystero reports what it drops or kicks only here ("no peer with id … found", "peer error: …").
+      const con = console;
+      const { warn, error } = con;
+      const relay = (level: 'warn' | 'error', orig: (...args: unknown[]) => void) => (...args: unknown[]): void => {
+        orig.apply(con, args);
+        const message = args.map((a) => (a instanceof Error ? `${a.name}: ${a.message}` : typeof a === 'string' ? a : JSON.stringify(a) ?? String(a))).join(' ');
+        line('console', { level, message: message.slice(0, 600) });
+      };
+      con.warn = relay('warn', warn);
+      con.error = relay('error', error);
       doc.addEventListener('visibilitychange', onVisibility);
       win.visualViewport?.addEventListener('resize', onViewport);
       win.addEventListener('resize', onViewport);
@@ -261,6 +298,8 @@ export function createRecorder(o: RecorderOptions): Recorder {
         win.removeEventListener('error', onError);
         win.removeEventListener('unhandledrejection', onRejection);
         win.removeEventListener('pagehide', onHide);
+        con.warn = warn;
+        con.error = error;
       };
     },
 

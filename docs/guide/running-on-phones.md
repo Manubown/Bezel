@@ -5,7 +5,7 @@
 `pnpm dev` starts Vite on port 5173 with `host: true` (reachable from the LAN) and a self-signed certificate from `@vitejs/plugin-basic-ssl` (`apps/pwa/vite.config.ts`). HTTPS is required on phones for the screen wake lock and a secure context for WebRTC.
 
 - Open the `Network` address Vite prints (`https://<your-LAN-ip>:5173/`) on the Host phone. Each phone's browser warns about the self-signed certificate once; accept it.
-- Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE`, plus `&turn` when the Host has it (`apps/pwa/src/hud.ts:127-129`), so a `localhost` Host hands the other phones an address they cannot reach.
+- Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE`, plus `&noturn` when the Host has it (`apps/pwa/src/hud.ts:127-129`), so a `localhost` Host hands the other phones an address they cannot reach.
 - Another port: `pnpm --filter @mgc/pwa dev --port 5181`.
 - Without a laptop: every push to `master` publishes the PWA to https://manubown.github.io/Bezel/ (`.github/workflows/pages.yml`), with a real certificate but only the Games on `master`. `BASE_PATH=/Bezel/ pnpm build` builds the same into `apps/pwa/dist` (README).
 
@@ -135,7 +135,7 @@ Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Pe
 
 ## Connectivity flags
 
-- `?turn` on the Host's address adds a TURN relay to the ICE servers (Open Relay's public test servers, `apps/pwa/src/main.ts` `TURN_SERVERS`); the QR carries the flag so every Peer uses it too. For networks where the direct path fails (live test 1: iPhones on a Personal Hotspot looped on an 11 s connect/drop cycle). A relay adds latency; off by default. The `device` log line records `turn`.
+- A TURN relay is in the ICE servers by default (Open Relay's public servers, `apps/pwa/src/main.ts` `TURN_SERVERS`): ICE still prefers a direct pair, the relay is the fallback for networks where the direct path dies (live tests 1–3: iPhones on a Personal Hotspot looped on a connect/drop cycle without it; connected first time with it). `?noturn` on the Host's address leaves it out, for comparison; the QR carries the flag so every Peer does the same. The `device` log line records `turn`.
 - Phones are measured upright: the manifest asks for portrait (locked when installed), and a browser tab turned sideways shows "Turn your phone upright" until turned back.
 - Safari Page Zoom is corrected for (`device.ts` `pageZoom`): 75 % zoom no longer makes a phone's Tile a third too large.
 

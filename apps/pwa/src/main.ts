@@ -21,9 +21,10 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 /** sessionStorage: the room this tab hosts; a reloaded Host keeps its code, so its Peers find it again. */
 const HOST_ROOM_KEY = 'mgc.hostRoom';
 /**
- * `?turn` adds a TURN relay to the ICE servers (Open Relay's public test servers; the credentials are
- * public by design). For networks where the direct path dies (live test 1: iPhones on a Personal
- * Hotspot); a relay adds latency, so it is opt-in and the QR carries the flag to every Peer.
+ * A TURN relay (Open Relay's public servers; the credentials are public by design) joins the ICE servers by
+ * default: ICE still prefers a direct pair, the relay is the fallback for networks where the direct path dies
+ * (live tests 1–3: iPhones on a Personal Hotspot; Host + Peer with the relay connected first time). `?noturn`
+ * leaves it out, for comparison runs; the QR carries the flag to every Peer so a Match never mixes paths.
  */
 const TURN_SERVERS: RTCIceServer[] = [
   { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
@@ -58,7 +59,7 @@ async function start(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const room = params.get('room')?.toUpperCase();
   const code = room ?? hostRoomCode();
-  const turn = params.has('turn');
+  const turn = !params.has('noturn');
   // The session log: every event this page sees, kept across reloads, exported from the HUD.
   let sharedNow = (): number => performance.now();
   const rec = createRecorder({ now: () => sharedNow(), deviceId, role: room ? 'peer' : 'host', code, awake });
