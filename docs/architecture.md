@@ -1,0 +1,100 @@
+# Architecture
+
+How the packages fit together and where a Match's data flows. The code is the source of truth; every section names the file to read next. For the SDK contract in full (ordering, errors, wire frames) read `docs/sdk-design.md`; for the terms, `GLOSSARY.md`; for why, `docs/adr/`.
+
+## 1. The shape
+
+```mermaid
+flowchart TB
+  subgraph apps/pwa
+    main[main.ts<br/>transport → Session → lobby → Match → lobby]
+    hud[hud.ts · Host sheet, Peer strip]
+    lobby[lobby.ts · Layout, roles, seats, Start]
+    rec[recorder.ts · session log]
+  end
+  subgraph packages
+    core["@mgc/core<br/>Transport · ClockSync · Session"]
+    layout["@mgc/layout<br/>templates · Surface"]
+    sdk["@mgc/sdk<br/>defineGame · runMatch · Link · wire"]
+  end
+  games["games/*<br/>import @mgc/sdk only"]
+  main --> core & layout & sdk
+  lobby --> core & layout & sdk
+  sdk --> layout
+  games --> sdk
+```
+
+Dependency rules, checked by each package's own tests:
+
+| Package | May import | Never imports |
+|---|---|---|
+| `@mgc/core` | `trystero` | anything in the repo |
+| `@mgc/layout` | – | `core` (ADR-0005: the Layout is pure millimetre math) |
+| `@mgc/sdk` | `@mgc/layout` (re-exports `Surface`, `Vec2`, `Rect`) | `core`: the SDK never sees a transport |
+| `games/*` | `@mgc/sdk` | `core`, `layout`, `apps/pwa` (each Game's test pins this) |
+| `apps/pwa` | all three packages, `games/*` via discovery | – |
+
+## 2. One phone, from page load to a running Game (`apps/pwa/src/main.ts`)
+
+1. **Identity.** `claimDeviceId()` (`device.ts`) gives the tab a persisted `DeviceId`; `deviceInfo()` measures the screen (CSS px, `dpr`, a `pxPerMm` heuristic per platform, corrected for Safari Page Zoom).
+2. **Room.** No `?room=` in the URL → this tab is the **Host** with a 4-letter code (kept in `sessionStorage` across reloads). `?room=CODE` → a **Peer**. `?turn` adds a TURN relay to the ICE servers and travels in the QR to every Peer.
+3. **Transport.** `TrysteroTransport` (`packages/core/src/trystero-transport.ts`): Trystero matches the phones over public Nostr relays, then opens WebRTC data channels. The recorder wraps the transport to log bytes and ICE state.
+4. **Session.** `hostSession()` / `joinSession()` (`packages/core/src/session.ts`) return the same `Session` interface for both roles: `roster()`, `send(channel, data, to?)`, `onMessage`, `clock.now()`, `onDeviceLost/Back`. Peers only ever talk to the Host; the Host stamps and relays. A Peer is `searching` → `syncing` → `ready`; the Host is always `ready`.
+5. **Clock.** `ClockSync` samples the Host NTP-style, keeps the min-RTT samples, and `SharedClock.now()` is the Host's time on every phone (`packages/core/src/clock.ts`).
+6. **Lobby** (`apps/pwa/src/lobby.ts`). The Host's lobby decides, Peers mirror it over the `lobby` channel: which Devices are Tiles vs Controllers, the Tile order, the template (`row` / `column` / `grid` → `buildLayout()` in `@mgc/layout`), the picked Game, and who plays (seats: at the first and last Tile by default, or one Player per Controller when the Game's manifest says `seats: 'controllers'`). The Host's **Start** validates against the manifest and deep-freezes a `MatchInfo` (ids, seed, `tickHz`, Players, Devices, Tiles, bounds) that every Device receives verbatim.
+7. **Match.** Each Device calls `runMatch()` (`packages/sdk/src/match.ts`) with the frozen `MatchInfo`, a `Link` to the Game, and `send`/`deliver` wired to the Session's `match` channel. The Host also runs the Game's `host()`; every Device, the Host included, runs the Game's `view()`. `pauseOnDeviceLoss()` pauses the Match while a Device is gone and resumes when it is back. When the Match closes (ended, aborted, fault, link lost), the lobby reopens on every Device.
+8. **Log.** `recorder.ts` keeps an NDJSON session log in IndexedDB (connectivity, ICE, clock samples, roster, Match events, faults, wire bytes, fps); the HUD exports it. `docs/liveLogs/` holds the logs of the first live test.
+
+## 3. Inside a Match: the SDK seam (`packages/sdk`)
+
+```mermaid
+sequenceDiagram
+  participant V as view (any phone)
+  participant R as Match runtime (sdk/match.ts)
+  participant S as Session (WebRTC)
+  participant H as host game (Host phone)
+  V->>R: pointer → Input{deviceId, world mm, t}
+  R->>S: NetUp frame
+  S->>R: deliver (Host)
+  R->>H: onInput(i) / onMessage / tick(dt, now) / timer
+  H->>R: ctx.publish(state, to?)
+  R->>S: NetDown frame (broadcast or targeted)
+  S->>R: deliver (each phone)
+  R->>V: latest state → draw(frame) every animation frame
+```
+
+- **Two factories.** `defineGame({ manifest, host, view })` (`game.ts`). `host(ctx)` runs once on the Host: reacts to `onInput`, `onMessage`, `tick` (fixed step at `manifest.tickHz`, default 60; `0` = event-driven), timers; calls `ctx.publish(state)`, `ctx.setHolder`, `ctx.end(result)`. `view(ctx)` runs once per Device: `draw({ ctx, state, tile, … })` in world millimetres on a canvas the runtime owns, or `mount` for a DOM view; `ctx.send(msg)` back to the host.
+- **The Link** (`wire.ts`). Host game and view game each talk to the runtime through a `Link` of versioned JSON frames (`WIRE_VERSION`): `init`, `tick`, `input`, `msg`, `timer`, `holders`, `clock`, `pause`, `resume`, `close`, `reject`. Every adapter `structuredClone`s every frame, so a Game that works in-process (`inProcessLink`, M2) works unchanged in a sandboxed iframe (M3, ADR-0004).
+- **State is a stream, not lockstep** (ADR-0003). One `publish` = one wire frame; views keep the latest state and extrapolate if they want. No determinism is required of a Game. Host upload is `(N − 1) × tickHz × bytes`; Snake's manifest comment shows the arithmetic.
+- **Pause.** A lost Device pauses the Match on every phone; timers are pause-aware; the resume frame re-anchors the clock.
+- **Faults.** A throwing hook is a `fault` event; the runtime's ladder decides between carrying on, closing the view, and closing the Match (`match.ts`, `game-side.ts`).
+- **Testing** (`testing.ts`, `headless.ts`, exported as `@mgc/sdk/test`). `createTestMatch()` runs host and every view in one process over a memory link with a fake clock and a headless screen; tests script fingers and assert states, events and results. `docs/guide/testing.md`.
+
+## 4. World millimetres (`packages/layout`, ADR-0005)
+
+A `Layout` is a set of `Tile`s `{ x, y, w, h, rot, deviceId }` in millimetres; `buildLayout(template, devices)` places the present Tiles with a default bezel gap; `Surface` maps world mm ↔ one Device's CSS px, including rotation. `pxPerMm` per Device comes from a UA heuristic (`apps/pwa/src/device.ts`) until calibration exists; it is the main source of visible misalignment between unlike phones.
+
+## 5. Where a change goes
+
+| You want to | Touch |
+|---|---|
+| a new Game | `pnpm new-game <slug> "<Name>"`, then `games/<slug>/src/index.ts`; nothing to register (`apps/pwa/src/games.ts` globs `games/*/src/index.ts`) |
+| a new Game-facing capability | `packages/sdk/src/{types,game,wire,match,game-side}.ts`, the test harness, `docs/sdk-design.md`, `docs/guide/api.md` |
+| a lobby rule (who may start, seats, templates) | `apps/pwa/src/lobby.ts` (+ `apps/pwa/test/lobby.test.ts`), the refusal messages quoted in `docs/guide/troubleshooting.md` |
+| the Host sheet or Peer strip | `apps/pwa/src/hud.ts`, `apps/pwa/index.html` |
+| connectivity, clock, roster | `packages/core/src/{trystero-transport,session,clock}.ts` |
+| another template or the mm math | `packages/layout/src/{templates,surface}.ts` |
+| the hosted build | `.github/workflows/pages.yml`, `scripts/stable.mjs` |
+
+## 6. Milestone map
+
+| Milestone | Layer it changes | State |
+|---|---|---|
+| M0 clock + join | `core` | done |
+| M1 templates + Surface | `layout` | done |
+| M2 SDK in-process, Pong | `sdk`, `apps/pwa` lobby/Match | done; seven Games |
+| M3 iframe bundles | `sdk` adds an iframe `LinkFactory`; Games unchanged | next |
+| M4 swipe alignment | `layout` solver, `apps/pwa` gesture | planned |
+| M5 offline signaling, reconnect | `core` QR-SDP adapter | planned |
+
+`docs/platform-design.md` is the design that produced the `Session` interface and the lobby seam before M2; read it for the reasoning, this file for what exists.

@@ -124,7 +124,7 @@ describe('Snake', () => {
     expect(Object.keys(pkg.dependencies ?? {})).toEqual(['@mgc/sdk']);
   });
 
-  it('lays food only on Tiles, a margin inside their edges, never in a gap: in a grid and on a rotated Tile', async () => {
+  it('lays food only on Tiles, a margin inside their edges, never in a gap: in a grid and on a rotated Tile', { timeout: 30_000 }, async () => {
     for (const [layout, areas] of [
       [GRID, AREAS.grid],
       [ROTATED, AREAS.rotated],

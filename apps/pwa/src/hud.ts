@@ -156,7 +156,7 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
         ${TEMPLATE_IDS.map((t) => `<button type="button" role="radio" data-t="${t}">${TEMPLATE_LABEL[t]}</button>`).join('')}
       </div>
       <div class="roles">
-        <p class="roles-label">Controllers <span>held in hand, not on the table</span></p>
+        <p class="roles-label"></p>
         <div class="chips" role="group" aria-label="Controllers"></div>
       </div>
       <ol class="players" aria-label="Players"></ol>
@@ -211,11 +211,13 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
   /** The Game Start starts: the Host's last pick in this tab, else the first by name. */
   const GAME_KEY = 'mgc.game';
   let game = games.find((g) => g.id === sessionStorage.getItem(GAME_KEY)) ?? games[0]!;
+  lobby.setGame(game);
   gameSeg.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-g]');
     if (!btn) return;
     game = games[Number(btn.dataset['g'])] ?? game;
     sessionStorage.setItem(GAME_KEY, game.id);
+    lobby.setGame(game);
     refusal = '';
     render();
   });
@@ -286,6 +288,10 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
       b.setAttribute('aria-checked', String(b.dataset['t'] === layout?.template));
       b.disabled = match !== undefined;
     });
+    root.querySelector('.roles-label')!.innerHTML =
+      lobby.seats === 'controllers'
+        ? 'Players’ phones <span>each phone pressed here is held by one Player; the board stays on the table</span>'
+        : 'Controllers <span>held in hand, not on the table</span>';
     start.textContent = `Start ${game.name}`;
     start.hidden = match !== undefined;
     end.hidden = !play.running;
@@ -318,14 +324,17 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     /** `where`: the phone a human sits at; for an empty slot, why it is empty. `bot`: the slot's Bot chip, when it has one. */
     type SlotRow = { n: number; player: Player | undefined; where: string; bot?: { slot: number; on: boolean } };
     const slotRows: SlotRow[] = match
-      ? match.players.map((p, i) => ({ n: i + 1, player: p, where: p.bot ? 'Bot' : phoneAt(match.tiles.map((t) => t.deviceId), p.deviceId) }))
-      : lobby.slots.flatMap((s, slot): SlotRow[] => {
-          const on = s.player?.bot === true;
-          // An empty slot is listed only where a bot could take it; a bot always, so it can be turned off.
-          if (!s.player && !game.bots) return [];
-          const where = on ? '' : s.player ? phoneAt(tileIds, s.deviceId) : s.deviceId === undefined ? 'no phone' : 'joining…';
-          return [{ n: slot + 1, player: s.player, where, ...((game.bots || on) && { bot: { slot, on } }) }];
-        });
+      ? match.players.map((p, i) => ({ n: i + 1, player: p, where: p.bot ? 'Bot' : lobby.seats === 'controllers' ? 'Controller' : phoneAt(match.tiles.map((t) => t.deviceId), p.deviceId) }))
+      : lobby.seats === 'controllers'
+        ? // A Player per Controller phone: mark phones as Controllers above and each holder gets a row here.
+          lobby.players.map((p, i): SlotRow => ({ n: i + 1, player: p, where: 'Controller' }))
+        : lobby.slots.flatMap((s, slot): SlotRow[] => {
+            const on = s.player?.bot === true;
+            // An empty slot is listed only where a bot could take it; a bot always, so it can be turned off.
+            if (!s.player && !game.bots) return [];
+            const where = on ? '' : s.player ? phoneAt(tileIds, s.deviceId) : s.deviceId === undefined ? 'no phone' : 'joining…';
+            return [{ n: slot + 1, player: s.player, where, ...((game.bots || on) && { bot: { slot, on } }) }];
+          });
     const key = `${match ? 'frozen' : 'open'}|${slotRows.map((r) => `${r.n}:${r.player?.playerId ?? ''}@${r.where}:${r.bot?.on ?? ''}`).join(',')}`;
     if (key !== playersKey) {
       playersKey = key;

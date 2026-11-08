@@ -46,6 +46,7 @@ export interface Manifest {
   templates?: ('row' | 'column' | 'grid')[];
   minTileMm?: { w: number; h: number };
   bots?: boolean;
+  seats?: 'ends' | 'controllers';
   tickHz?: number;
   host: string;
   view: string;

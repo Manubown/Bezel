@@ -166,6 +166,48 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect([peer.roleOf('d2'), peer.game]).toEqual(['tile', undefined]);
   });
 
+  it('seats: controllers — a Player per Controller phone, named in the HUD, none from the Tiles; Peers see the same; the Match refuses without Controllers', () => {
+    const { host, lobby } = table(['d1', 'd2', 'd3']);
+    const peer = lobby('d3');
+    const QUIZ: Manifest = { ...DUEL, id: 'test.quiz', name: 'Quiz', tiles: { min: 1, max: 1 }, controllers: { min: 1, max: 4 }, players: { min: 1, max: 4 }, seats: 'controllers' };
+    host.setGame(QUIZ);
+    vi.advanceTimersByTime(100);
+    expect([host.seats, peer.seats]).toEqual(['controllers', 'controllers']);
+    // Nobody is a Controller yet: no Players, and Start says so.
+    expect(host.players).toEqual([]);
+    expect(() => host.start(QUIZ)).toThrow('Quiz needs 1 Tile; 4 present');
+    host.setRole('d1', 'controller');
+    host.setRole('d2', 'controller');
+    host.setRole('d3', 'controller');
+    vi.advanceTimersByTime(100);
+    // Each Controller phone's own Player, seated at that phone, in roster order; the board phone d0 plays nobody.
+    expect(host.players).toEqual([
+      { playerId: seat('d1'), name: 'Player 1', deviceId: 'd1' },
+      { playerId: seat('d2'), name: 'Player 2', deviceId: 'd2' },
+      { playerId: seat('d3'), name: 'Player 3', deviceId: 'd3' },
+    ]);
+    expect(peer.players).toEqual(host.players);
+    host.setPlayers(host.players.map((p) => (p.deviceId === 'd2' ? { ...p, name: 'Bo' } : p)));
+    vi.advanceTimersByTime(100);
+    expect(host.players.map((p) => p.name)).toEqual(['Player 1', 'Bo', 'Player 3']);
+    const match = host.start(QUIZ);
+    expect(match.players).toEqual(host.players);
+    expect(match.devices.map((d) => [d.deviceId, d.role])).toEqual([
+      ['d0', 'tile'],
+      ['d1', 'controller'],
+      ['d2', 'controller'],
+      ['d3', 'controller'],
+    ]);
+    vi.advanceTimersByTime(100);
+    expect(peer.match).toEqual(match);
+    host.close();
+    // Back to a Game seated at the ends: the outer Tiles' Players again.
+    host.setRole('d1', 'tile');
+    host.setGame(DUEL);
+    vi.advanceTimersByTime(100);
+    expect(host.players.map((p) => p.playerId)).toEqual([seat('d0'), seat('d1')]);
+  });
+
   it('orders the Tiles as the Host says, on the Host and the Peer; a Device that drops and returns keeps its place; Controllers are never in the order', () => {
     const { hub, host, lobby, join } = table(['d1', 'd2', 'd3']);
     const peer = lobby('d2');

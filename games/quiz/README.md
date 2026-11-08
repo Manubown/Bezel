@@ -1,5 +1,7 @@
 # Quiz
 
+`seats: 'controllers'`: in the lobby, mark every player's phone as a Controller ("Players' phones"); each becomes a Player seated at that phone. The one phone left on the table is the board: it shows the question, who has still to answer, then the right answer and the standings. Each Controller shows the question and the four answers as buttons.
+
 A pub-quiz round: one phone on the table is the board, every other phone is a Controller in a Player's hand.
 
 ```

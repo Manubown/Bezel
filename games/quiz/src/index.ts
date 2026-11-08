@@ -62,6 +62,7 @@ export type ControllerState = {
   kind: 'controller';
   phase: Phase;
   round: number;
+  question: string;
   choices: string[];
   /** The Holder's choice for this question; null until it answered. */
   picked: number | null;
@@ -122,16 +123,18 @@ function wrap(g: CanvasRenderingContext2D, text: string, width: number): string[
 
 /**
  * Quiz: one Tile on the table is the board; every other phone is a
- * Controller in a Player's hand. The board draws the question and its four
- * choices; each Controller shows them as buttons to its Holder, then "locked
- * in", then right or wrong. A question closes when every Holder answered or
- * `QUIZ.answerMs` ran out; the right answer and the scores stay up for
- * `QUIZ.revealMs`. A right answer earns more the sooner it reached the host.
- * After `QUIZ.questions` questions the most points win.
+ * Controller in a Player's hand (`seats: 'controllers'`: the lobby makes each
+ * Controller phone's holder a Player). The board shows the question, who has
+ * still to answer, and at the reveal the right answer and what everyone
+ * earned; each Controller shows the question and its four choices as buttons
+ * to its Holder, then "locked in", then right or wrong. A question closes when
+ * every Holder answered or `QUIZ.answerMs` ran out; the right answer and the
+ * scores stay up for `QUIZ.revealMs`. A right answer earns more the sooner it
+ * reached the host. After `QUIZ.questions` questions the most points win.
  *
- * Each Player holds one Controller for the whole Match: Players in
- * `match.players` order to Controllers in `match.devices` order. A Controller
- * left over has no Holder and waits; a Player left over cannot answer.
+ * Each Player holds one Controller for the whole Match: the Controller it is
+ * seated at (`Player.deviceId`); a Player without a seat takes the next
+ * Controller nobody holds. A Controller left over has no Holder and waits.
  *
  * The host is event-driven (`tickHz: 0`): Controllers' messages and two
  * timers move it. Whether an answer was right stays on the host until the
@@ -147,6 +150,7 @@ export default defineGame<QuizState, QuizMessage>({
     players: { min: 1, max: 4 },
     tickHz: 0,
     bots: false,
+    seats: 'controllers',
     host: './index.js',
     view: './index.js',
   },
@@ -154,10 +158,15 @@ export default defineGame<QuizState, QuizMessage>({
   host(ctx) {
     const { match } = ctx;
     const players = match.players.map((p) => p.playerId);
-    /** Each held Controller and its Holder, for the whole Match. */
-    const held = match.devices
-      .filter((d) => d.role === 'controller')
-      .flatMap((d, i): [DeviceId, PlayerId][] => (players[i] === undefined ? [] : [[d.deviceId, players[i]]]));
+    /** Each held Controller and its Holder, for the whole Match: a Player's own seat first, then the free Controllers in order. */
+    const controllers = match.devices.filter((d) => d.role === 'controller').map((d) => d.deviceId);
+    const held: [DeviceId, PlayerId][] = match.players.flatMap((p): [DeviceId, PlayerId][] => (p.deviceId !== undefined && controllers.includes(p.deviceId) ? [[p.deviceId, p.playerId]] : []));
+    const free = controllers.filter((c) => !held.some(([h]) => h === c));
+    for (const p of match.players) {
+      if (held.some(([, id]) => id === p.playerId)) continue;
+      const c = free.shift();
+      if (c !== undefined) held.push([c, p.playerId]);
+    }
     for (const [controller, playerId] of held) ctx.setHolder(controller, playerId);
 
     // This Match's questions: the bank shuffled by the seed (Fisher–Yates), the first TOTAL of it.
@@ -202,6 +211,7 @@ export default defineGame<QuizState, QuizMessage>({
         kind: 'controller',
         phase,
         round,
+        question: q.text,
         choices: [...q.choices],
         picked: mine?.choice ?? null,
         score: scores[playerId]!,
@@ -286,13 +296,14 @@ export default defineGame<QuizState, QuizMessage>({
     if (ctx.role === 'controller') {
       /** The last state the host published to this Controller alone; the board's broadcasts reach it too and are ignored. */
       let mine: ControllerState | undefined;
-      let ui: { who: HTMLElement; where: HTMLElement; status: HTMLElement; buttons: HTMLButtonElement[] } | undefined;
+      let ui: { who: HTMLElement; where: HTMLElement; question: HTMLElement; status: HTMLElement; buttons: HTMLButtonElement[] } | undefined;
       const render = (): void => {
         if (!ui) return;
         const holder = ctx.holder();
         const s = holder === null ? undefined : mine;
         ui.who.textContent = holder === null ? '' : `${nameOf(match, holder)} · ${s?.score ?? 0}`;
         ui.where.textContent = s ? `${s.round + 1} / ${TOTAL}` : '';
+        ui.question.textContent = s?.question ?? '';
         const [status, tone] =
           holder === null ? ['Waiting for a player', DIM]
           : !s ? ['Get ready', DIM]
@@ -334,7 +345,8 @@ export default defineGame<QuizState, QuizMessage>({
           const head = el('div', `display:flex;justify-content:space-between;gap:${2 * mm}px;color:${DIM};white-space:nowrap;overflow:hidden`);
           const who = el('span', 'overflow:hidden;text-overflow:ellipsis');
           const where = el('span', '');
-          const status = el('div', `font:700 ${8 * mm}px system-ui,sans-serif;line-height:1.1;min-height:1.1em`);
+          const question = el('div', `font:650 ${5.5 * mm}px system-ui,sans-serif;line-height:1.2;color:${FG}`);
+          const status = el('div', `font:700 ${6 * mm}px system-ui,sans-serif;line-height:1.1;min-height:1.1em`);
           // Last in the tree: the headless test screen's pointer hits the last element appended.
           const grid = el('div', `flex:1;min-height:0;display:flex;flex-direction:column;gap:${2.5 * mm}px`);
           const buttons = LETTERS.map((_, k) => {
@@ -351,10 +363,11 @@ export default defineGame<QuizState, QuizMessage>({
           head.append(where);
           for (const b of buttons) grid.append(b);
           box.append(head);
+          box.append(question);
           box.append(status);
           box.append(grid);
           root.append(box);
-          ui = { who, where, status, buttons };
+          ui = { who, where, question, status, buttons };
           render();
         },
         onState(s) {
@@ -392,43 +405,68 @@ export default defineGame<QuizState, QuizMessage>({
         g.font = font(650, size);
         g.fillStyle = FG;
         g.textAlign = 'left';
-        wrap(g, s.question, inner)
-          .slice(0, 4)
-          .forEach((line, k) => g.fillText(line, pad, pad + w * 0.1 + k * size * 1.25, inner));
+        const lines = wrap(g, s.question, inner).slice(0, 4);
+        lines.forEach((line, k) => g.fillText(line, pad, pad + w * 0.1 + k * size * 1.25, inner));
+        let y = pad + w * 0.1 + lines.length * size * 1.25 + h * 0.03;
+        const line = Math.min(w * 0.075, (h - pad - y - h * 0.12) / Math.max(2, match.players.length + 1));
 
-        // The four choices; at the reveal the right one turns green.
-        const top = h * 0.36;
-        const row = h * 0.085;
-        const gap = h * 0.012;
-        g.textBaseline = 'middle';
-        s.choices.forEach((choice, k) => {
-          const y = top + k * (row + gap);
-          const open = s.answer === undefined;
-          g.fillStyle = k === s.answer ? GOOD : open ? PANEL : FAINT;
-          g.fillRect(pad, y, inner, row);
-          g.fillStyle = k === s.answer ? BG : open ? FG : DIM;
-          g.font = font(700, row * 0.42);
-          g.fillText(LETTERS[k] ?? '', pad + row * 0.3, y + row / 2);
-          g.font = font(500, row * 0.38);
-          g.fillText(choice, pad + row * 0.85, y + row / 2, inner - row);
-        });
-
-        // Every Player: a check once answered, the points this question gave at the reveal, the score.
-        const listTop = top + 4 * (row + gap) + gap;
-        const line = Math.min(w * 0.075, (h - pad - listTop) / Math.max(1, match.players.length));
-        g.font = font(500, line * 0.7);
-        match.players.forEach((p, k) => {
-          const y = listTop + (k + 0.5) * line;
-          g.textAlign = 'left';
-          g.fillStyle = FG;
-          g.fillText(p.name, pad, y, inner * 0.55);
-          g.textAlign = 'right';
-          g.fillText(String(s.scores[p.playerId] ?? 0), w - pad, y);
-          const gained = s.gained?.[p.playerId];
-          const mark = gained !== undefined ? (gained > 0 ? `+${gained}` : '') : s.answered.includes(p.playerId) ? '✓' : '';
+        if (s.phase === 'ask') {
+          // Who has still to answer: names, large; the ones already in, dimmed with a check.
+          const waiting = match.players.filter((p) => !s.answered.includes(p.playerId));
+          g.textBaseline = 'top';
+          g.font = font(500, w * 0.05);
+          g.fillStyle = DIM;
+          g.fillText(waiting.length === 0 ? 'Everyone answered' : waiting.length === 1 ? 'Waiting for' : `Waiting for ${waiting.length}`, pad, y);
+          y += w * 0.08;
+          g.textBaseline = 'middle';
+          match.players.forEach((p) => {
+            const done = s.answered.includes(p.playerId);
+            g.font = font(done ? 500 : 650, line * 0.7);
+            g.fillStyle = done ? DIM : FG;
+            g.textAlign = 'left';
+            g.fillText(p.name, pad, y + line / 2, inner * 0.7);
+            g.textAlign = 'right';
+            g.fillStyle = done ? GOOD : DIM;
+            g.fillText(done ? '✓' : '…', w - pad, y + line / 2);
+            y += line;
+          });
+        } else {
+          // The right answer, then what each Player earned and the standings so far.
+          g.textBaseline = 'top';
+          g.font = font(500, w * 0.05);
+          g.fillStyle = DIM;
+          g.fillText('Answer', pad, y);
+          y += w * 0.07;
           g.fillStyle = GOOD;
-          g.fillText(mark, w - pad - inner * 0.22, y);
-        });
+          g.fillRect(pad, y, inner, line);
+          g.textBaseline = 'middle';
+          g.fillStyle = BG;
+          g.font = font(700, line * 0.42);
+          g.textAlign = 'left';
+          g.fillText(LETTERS[s.answer ?? 0] ?? '', pad + line * 0.3, y + line / 2);
+          g.font = font(600, line * 0.4);
+          g.fillText(s.choices[s.answer ?? 0] ?? '', pad + line * 0.85, y + line / 2, inner - line);
+          y += line + h * 0.03;
+          const ranked = [...match.players].sort((a, b) => (s.scores[b.playerId] ?? 0) - (s.scores[a.playerId] ?? 0));
+          ranked.forEach((p, k) => {
+            const gained = s.gained?.[p.playerId] ?? 0;
+            g.font = font(k === 0 ? 650 : 500, line * 0.65);
+            g.textAlign = 'left';
+            g.fillStyle = FG;
+            g.fillText(`${k + 1}. ${p.name}`, pad, y + line / 2, inner * 0.55);
+            g.textAlign = 'right';
+            g.fillText(String(s.scores[p.playerId] ?? 0), w - pad, y + line / 2);
+            g.fillStyle = gained > 0 ? GOOD : BAD;
+            g.fillText(gained > 0 ? `+${gained}` : '0', w - pad - inner * 0.25, y + line / 2);
+            y += line;
+          });
+          if (s.round + 1 === TOTAL) {
+            g.textAlign = 'center';
+            g.fillStyle = DIM;
+            g.font = font(500, w * 0.05);
+            g.fillText('Final standings', w / 2, Math.min(h - pad - w * 0.05, y + h * 0.02));
+          }
+        }
       },
     };
   },

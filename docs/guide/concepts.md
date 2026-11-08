@@ -32,7 +32,12 @@ Each factory is the init: its handlers run only after it returned, so async setu
 
 ## Seats and bots
 
-The lobby seats at most **two** Players: `SLOTS = 2`, slot 0 at the first Tile and slot 1 at the last Tile in Tile order (`apps/pwa/src/lobby.ts:9-10`, `417-421`).
+Where the Players come from is the Game's choice, `Manifest.seats`:
+
+- `'ends'` (default): the lobby seats at most **two** Players, slot 0 at the first Tile and slot 1 at the last Tile in Tile order (`SLOTS = 2`, `apps/pwa/src/lobby.ts`). Pong, Air Hockey, Tap Race, Snake, Breakout.
+- `'controllers'`: one Player per phone the Host marks as a Controller (the "Players' phones" chips), the person holding it, seated at that Controller (`Player.deviceId`); no bots. Quiz. The Game's host hands each Controller to the Player seated at it (`setHolder`).
+
+For `'ends'`:
 
 - `match.players` lists the slots' Players, Player 1 first. A human is `{ playerId, name, deviceId }`, seated at that Tile; a bot is `{ playerId: 'bot:<slot>', name: 'Bot', bot: true }` with no `deviceId` (`apps/pwa/src/lobby.ts:305-315`, `412-415`).
 - Middle Tiles of a row of three or more seat nobody. Controllers are never seated. With one Tile, slot 1 can only be a bot.

@@ -224,8 +224,13 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 
 ### A middle phone, or a phone in a grid's top row, does nothing for anyone
 
-- **Cause:** the lobby seats two Players, at the first and the last Tile in Tile order (`apps/pwa/src/lobby.ts:9-10`); every other Tile seats nobody, and in a row-major grid the first Tile is always top-left.
-- **Fix:** today, treat unseated Tiles as field (Breakout) or spawn nothing there (Tap Race), and let the Host reorder phones with ◀ ▶. A per-Tile or per-Controller seating rule is on the backlog (`.scratch/sdk-friction-1/spec.md` B1).
+- **Cause:** with `seats: 'ends'` (the default) the lobby seats two Players, at the first and the last Tile in Tile order (`apps/pwa/src/lobby.ts`); every other Tile seats nobody, and in a row-major grid the first Tile is always top-left.
+- **Fix:** today, treat unseated Tiles as field (Breakout) or spawn nothing there (Tap Race), and let the Host reorder phones with ◀ ▶. A per-Tile seating rule is on the backlog (`.scratch/sdk-friction-1/spec.md` B1); a per-Controller one exists (`seats: 'controllers'`).
+
+### Quiz has one Player although three phones are Controllers
+
+- **Cause:** a build before `Manifest.seats`. Now Quiz declares `seats: 'controllers'`: every phone pressed under "Players' phones" in the Host's sheet is a Player, named in the Players list.
+- **Fix:** update; mark each player's phone as a Controller before Start; the board phone stays on the table.
 
 ### The result card says "Player 1 wins" after a draw or a team win
 

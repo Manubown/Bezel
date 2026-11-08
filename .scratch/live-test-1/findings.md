@@ -47,7 +47,7 @@ Eleven 37-byte files containing only the log's filename: iOS passes `title` as a
 
 ## Fixes
 
-1. ✅ `index.html`: `overscroll-behavior: none; touch-action: none` on `html, body`; the sheet body scrolls (it was taller than an iPhone 12 and cut the QR off, the Game row out of reach); the Host's bar is a small "Setup" pill in the top-right corner while a Match runs (was a full-width bar over the bottom 15–21 mm); portrait only (`manifest` + `screen.orientation.lock` when installed, a "Turn your phone upright" overlay in a browser tab).
+1. ✅ `index.html`: `overscroll-behavior: none; touch-action: none` on `html, body`; the sheet body scrolls (it was taller than an iPhone 12 and cut the QR off, the Game row out of reach); the Host's bar is a small "Setup" pill in the bottom-right corner while a Match runs (was a full-width bar over the bottom 15–21 mm); portrait only (`manifest` + `screen.orientation.lock` when installed, a "Turn your phone upright" overlay in a browser tab).
 2. ✅ `recorder.ts`: no `title` on share; `ice` lines (connection/ICE state + selected candidate pair with types/mDNS/rtt) on join, every state change and leave.
 3. ✅ `device.ts`: `pageZoom()` corrects `pxPerMm` for Safari Page Zoom; `device` line logs `zoom`.
 4. ✅ `TrysteroTransport` takes `rtcConfig`/`turnConfig`; `?turn` on the Host adds Open Relay TURN and the QR carries the flag.

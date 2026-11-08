@@ -8,9 +8,9 @@ import { createTestMatch } from '@mgc/sdk/test';
 import quiz, { QUESTIONS, QUIZ, type BoardState, type ControllerState, type QuizMessage, type QuizState } from '../src';
 
 /**
- * One phone on the table is the board; three are Controllers in hand. Ann sits
- * at the board, as the lobby seats slot 0; Bo sits nowhere (the lobby cannot
- * make him: see the friction log).
+ * One phone on the table is the board; three are Controllers in hand. With
+ * `seats: 'controllers'` the lobby seats a Player at each Controller: Ann holds
+ * c0, Bo holds c1; c2 is a Controller nobody holds (its Player left before Start).
  */
 const BOARD: Tile = { deviceId: 'd0', x: 0, y: 0, w: 70, h: 150, rot: 0 };
 const CONTROLLERS: DeviceId[] = ['c0', 'c1', 'c2'];
@@ -19,8 +19,8 @@ const MATCH: MatchInfo = {
   seed: 1,
   tickHz: 0,
   players: [
-    { playerId: 'p-ann', name: 'Ann', deviceId: 'd0' },
-    { playerId: 'p-bo', name: 'Bo' },
+    { playerId: 'p-ann', name: 'Ann', deviceId: 'c0' },
+    { playerId: 'p-bo', name: 'Bo', deviceId: 'c1' },
   ],
   devices: [
     { deviceId: 'd0', role: 'tile', name: 'd0', tile: BOARD, screenMm: { x: 70, y: 150 } },
@@ -95,9 +95,9 @@ async function start(match = MATCH) {
 }
 
 describe('Quiz', () => {
-  it('declares one board Tile, 1–4 Controllers and Players, no tick and no bots, and imports nothing but the SDK', () => {
-    const { tiles, controllers, players, tickHz, bots } = quiz.manifest;
-    expect({ tiles, controllers, players, tickHz, bots }).toEqual({ tiles: { min: 1, max: 1 }, controllers: { min: 1, max: 4 }, players: { min: 1, max: 4 }, tickHz: 0, bots: false });
+  it('declares one board Tile, 1–4 Controllers and Players seated at them, no tick and no bots, and imports nothing but the SDK', () => {
+    const { tiles, controllers, players, tickHz, bots, seats } = quiz.manifest;
+    expect({ tiles, controllers, players, tickHz, bots, seats }).toEqual({ tiles: { min: 1, max: 1 }, controllers: { min: 1, max: 4 }, players: { min: 1, max: 4 }, tickHz: 0, bots: false, seats: 'controllers' });
 
     const dir = fileURLToPath(new URL('../src/', import.meta.url));
     const files = readdirSync(dir, { recursive: true, encoding: 'utf8' }).filter((f) => /\.[cm]?[jt]sx?$/.test(f));
@@ -105,7 +105,7 @@ describe('Quiz', () => {
     expect(new Set(specifiers)).toEqual(new Set(['@mgc/sdk']));
   });
 
-  it('hands the Controllers to the Players in order at the start and leaves the third idle', async () => {
+  it('hands each Controller to the Player seated at it at the start and leaves the third idle', async () => {
     const q = await start();
     const holders = [
       { deviceId: 'c0', playerId: 'p-ann' },
@@ -120,11 +120,18 @@ describe('Quiz', () => {
     const first = q.board();
     expect(first).toMatchObject({ kind: 'board', phase: 'ask', round: 0, until: QUIZ.answerMs, answered: [], scores: { 'p-ann': 0, 'p-bo': 0 } });
     expect(first).not.toHaveProperty('answer');
-    expect(q.own('c0')).toEqual({ kind: 'controller', phase: 'ask', round: 0, choices: first.choices, picked: null, score: 0 });
-    expect(q.text('c0')).toEqual(['Ann · 0', `1 / ${TOTAL}`, 'Pick an answer', ...first.choices.map((c, k) => `${'ABCD'[k]}\u2003${c}`)]);
+    expect(q.own('c0')).toEqual({ kind: 'controller', phase: 'ask', round: 0, question: first.question, choices: first.choices, picked: null, score: 0 });
+    // The Controller shows the question itself, then the four choices as buttons.
+    expect(q.text('c0')).toEqual(['Ann · 0', `1 / ${TOTAL}`, first.question, 'Pick an answer', ...first.choices.map((c, k) => `${'ABCD'[k]}\u2003${c}`)]);
     // The idle Controller gets the board's broadcasts only, and waits.
     expect(q.heard('c2').map((s) => s.kind)).toEqual(['board']);
     expect(q.text('c2')).toEqual(['Waiting for a player', 'A\u2003', 'B\u2003', 'C\u2003', 'D\u2003']);
+    await q.t.stop();
+  });
+
+  it('gives a Player without a seat the next Controller nobody holds', async () => {
+    const q = await start({ ...MATCH, players: [{ playerId: 'p-ann', name: 'Ann', deviceId: 'c1' }, { playerId: 'p-bo', name: 'Bo' }] });
+    expect(CONTROLLERS.map((c) => q.view('d0').holder(c))).toEqual(['p-bo', 'p-ann', null]);
     await q.t.stop();
   });
 
