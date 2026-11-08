@@ -31,3 +31,6 @@ export function describeClose(reason: CloseReason, detail: string): { headline: 
   const said = CLOSED[reason];
   return { headline: said.headline, detail: said.detail ?? detail };
 }
+
+/** The detail of a `link-lost` close when the Host came back under the same Device id without the Match: its page reloaded (connectivity-1 D10). */
+export const HOST_RESTARTED = 'The host phone restarted';

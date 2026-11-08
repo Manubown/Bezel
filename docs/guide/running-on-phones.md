@@ -13,19 +13,20 @@
 
 - Put every phone on the same Wi-Fi, or on one phone's hotspot. The Match itself runs phone-to-phone over WebRTC.
 - Every phone also needs **internet**: signaling (how phones find each other) goes through public Nostr relays via Trystero (`packages/core/src/trystero-transport.ts:32-37`). The offline fallback (SDP by QR code) is planned for M5 (`docs/PLAN.md:86`) and not built.
-- The Session is a star: Peers talk only to the Host (ADR-0002). If the Host's page goes away, the Session ends; Peers show "Looking for the host".
+- The Session is a star: Peers talk only to the Host (ADR-0002). If the Host's page goes away, the Session is gone until the Host is back under the same code; Peers show "Reconnecting to the host…" and look for it again by themselves.
 
 ## Join
 
-- A phone that opens the address **without** `?room=` becomes a Host with a new 4-letter code (letters and digits without 0, O, 1, I, L: `apps/pwa/src/main.ts:18-19`). A reloaded Host tab keeps its code, so its Peers find it again (`apps/pwa/src/main.ts:20-21`, `41-46`).
+- A phone that opens the address **without** `?room=` becomes a Host with a new 4-letter code (letters and digits without 0, O, 1, I, L: `apps/pwa/src/main.ts:19-20`). A reloaded Host tab keeps its code, so its Peers find it again (`apps/pwa/src/main.ts:21-22`, `42-47`), and its lobby: arrangement, Tile order, Controllers, Game and bots come back as the phones do; the running Match does not ([the host phone reloaded](troubleshooting.md#the-host-phone-reloaded)).
 - **QR:** a Peer scans the Host's QR code and opens `…/?room=CODE`.
-- **Code:** a Peer opens the address (the Host's sheet shows it: "Scan to join, or open <address> and enter the code."), types the code into its own sheet's "Code" field and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:199-210`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:58`).
+- **Code:** a Peer opens the address (the Host's sheet shows it: "Scan to join, or open <address> and enter the code."), types the code into its own sheet's "Code" field and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:199-210`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:59`).
 
-A Peer's top strip says where it is (`apps/pwa/src/hud.ts:441-466`):
+A Peer's top strip says where it is (`apps/pwa/src/hud.ts:443-481`):
 
 | Strip | Meaning |
 |---|---|
-| Looking for the host · keep the host screen open | no Host has answered yet, or the Host is gone |
+| Looking for the host… · keep the host screen open | no Host has answered since this page loaded |
+| Reconnecting to the host… · the connection dropped · trying again | it had the Host and lost it: the connection closed, the Host was silent for 5 s, or the clock did not sync within 4 s. It reconnects by itself ([reconnecting](troubleshooting.md#reconnecting-to-the-host-on-a-peer)) |
 | Syncing clocks · measuring the offset to the host | connected; the shared clock is being measured |
 | Synced · waiting for arrangement | synced; the Host's lobby state has not arrived yet |
 | Phone N of M · <where it goes> · <Player> | a Tile, its place in the Tile order, and who sits there |
@@ -38,16 +39,16 @@ Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 
 | Control | What it does |
 |---|---|
-| bar: code · "N phones · Row" · Setup/Hide | folds the sheet. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:270-276`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused · N faults" with the newest game-log line under it |
+| bar: code · "N phones · Row" · Setup/Hide | folds the sheet. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused · N faults" with the newest game-log line under it |
 | QR code, address, "Code" field + Join | how Peers join; Join leaves this table for another one |
-| Game row | picks the Game "Start" starts; sorted by name; the Host's last pick in this tab is picked again (`sessionStorage` `mgc.game`), else the first (`apps/pwa/src/hud.ts:211-214`). The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
-| Arrangement: Row / Column / Grid | the template; the default is Row (`apps/pwa/src/lobby.ts:159`) |
-| Controllers, or "Players’ phones" when the Game has `seats: 'controllers'` (`apps/pwa/src/hud.ts:291-294`): one chip per phone | pressed = Controller (held in hand, out of the Layout and the Tile order); press again to make it a Tile. Under "Players’ phones" each pressed phone is one Player's |
-| Players: P1, P2 (`seats: 'ends'`), or one row per Controller phone (`seats: 'controllers'`) | each Player's name (editable, up to 24 characters), where it sits ("phone 1", or "Controller"), and, with `'ends'`, a **Bot** chip when the Game's manifest has `bots: true` (`apps/pwa/src/hud.ts:318-337`) |
+| Game row | picks the Game "Start" starts; sorted by name; the Host's last pick is picked again, kept with the lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`, `lobby.picked`), else the first (`apps/pwa/src/hud.ts:211-213`). The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
+| Arrangement: Row / Column / Grid | the template; the default is Row (`apps/pwa/src/lobby.ts:203`) |
+| Controllers, or "Players’ phones" when the Game has `seats: 'controllers'` (`apps/pwa/src/hud.ts:289-292`): one chip per phone | pressed = Controller (held in hand, out of the Layout and the Tile order); press again to make it a Tile. Under "Players’ phones" each pressed phone is one Player's |
+| Players: P1, P2 (`seats: 'ends'`), or one row per Controller phone (`seats: 'controllers'`) | each Player's name (editable, up to 24 characters), where it sits ("phone 1", or "Controller"), and, with `'ends'`, a **Bot** chip when the Game's manifest has `bots: true` (`apps/pwa/src/hud.ts:316-335`) |
 | Start <Game> / End match | Start freezes the Match; End match stops it on every phone ("Match stopped") |
 | reason line | why Start was refused ([messages](troubleshooting.md#start-is-refused)), else "Last match: …" |
 | game log | the running (or last) Match's faults, `ctx.log` lines and close, newest first; the last 50 (`apps/pwa/src/gamelog.ts:10`) |
-| roster | every phone in Tile order with where it goes, its Player and clock sync; ◀ ▶ move a Tile; Controllers listed as "C"; dropped phones as "disconnected" |
+| roster | every phone in Tile order with where it goes, its Player and clock sync; ◀ ▶ move a Tile; Controllers listed as "C"; a phone not heard for 2.5 s reads "weak connection" instead of its clock numbers ([weak connection](troubleshooting.md#the-hosts-roster-says-weak-connection-for-a-phone)), a lost one "disconnected" |
 
 ### Templates
 
@@ -64,7 +65,7 @@ Phone 1 is always the "first phone". On every phone the lobby draws a millimetre
 ### Tile order, seats and bots
 
 - The Tile order starts as the join order, Host first. ◀ moves a Tile towards the first place, ▶ towards the last; both stop at the ends and are disabled while a Match runs.
-- With `seats: 'ends'` (the default; [seats](concepts.md#seats-and-bots)), P1 is whoever sits at the **first** Tile, P2 whoever sits at the **last** (`SLOTS = 2`, `apps/pwa/src/lobby.ts:9-10`). Middle Tiles seat nobody; Controllers are never seated. With one Tile, P2 can only be a bot ("no phone"). With `seats: 'controllers'` (Quiz) every phone pressed under "Players’ phones" seats one Player, in roster order, and no Tile seats anyone (`apps/pwa/src/lobby.ts:333-342`).
+- With `seats: 'ends'` (the default; [seats](concepts.md#seats-and-bots)), P1 is whoever sits at the **first** Tile, P2 whoever sits at the **last** (`SLOTS = 2`, `apps/pwa/src/lobby.ts:9-10`). Middle Tiles seat nobody; Controllers are never seated. With one Tile, P2 can only be a bot ("no phone"). With `seats: 'controllers'` (Quiz) every phone pressed under "Players’ phones" seats one Player, in roster order, and no Tile seats anyone (`apps/pwa/src/lobby.ts:421-430`).
 - A **Bot** chip (`seats: 'ends'` only) turns its slot into a bot the host game plays (`playerId: 'bot:0'` or `'bot:1'`). The lobby refuses Start with a bot if the Game does not support bots.
 - Names stay with the Player id, and a phone keeps its Player id across reloads (`apps/pwa/src/device.ts:59-71`).
 
@@ -83,24 +84,24 @@ A Tile's size in mm is its visible CSS size divided by this, so a 420 × 860 px 
 
 ## Screen size, rotation, iOS toolbars
 
-- Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:56`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:105-117`).
+- Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:57`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:105-117`).
 - Load the page with the phone sideways, or let iOS Safari show or hide its toolbars after that, and its Tile no longer matches its screen. Hold the phone upright, then reload it.
 - A phone added to the home screen opens without browser toolbars (`display: fullscreen` in `apps/pwa/public/manifest.webmanifest`).
 
 ## Screen wake lock
 
-During a Match each phone asks for a screen wake lock on its first touch, and again on a touch after the system dropped it; it releases the lock when the Match closes (`apps/pwa/src/wake.ts:1-34`). Before that first touch, and in the lobby, the phone's own auto-lock applies: a phone nobody touches can sleep, drop out, and pause the Match. Touch every phone once after Start.
+Every phone asks for a screen wake lock on its first tap or key press on the page (the join field, the Host's sheet, the lobby, the Game), asks again when the page is visible again (the system drops the lock while it is hidden), and on the next tap if a request was refused; it holds the lock for as long as the page is open, lobby and Match alike (`apps/pwa/src/wake.ts:9-56`, `apps/pwa/src/main.ts:80-81`). The request needs that one tap: a phone nobody has touched since its page loaded follows its own auto-lock, and can sleep, drop out, and pause the Match. Tap every phone once after it joins. Browsers without the Screen Wake Lock API just keep their auto-lock. The `tick` log line says whether the lock is held (`wake`).
 
 ## Losing a phone
 
-The Host learns that a phone is gone only when the transport reports it, 10–13 s after it went (observed 10.2–12.8 s, `.scratch/m2-pong-sdk/issues/06-pause-resume.md:158`). The Match then pauses on every phone ("Waiting for <Player>", or "phone N" / "the controller") and resumes once the phone is back and has synced its clock (`apps/pwa/src/pause.ts:12-35`). Reloading the lost phone's page (its address still holds `?room=CODE`) brings it back under the same Device id. A Game that must notice an absent Player sooner does it itself (Pong holds play until each human keeps touching: `PONG.presence`, `games/pong/src/index.ts:27-31`).
+The Host notices a silent phone after 2.5 s (its roster row reads "weak connection", `WEAK_MS`; no pause) and gives it up after 5 s of silence (`LOST_MS`, `packages/core/src/session.ts`), or at once when its connection closes; the 1 Hz clock pings are the heartbeat. Before connectivity-1 only the transport's own leave told it, 10–13 s after the phone went. The Match then pauses on every phone ("Waiting for <Player>", or "phone N" / "the controller") and resumes once the phone is back and has synced its clock (`apps/pwa/src/pause.ts:12-35`). The lost phone itself keeps its part of the Match for 30 s, showing "Reconnecting to the host…", while its connection is rebuilt; back within that, it plays on in the same Match ([reconnecting](troubleshooting.md#reconnecting-to-the-host-on-a-peer)). Reloading the lost phone's page (its address still holds `?room=CODE`) also brings it back, under the same Device id. A Game that must notice an absent Player sooner does it itself (Pong holds play until each human keeps touching: `PONG.presence`, `games/pong/src/index.ts:27-31`).
 
 ## What a Peer sees
 
 1. The lobby: the strip above and the placement preview.
 2. On Start: the strip folds away and the Game's view fills the screen. A Peer that is not in the Match stays in the lobby ("Match in progress").
-3. During a pause: a card "Waiting for …" over the frozen view.
-4. When the Match closes: the result card on every phone ("<name> wins", the scores, or "Draw"; without a result, why it closed: "Match stopped", "The game crashed", "Connection lost", … from `apps/pwa/src/result.ts`), until tapped, then the lobby.
+3. During a pause: a card "Waiting for …" over the frozen view. While this phone's own connection is down: "Reconnecting to the host… · the match goes on when the connection is back", for up to 30 s.
+4. When the Match closes: the result card on every phone ("<name> wins", the scores, or "Draw"; without a result, why it closed: "Match stopped", "The game crashed", "Connection lost", "Connection lost · The host phone restarted", … from `apps/pwa/src/result.ts`), until tapped, then the lobby.
 
 ## Installing as a PWA
 
@@ -118,18 +119,19 @@ Every page keeps a log of what it saw (`apps/pwa/src/recorder.ts`), in IndexedDB
 |---|---|---|
 | `device` | page load | `ua`, `platform`, `pxPerMm`, `viewport`, `screen`, `dpr`, `touchPoints`, `cores`, `standalone`, `url` |
 | `viewport` | load, and every resize / toolbar change | `width`, `height`, `inner`, `dpr` |
-| `tick` | once a second | `fps` (this page's animation frames), `hidden`; `tx` / `rx`: frames `n` and bytes `b` sent / received since the last tick, per channel (`msg` carries Match frames and the lobby, `clk` clock pings, `clkrep` clock reports, `roster`, `hello`, `info`) |
+| `tick` | once a second | `fps` (this page's animation frames), `hidden`, `wake` (a screen wake lock is held), `peers` (WebRTC connections this page holds: on the Host one per Peer; on a Peer above 1 means Trystero's Peer↔Peer mesh); `tx` / `rx`: frames `n` and bytes `b` sent / received since the last tick, per channel (`msg` carries Match frames and the lobby, `clk` clock pings, `clkrep` clock reports, `roster`, `hello`, `info`) |
 | `peer-join`, `peer-leave` | the transport sees a connection come or go | `peer` (transport id), `peers` left, `afterMs` connected |
 | `roster` | status, presence or any Device's sync changed | `status`, `roster[]` with `deviceId`, `name`, `present`, `synced`, `rtt`, `offset` |
-| `clock` | a Peer gets a clock reply (10 in the first second, then every 5 s) | `q`, `rtt`, `offset` (ms, this sample alone) |
-| `device-lost`, `device-back` | the Session's leave detection and return | `deviceId` |
+| `link` | a Device's connection changed, as this page's roster says: `ok`, `weak` (2.5 s silent), `lost` (5 s, or the connection closed); one line for each Device's first entry | `deviceId`, `link` |
+| `clock` | a Peer gets a clock reply (10 in the first second, then one a second: the heartbeat) | `q`, `rtt`, `offset` (ms, this sample alone) |
+| `device-lost`, `device-back` | the Session gave a Device up (`LOST_MS` of silence or its connection closed) / has it back | `deviceId` |
 | `match`, `lobby` | the lobby froze a Match (the whole `MatchInfo`, `game`, `template`) / returned to the lobby | |
 | `match:<event>` | every `runMatch` event on this page: `started`, `paused`, `resumed`, `holders`, `ended`, `closed`, `view-closed`, `fault` (with the stack), `log` (every `ctx.log`, not just the last 50) | the event's fields and `matchId` |
 | `visibility` | the page went to the background or came back | `hidden` |
 | `error` | an uncaught error or rejection on the page | `message`, `stack` |
 | `ice` | a peer connection joined, changed connection/ICE state, or left | `peer`, `event`, `connection`, `ice`, `gathering`, `signaling`, `pair` (selected candidate pair: `local`/`remote` `type` host/srflx/prflx/relay, `proto`, `mdns`, `v6`; `rtt`, bytes) |
 
-Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Peer's sync; `select(.k=="tick") | .fps` the frame rate; the gap between a `peer-leave` and the `device-lost` that follows is the leave-detection latency; `match:paused`/`match:resumed` and `match:fault` carry their reasons. Faults with stacks and every `ctx.log` line are in there even after the HUD's 50-line log has rolled over.
+Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Peer's sync; `select(.k=="tick") | .fps` the frame rate; `select(.k=="tick") | .peers` on a Peer shows whether it holds connections to other Peers besides the Host (the mesh); `select(.k=="link")` lists every `weak`/`lost` stretch; the gap between a `peer-leave` and the `device-lost` that follows is the leave-detection latency; `match:paused`/`match:resumed` and `match:fault` carry their reasons. Faults with stacks and every `ctx.log` line are in there even after the HUD's 50-line log has rolled over.
 
 ## Connectivity flags
 

@@ -108,16 +108,19 @@ export interface HostHandlers<M extends JsonValue> {
   onTimer?(tag: string, now: number): void;
   /**
    * The Match paused: no `tick`, input, message or timer until `onResume`.
-   * Called again if the reason changes while paused, so record the pause's
-   * start once (`pausedAt ??= now()`).
+   * Called again if the reason changes while paused; `onResume`'s `pausedMs`
+   * counts from the first call.
    */
   onPause?(reason: PauseReason): void;
   /**
-   * The Match resumed at shared time `now`. The platform re-posts the retained
-   * states to every view by itself; re-publish here only if the pause changes
-   * the state (a deadline moved by the paused time, say).
+   * The Match resumed at shared time `now`. `pausedMs`: how long the Match
+   * stood still on the shared clock, from the first `onPause`; shift your
+   * deadlines by it, or use a timer (timers are pause-aware already). The
+   * platform re-posts the retained states to every view by itself; re-publish
+   * here only if the pause changes the state (a deadline moved by `pausedMs`,
+   * say).
    */
-  onResume?(now: number): void;
+  onResume?(now: number, pausedMs: number): void;
   dispose?(): void;
 }
 
@@ -181,12 +184,16 @@ export interface ViewHandlers<S extends JsonValue, M extends JsonValue> {
   /** The Match paused: `draw` stops (the canvas keeps its last frame) until `onResume`. Again if the reason changes. */
   onPause?(reason: PauseReason): void;
   /**
-   * The Match resumed at shared time `now`. The host's retained states arrived
-   * just before (so `latest()` is current); states older than `now` describe
-   * the moment of the pause, so extrapolate from `max(t, now)`. A view that
-   * started while the Match was paused gets it without an `onPause`.
+   * The Match resumed at shared time `now`. `pausedMs`: how long the Match
+   * stood still on the shared clock, from the first pause; shift your
+   * deadlines by it, or use a timer (timers are pause-aware already). The
+   * host's retained states arrived just before (so `latest()` is current);
+   * states older than `now` describe the moment of the pause, so extrapolate
+   * from `max(t, now)`. A view that started while the Match was paused hears
+   * the pause from the Host's answer to its runtime's `hello`, or, if the
+   * resume came first, gets `onResume` without an `onPause`.
    */
-  onResume?(now: number): void;
+  onResume?(now: number, pausedMs: number): void;
   /** The Match closed: `result` when the host ended it. `dispose` follows. */
   onEnd?(r: { reason: CloseReason; result?: MatchResult }): void;
   dispose?(): void;

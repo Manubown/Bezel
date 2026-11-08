@@ -150,9 +150,8 @@ describe('pause and resume across a Peer’s loss: Host + 3 Peers over the in-me
     await untilResumed(rig);
     const back = rig.devices.get(DROPS)!;
     expect(back.session).not.toBe(old.session);
-    // It ran its part before the Host resumed, and never paused.
-    expect(back.events[0]).toEqual({ t: 'started' });
-    expect(back.events.map((e) => e.t)).not.toContain('paused');
+    // It ran its part before the Host resumed; its hello brought it the pause.
+    expect(back.events.slice(0, 2)).toEqual([{ t: 'started' }, { t: 'paused', reason: LOST }]);
     expect(rec.ticks).toHaveLength(5);
 
     for (let i = 0; i < 3; i++) await step(rig, STEP_MS);
@@ -168,8 +167,8 @@ describe('pause and resume across a Peer’s loss: Host + 3 Peers over the in-me
     expect(sincePause(rec, 'd0')).toEqual([5, 'resume', 6, 7, 8]);
     expect(sincePause(rec, 'd2')).toEqual(['2→d2', 5, 'resume', 6, 7, 8]);
     expect(sincePause(rec, 'd3')).toEqual([5, 'resume', 6, 7, 8]);
-    // The new d1 page never saw the pause; it starts from the retained state and resumes with the rest.
-    expect(rec.seen.get(DROPS)!.map((s) => ('state' in s ? s.state.n : 'resume' in s ? 'resume' : '?'))).toEqual([5, 'resume', 6, 7, 8]);
+    // The new d1 page: the hello's answer (the retained state, the pause), then the resume's re-post of that state, harmless twice.
+    expect(rec.seen.get(DROPS)!.map((s) => ('state' in s ? s.state.n : 'resume' in s ? 'resume' : 'pause' in s ? 'pause' : '?'))).toEqual([5, 'pause', 5, 'resume', 6, 7, 8]);
     for (const id of [...CONNECTED, DROPS]) {
       expect(rec.seen.get(id)!.find((s) => 'resume' in s), id).toEqual({ resume: resume.resume });
       expect(rig.devices.get(id)!.events.at(-1), id).toEqual({ t: 'resumed' });
@@ -210,6 +209,7 @@ describe('pause and resume across a Peer’s loss: Host + 3 Peers over the in-me
     expect(sincePause(rec, 'd0')).toEqual([99, 'resume', 4]);
     expect(sincePause(rec, 'd2')).toEqual([99, 'resume', 4]);
     expect(sincePause(rec, 'd3')).toEqual([99, '98→d3', 'resume', 4]);
-    expect(rec.states.get(DROPS)!.map((s) => s.state.n)).toEqual([99, 4]);
+    // The new d1 page: the hello's answer, then the resume's re-post.
+    expect(rec.states.get(DROPS)!.map((s) => s.state.n)).toEqual([99, 99, 4]);
   });
 });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryHub, hostSession, joinSession, type DeviceId, type DeviceInfo } from '@mgc/core';
 import type { Manifest } from '@mgc/sdk';
-import { openLobby, type Lobby } from '../src/lobby';
+import { openLobby, sessionLobbyStore, type Lobby, type LobbyStore } from '../src/lobby';
 
 const PX_PER_MM = 6;
 /** 390 × 840 CSS px at 6 px/mm: a 65 × 140 mm screen. */
@@ -20,20 +20,42 @@ const DUEL: Manifest = {
   view: './duel.js',
 };
 
-/** Host `d0` and the given Peers, each with its lobby, over one hub; everyone synced. */
-function table(peers: DeviceId[]) {
+/** Host `d0` and the given Peers, each with its lobby, over one hub; everyone synced. `store`: the Host's. */
+function table(peers: DeviceId[], store?: LobbyStore) {
   const hub = new MemoryHub(() => 5);
   const lobbies = new Map<DeviceId, Lobby>();
   /** `connection`: a Device back after a drop comes under a new one. */
-  const join = (deviceId: DeviceId, open = joinSession, connection = `peer-of-${deviceId}`): Lobby => {
-    const lobby = openLobby(open(hub.connect(connection), info(deviceId)), PX_PER_MM, seat(deviceId));
+  const join = (deviceId: DeviceId, open = joinSession, connection = `peer-of-${deviceId}`, saveTo?: LobbyStore): Lobby => {
+    const lobby = openLobby(open(hub.connect(connection), info(deviceId)), PX_PER_MM, seat(deviceId), saveTo);
     lobbies.set(deviceId, lobby);
     return lobby;
   };
-  const host = join('d0', hostSession);
+  const host = join('d0', hostSession, 'peer-of-d0', store);
   for (const id of peers) join(id);
   vi.advanceTimersByTime(3000);
   return { hub, host, lobby: (id: DeviceId) => lobbies.get(id)!, join };
+}
+
+/** This tab's `sessionStorage`, in memory: what a page saved there is still there once that page is gone. */
+function tabStorage(): Map<string, string> {
+  const items = new Map<string, string>();
+  vi.stubGlobal('sessionStorage', { getItem: (key: string) => items.get(key) ?? null, setItem: (key: string, value: string) => void items.set(key, value) });
+  return items;
+}
+
+/**
+ * The Host page before its reload, saving to `store`: Devices d1–d3, the Grid, Tile order d3, Host, d1,
+ * d2 a Controller, Quiz (a Player per Controller phone), a bot in slot 0. Then the page is gone.
+ */
+function decide(store: LobbyStore): void {
+  const { hub, host } = table(['d1', 'd2', 'd3'], store);
+  host.setGame({ ...DUEL, id: 'test.quiz', name: 'Quiz', tiles: { min: 1, max: 4 }, controllers: { min: 1, max: 4 }, players: { min: 1, max: 4 }, bots: true, seats: 'controllers' });
+  host.setTemplate('grid');
+  host.setRole('d2', 'controller');
+  host.setOrder(['d3', 'd0', 'd1']);
+  host.setBot(0, true);
+  vi.advanceTimersByTime(100);
+  hub.disconnect('peer-of-d0');
 }
 
 /** The Tile order a lobby shows. */
@@ -41,7 +63,10 @@ const order = (lobby: Lobby) => lobby.layout?.devices.map((d) => d.id);
 
 describe('Lobby over a Session on MemoryHub', () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it('refuses, with the reason, to start a Game the present Devices cannot satisfy', () => {
     const { host, lobby, join } = table(['d1']);
@@ -372,5 +397,73 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect(() => solo.start(oneTile)).toThrow('Duel needs 2 Players; 1 seated');
     solo.setBot(1, true);
     expect(solo.start(oneTile).players.map((p) => p.playerId)).toEqual([seat('d0'), 'bot:1']);
+  });
+
+  it('a reloaded Host lobby takes back its template, Tile order, roles, Game, seats and bots as the same Devices rebind, whatever their join order', () => {
+    const tab = tabStorage();
+    decide(sessionLobbyStore('ROOM'));
+    const saved = JSON.parse(tab.get('mgc.lobby.ROOM')!);
+    expect(saved).toEqual({ template: 'grid', order: ['d3', 'd0', 'd1'], roles: { d2: 'controller' }, game: 'test.quiz', seats: 'controllers', bots: [0] });
+
+    // The new page: a fresh Session, the same tab's store; d1 is back first, then d3, then d2.
+    const { host, lobby, join } = table(['d1'], sessionLobbyStore('ROOM'));
+    expect([host.layout?.template, host.picked, host.seats]).toEqual(['grid', 'test.quiz', 'controllers']);
+    expect(order(host)).toEqual(['d0', 'd1']); // no place held open for d3 while it is away
+    join('d3');
+    vi.advanceTimersByTime(3000);
+    join('d2');
+    vi.advanceTimersByTime(3000);
+    expect([order(host), order(lobby('d1'))]).toEqual([
+      ['d3', 'd0', 'd1'],
+      ['d3', 'd0', 'd1'],
+    ]);
+    expect([host.roleOf('d2'), lobby('d3').roleOf('d2')]).toEqual(['controller', 'controller']);
+    expect(host.players).toEqual([{ playerId: seat('d2'), name: 'Player 1', deviceId: 'd2' }]);
+    expect(JSON.parse(tab.get('mgc.lobby.ROOM')!)).toEqual(saved);
+    // The bot kept its slot: under a Game seated at the ends it is Player 1.
+    host.setGame({ ...DUEL, bots: true });
+    expect(host.players.map((p) => p.playerId)).toEqual(['bot:0', seat('d1')]);
+  });
+
+  it('a Device the saved Tile order does not name joins at the end; a saved one back later still takes its place before it', () => {
+    tabStorage();
+    decide(sessionLobbyStore('ROOM'));
+    const { host, join } = table(['d1'], sessionLobbyStore('ROOM'));
+    join('d4');
+    vi.advanceTimersByTime(3000);
+    expect(order(host)).toEqual(['d0', 'd1', 'd4']);
+    join('d3');
+    vi.advanceTimersByTime(3000);
+    expect(order(host)).toEqual(['d3', 'd0', 'd1', 'd4']);
+  });
+
+  it('an order set by hand replaces the saved one: a saved Device not back yet joins at the end like any other, and the store holds the new order', () => {
+    const tab = tabStorage();
+    decide(sessionLobbyStore('ROOM'));
+    const { host, join } = table(['d1'], sessionLobbyStore('ROOM'));
+    host.move('d1', -1);
+    vi.advanceTimersByTime(100);
+    expect(order(host)).toEqual(['d1', 'd0']);
+    // A role is not a place: d2's stays with d2.
+    expect(JSON.parse(tab.get('mgc.lobby.ROOM')!)).toMatchObject({ order: ['d1', 'd0'], roles: { d2: 'controller' } });
+    join('d3');
+    join('d2');
+    vi.advanceTimersByTime(3000);
+    expect(order(host)).toEqual(['d1', 'd0', 'd3']);
+    expect(host.roleOf('d2')).toBe('controller');
+  });
+
+  it('a Peer lobby neither takes a saved configuration nor saves one', () => {
+    const tab = tabStorage();
+    tab.set('mgc.lobby.ROOM', JSON.stringify({ template: 'grid', order: ['d1', 'd0'], roles: {}, game: 'test.quiz', seats: 'controllers', bots: [0] }));
+    const before = new Map(tab);
+    const { host, join } = table([]);
+    const peer = join('d1', joinSession, 'peer-of-d1', sessionLobbyStore('ROOM'));
+    vi.advanceTimersByTime(3000);
+    host.setTemplate('column');
+    host.setBot(1, true);
+    vi.advanceTimersByTime(100);
+    expect([peer.layout?.template, order(peer), peer.picked, peer.seats]).toEqual(['column', ['d0', 'd1'], undefined, 'ends']);
+    expect(tab).toEqual(before);
   });
 });

@@ -1,34 +1,56 @@
+/** The screen wake locks this page holds now. */
+const held = new Set<WakeLockSentinel>();
+
+/** Whether this page holds a screen wake lock now (the recorder's `tick` line). */
+export function awake(): boolean {
+  return held.size > 0;
+}
+
 /**
- * Keeps the screen on for a running Match. The wake lock is requested on the
- * Match's first touch (a request needs a visible page, and a touch proves one)
- * and again on a touch after the system dropped it, as it does when the page
- * is hidden. Returns the release, for when the Match closes.
+ * Keeps the screen on while the page is open, lobby and Match alike (connectivity-1 D11). The lock is requested
+ * on a `pointerdown` or `keydown` anywhere on the page while none is held (the first request must come from a
+ * gesture on a visible page), and again when the page becomes visible: the system releases it whenever the page
+ * is hidden. A refused request is retried on the next gesture. Returns the release. A browser without the Screen
+ * Wake Lock API gets a no-op.
  */
-export function keepAwakeOnTouch(): () => void {
+export function keepAwake(): () => void {
+  if (!('wakeLock' in navigator)) return () => {};
   let lock: WakeLockSentinel | undefined;
   let asking = false;
   let released = false;
-  const touch = (): void => {
-    if (lock || asking || released || !navigator.wakeLock) return;
+  const drop = (sentinel: WakeLockSentinel): void => {
+    held.delete(sentinel);
+    if (lock === sentinel) lock = undefined;
+  };
+  const ask = (): void => {
+    if (lock || asking || released || document.visibilityState !== 'visible') return;
     asking = true;
     navigator.wakeLock.request('screen').then(
       (sentinel) => {
         asking = false;
         if (released) return void sentinel.release();
         lock = sentinel;
-        sentinel.addEventListener('release', () => {
-          if (lock === sentinel) lock = undefined;
-        });
+        held.add(sentinel);
+        sentinel.addEventListener('release', () => drop(sentinel));
       },
-      // Refused (not allowed, or the page went away meanwhile): the next touch asks again.
+      // Refused (no gesture yet, not allowed, or the page went away meanwhile): the next gesture asks again.
       () => (asking = false),
     );
   };
-  window.addEventListener('pointerdown', touch, { capture: true });
+  // Capture: a Game's own listeners cannot keep the gesture from the page.
+  const gesture = { capture: true } as const;
+  document.addEventListener('pointerdown', ask, gesture);
+  document.addEventListener('keydown', ask, gesture);
+  document.addEventListener('visibilitychange', ask);
   return () => {
     released = true;
-    window.removeEventListener('pointerdown', touch, { capture: true });
-    void lock?.release();
-    lock = undefined;
+    document.removeEventListener('pointerdown', ask, gesture);
+    document.removeEventListener('keydown', ask, gesture);
+    document.removeEventListener('visibilitychange', ask);
+    if (lock) {
+      const sentinel = lock;
+      drop(sentinel);
+      void sentinel.release();
+    }
   };
 }

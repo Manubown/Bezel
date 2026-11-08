@@ -351,7 +351,7 @@ describe('Controllers, Holders, messages, timers and event-driven hosts: Host + 
     expect(framesOf(hostLink.tap().down.host, 'init')).toHaveLength(1);
   });
 
-  it('tells a Controller back as a new page who holds it, before the retained state and the resume', async () => {
+  it('tells a Controller back as a new page who holds it, before the retained state and the pause, in the answer to its hello', async () => {
     const { game, rec } = probeGame();
     const rig = startMatch({ game, match: MATCH, host: HOST, latencyMs: LATENCY_MS });
     await settle();
@@ -369,8 +369,9 @@ describe('Controllers, Holders, messages, timers and event-driven hosts: Host + 
     await settle(LATENCY_MS);
     const back = rec.views.get(CONTROLLER)!;
     expect(back.holder()).toBe('p-ann');
-    const seen = rec.seen.get(CONTROLLER)!.map((s) => ('holder' in s ? `holder ${s.holder.playerId}` : 'state' in s ? 'state' : 'resume' in s ? 'resume' : '?'));
-    expect(seen.slice(0, 3)).toEqual(['holder p-ann', 'state', 'resume']);
+    const seen = rec.seen.get(CONTROLLER)!.map((s) => ('holder' in s ? `holder ${s.holder.playerId}` : 'state' in s ? 'state' : 'pause' in s ? 'pause' : 'resume' in s ? 'resume' : '?'));
+    // The hello's answer, then the resume: the Holder it already knows is not heard again.
+    expect(seen.slice(0, 5)).toEqual(['holder p-ann', 'state', 'pause', 'state', 'resume']);
     expect(eventsOf(rig.devices.get(CONTROLLER)!.events, 'holders')).toEqual([{ t: 'holders', holders: [{ deviceId: CONTROLLER, playerId: 'p-ann' }] }]);
   });
 });

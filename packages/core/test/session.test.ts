@@ -10,7 +10,12 @@ function inbox(session: Session): Array<{ data: unknown; from: DeviceId }> {
   return got;
 }
 
-const presence = (s: Session) => s.roster().map((e) => [e.info.deviceId, e.present]);
+/** `[deviceId, link]` per roster entry, checking on the way that `present` is `link !== 'lost'`. */
+const presence = (s: Session) =>
+  s.roster().map((e) => {
+    expect(e.present).toBe(e.link !== 'lost');
+    return [e.info.deviceId, e.link];
+  });
 
 /** Host `d0` with Peers `d1` and `d2`, all synced. */
 function table() {
@@ -45,10 +50,10 @@ describe('Session over MemoryHub', () => {
     expect([host.status, p1.status, p2.status]).toEqual(['ready', 'ready', 'ready']);
     expect([host.role, p1.role, p2.role]).toEqual(['host', 'peer', 'peer']);
     for (const s of [host, p1, p2]) {
-      expect(s.roster().map((e) => ({ id: e.info.deviceId, present: e.present, synced: e.sync.synced }))).toEqual([
-        { id: 'd0', present: true, synced: true },
-        { id: 'd1', present: true, synced: true },
-        { id: 'd2', present: true, synced: true },
+      expect(s.roster().map((e) => ({ id: e.info.deviceId, present: e.present, link: e.link, synced: e.sync.synced }))).toEqual([
+        { id: 'd0', present: true, link: 'ok', synced: true },
+        { id: 'd1', present: true, link: 'ok', synced: true },
+        { id: 'd2', present: true, link: 'ok', synced: true },
       ]);
       expect(s.roster().map((e) => e.info)).toEqual([info('d0'), info('d1'), info('d2')]);
     }
@@ -101,13 +106,13 @@ describe('Session over MemoryHub', () => {
     p2.close();
     vi.advanceTimersByTime(100);
     expect(seen).toEqual(['host: lost d2', 'p1: lost d2']);
-    for (const s of [host, p1]) expect(presence(s)).toEqual([['d0', true], ['d1', true], ['d2', false]]);
+    for (const s of [host, p1]) expect(presence(s)).toEqual([['d0', 'ok'], ['d1', 'ok'], ['d2', 'lost']]);
 
     const p2b = joinSession(hub.connect('p2b'), info('d2'));
     vi.advanceTimersByTime(2500);
     expect(seen).toEqual(['host: lost d2', 'p1: lost d2', 'host: back d2', 'p1: back d2']);
     for (const s of [host, p1, p2b]) {
-      expect(presence(s)).toEqual([['d0', true], ['d1', true], ['d2', true]]);
+      expect(presence(s)).toEqual([['d0', 'ok'], ['d1', 'ok'], ['d2', 'ok']]);
       expect(s.roster()[2]!.sync.synced).toBe(true);
     }
 
@@ -151,17 +156,17 @@ describe('Session over MemoryHub', () => {
     p2.close();
     vi.advanceTimersByTime(100);
     expect(seen).toEqual(['lost d2', 'back d2']);
-    expect(presence(host)).toEqual([['d0', true], ['d1', true], ['d2', true]]);
+    expect(presence(host)).toEqual([['d0', 'ok'], ['d1', 'ok'], ['d2', 'ok']]);
   });
 
-  it('the Host leaving ends the Session for a Peer: searching, empty roster', () => {
+  it('the Host leaving lets a Peer go: reconnecting, empty roster', () => {
     const { host, p1 } = table();
     expect(p1.status).toBe('ready');
     expect(p1.roster()).toHaveLength(3);
 
     host.close();
 
-    expect(p1.status).toBe('searching');
+    expect(p1.status).toBe('reconnecting');
     expect(p1.roster()).toEqual([]);
   });
 });

@@ -68,14 +68,15 @@ It resolves once every Device's part has started, and throws `createTestMatch: h
 | `await input(deviceId, phase, at, pointerId = 1)` | one pointer event on that Device's screen at `at` (a Tile: world mm; a Controller: its screen mm), then one animation frame at the current time. An event-driven host has it at once; a ticking host gets it before its next `tick`, so `await t.tick(1000 / tickHz)` before reading the state |
 | `await send(deviceId, msg)` | that Device's view sends `msg` to the host's `onMessage`, stamped as that Device (and its Holder on a Controller), then everything it set off lands |
 | `drawn(deviceId)` | the canvas calls of that view's last frame, `[name, ...args]` each (a property write as `['fillStyle=', v]`), after the SDK's own clear and transform. Views draw in the same frame batch as the host step, possibly before its publish lands: tick one more frame before reading |
-| `await setPaused(reason \| null)` | the Host platform's pause (`{ kind: 'device-lost', deviceId }` or `{ kind: 'platform', note? }`) or resume (`null`); the clock does not move |
+| `await setPaused(reason \| null)` | the Host platform's pause (`{ kind: 'device-lost', deviceId }` or `{ kind: 'platform', note? }`) or resume (`null`); the clock does not move. The host's and every view's `onResume(now, pausedMs)` get the paused time |
+| `await reload(deviceId)` | that Peer's page reloads mid-Match: its `runMatch` stops (its view gets `onEnd({ reason: 'link-lost' })`) and a new one starts on a fresh screen with nothing kept; the new view gets the current picture (Holders, its kept states, the pause while paused) from the Host's answer to its `hello`, then everything that set off lands. The Host does not pause. `drawn`, `state`, `latest` and `events` then read the new page. Throws for the Host |
 | `state(deviceId)` | the latest state that Device's view applied, `undefined` before the first |
 | `latest(deviceId)` | the same with its host time: the view's `ctx.latest()` |
 | `result()` | the `MatchResult` once the host game called `end` |
 | `events(deviceId)` | every `MatchEvent` `runMatch` reported on that Device, in order: `started`, `paused`, `resumed`, `holders`, `ended`, `closed`, `view-closed`, `fault`, `log` |
 | `await stop()` | aborts the Match if it still runs |
 
-`state`, `latest` and `events` throw for a Device that is not in the Match.
+`state`, `latest`, `events` and `reload` throw for a Device that is not in the Match.
 
 ## Scripting fingers
 
@@ -108,10 +109,11 @@ for (const id of ['d0', 'd1']) expect(t.events(id).filter((e) => e.t === 'fault'
 
 - Host logs, including the platform's refusals (`set-holder rejected: …`, `publish rejected: the Match has ended`): `t.events(hostId).flatMap((e) => (e.t === 'log' ? [e.args.join(' ')] : []))` (as `games/pass/test/pass.test.ts:42` does).
 - Pause: `await t.setPaused({ kind: 'platform' })`, act, `await t.tick(…)`, `await t.setPaused(null)`; `games/pass/test/pass.test.ts:60-72` checks that a turn's timer froze and a tap meanwhile counted for nobody.
+- A reloaded phone: `await t.reload('d1')`, then `await t.tick(1000 / tickHz)` and read `t.drawn('d1')`: a change-only state must be drawn without another publish (`packages/sdk/test/hello.e2e.test.ts`). Reload during a pause to check what a phone that comes back sees.
 
 ## Hand-building a `MatchInfo`
 
-Build it the way the lobby does (`apps/pwa/src/lobby.ts:251-276`), or the test proves something the app never runs:
+Build it the way the lobby does (`apps/pwa/src/lobby.ts:317-342`), or the test proves something the app never runs:
 
 | Field | The lobby's rule |
 |---|---|

@@ -131,9 +131,10 @@ docs/              developer guide, architecture, design docs, ADRs, phone sessi
 | M1 Shape-template Layout + Surface | ✅ done (grid lines continue across bezels) |
 | M2 Pong across bezels on `@mgc/sdk`, in-process | ✅ done; seven Games built on it |
 | Live test on real phones | ✅ 2026-11-07, findings and fixes shipped ([.scratch/live-test-1](.scratch/live-test-1/findings.md)) |
+| Connectivity round 1: 1 Hz heartbeat, `weak`/`lost` links, a Peer reconnects through a Match, Host lobby survives a reload | ✅ 2026-11-08 ([.scratch/connectivity-1](.scratch/connectivity-1/spec.md)); star-only transport decided after the next phone run |
 | M3 Sandboxed Game bundles (iframe + `postMessage`), no Game source change | next |
 | M4 Cross-bezel swipe alignment | planned |
-| M5 Offline fallback (QR SDP), reconnect | planned |
+| M5 Offline fallback (QR SDP), star-only transport | planned |
 
 Two hosted builds exist: **/Bezel/** is `master`; **/Bezel/stable/** is the commit the `stable` git tag points at, a known-good build to fall back on (`pnpm stable <ref>` moves it). Every phone keeps a session log; **Export log** on the Host's sheet shares it as NDJSON.
 

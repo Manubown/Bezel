@@ -1,4 +1,4 @@
-import { CLOCK_CHANNEL, type PeerId, type Transport } from '@mgc/core';
+import { CLOCK_CHANNEL, type DeviceId, type PeerId, type RosterEntry, type Session, type Transport } from '@mgc/core';
 
 /**
  * The session recorder: one JSON line per event, kept across reloads in
@@ -16,7 +16,12 @@ export interface Recorder {
    * candidate pair (types, protocol, mDNS, rtt) are logged too: on join, on each change, and at the leave.
    */
   transport(inner: Transport, connections?: () => Record<PeerId, RTCPeerConnection>): Transport;
-  /** Starts the per-second `tick` line (frame rate, wire totals) and the page listeners (visibility, viewport, errors); returns the stop. */
+  /** A `link` line `{ deviceId, link }` each time a Device's `link` in `session`'s roster changes, its first entry included; returns the stop. */
+  links(session: Pick<Session, 'roster' | 'onChange'>): () => void;
+  /**
+   * Starts the per-second `tick` line (frame rate, page hidden, wake lock held, the wrapped transport's connections as
+   * `peers`, wire totals) and the page listeners (visibility, viewport, errors); returns the stop.
+   */
   observe(): () => void;
   /** The whole log as NDJSON text, summary line first. */
   text(): Promise<string>;
@@ -43,6 +48,8 @@ export interface RecorderOptions {
   wall?(): number;
   /** The window to observe; default the global one. Tests pass none and skip `observe`. */
   win?: Window;
+  /** Whether the page holds a screen wake lock now, for the `tick` line; default never. */
+  awake?(): boolean;
   /** How often pending lines are written and the `tick` line goes out, ms; default 1000. */
   flushMs?: number;
 }
@@ -98,11 +105,14 @@ export function createRecorder(o: RecorderOptions): Recorder {
     t.b += bytes;
     wired = true;
   };
+  /** The transport `transport` wraps: how many connections it holds goes on each `tick` line. */
+  let wrapped: Transport | undefined;
 
   const recorder: Recorder = {
     log: line,
 
     transport(inner, connections) {
+      wrapped = inner;
       const peers = new Map<PeerId, number>();
       const watched = new WeakSet<RTCPeerConnection>();
       /** The selected candidate pair, from `getStats`: what kind of path carries this connection. */
@@ -180,8 +190,22 @@ export function createRecorder(o: RecorderOptions): Recorder {
         onPeerJoin: (h) => inner.onPeerJoin(h),
         onPeerLeave: (h) => inner.onPeerLeave(h),
         peers: () => inner.peers(),
+        reset: () => inner.reset(),
         close: () => inner.close(),
       };
+    },
+
+    links(session) {
+      const seen = new Map<DeviceId, RosterEntry['link']>();
+      const follow = (): void => {
+        for (const { info, link } of session.roster()) {
+          if (seen.get(info.deviceId) === link) continue;
+          seen.set(info.deviceId, link);
+          line('link', { deviceId: info.deviceId, link });
+        }
+      };
+      follow();
+      return session.onChange(follow);
     },
 
     observe() {
@@ -200,7 +224,15 @@ export function createRecorder(o: RecorderOptions): Recorder {
         const fps = Math.round((frames * 1000) / Math.max(1, now - last));
         frames = 0;
         last = now;
-        line('tick', { fps, hidden: doc.hidden, ...(Object.keys(tx).length > 0 && { tx }), ...(Object.keys(rx).length > 0 && { rx }) });
+        // `peers`: WebRTC connections this page holds, Host and Peer alike; above 1 on a Peer, the transport's mesh (connectivity-1 D6).
+        line('tick', {
+          fps,
+          hidden: doc.hidden,
+          wake: o.awake?.() ?? false,
+          ...(wrapped && { peers: wrapped.peers().length }),
+          ...(Object.keys(tx).length > 0 && { tx }),
+          ...(Object.keys(rx).length > 0 && { rx }),
+        });
         tx = {};
         rx = {};
         wired = false;

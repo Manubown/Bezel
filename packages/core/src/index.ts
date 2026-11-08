@@ -16,6 +16,9 @@ export {
 export {
   hostSession,
   joinSession,
+  WEAK_MS,
+  LOST_MS,
+  SYNC_TIMEOUT_MS,
   type Session,
   type SessionStatus,
   type RosterEntry,

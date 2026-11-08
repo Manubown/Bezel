@@ -1,4 +1,4 @@
-import { MemoryHub, CLOCK_CHANNEL } from '@mgc/core';
+import { MemoryHub, CLOCK_CHANNEL, type RosterEntry } from '@mgc/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecorder, memoryStore } from '../src/recorder';
 
@@ -95,7 +95,49 @@ describe('session recorder', () => {
     expect(clock['rtt']).toBeCloseTo(4, 6);
     expect(clock['offset']).toBeCloseTo(100, 6);
     // `clk` is not in `rx`: only channels subscribed through the wrapper count, and here only `msg` is (the recorder's own clock listener sits on the inner transport).
-    expect(lines[2]).toMatchObject({ k: 'tick', fps: 30, hidden: false, tx: { info: { n: 2, b: 18 } }, rx: { msg: { n: 1, b: 17 } } });
+    // `peers`: the wrapped transport's connections (the Host's); `wake`: no `awake` given.
+    expect(lines[2]).toMatchObject({ k: 'tick', fps: 30, hidden: false, wake: false, peers: 1, tx: { info: { n: 2, b: 18 } }, rx: { msg: { n: 1, b: 17 } } });
     expect(lines[3]).toMatchObject({ k: 'peer-leave', peer: 'h', peers: 0 });
+  });
+
+  it('logs a `link` line for each Device’s first entry and for each change of its link, nothing for the same value again', async () => {
+    const rec = createRecorder({ now: () => 0, deviceId: 'd0', role: 'host', code: 'ABCD', store: memoryStore() });
+    const entry = (deviceId: string, link: RosterEntry['link']): RosterEntry => ({
+      info: { deviceId, name: deviceId, width: 400, height: 800, dpr: 2, pxPerMm: 6 },
+      present: link !== 'lost',
+      link,
+      sync: { synced: true },
+    });
+    let roster = [entry('d0', 'ok')];
+    const handlers = new Set<() => void>();
+    const stop = rec.links({
+      roster: () => roster,
+      onChange: (h) => {
+        handlers.add(h);
+        return () => handlers.delete(h);
+      },
+    });
+    const change = (d1: RosterEntry['link']): void => {
+      roster = [entry('d0', 'ok'), entry('d1', d1)];
+      handlers.forEach((h) => h());
+    };
+    change('ok');
+    change('ok'); // a clock report: the roster changed, no link did
+    change('weak');
+    change('lost');
+    change('ok');
+    stop();
+    change('weak');
+
+    const links = parse(await rec.text())
+      .slice(1)
+      .map((l) => [l.k, l['deviceId'], l['link']]);
+    expect(links).toEqual([
+      ['link', 'd0', 'ok'],
+      ['link', 'd1', 'ok'],
+      ['link', 'd1', 'weak'],
+      ['link', 'd1', 'lost'],
+      ['link', 'd1', 'ok'],
+    ]);
   });
 });

@@ -1,4 +1,4 @@
-import { joinRoom, selfId, type JsonValue, type NostrRoomConfig, type Room } from 'trystero';
+import { joinRoom, selfId, type JsonValue, type MessageAction, type NostrRoomConfig, type Room } from 'trystero';
 import { Listeners, type PeerId, type Transport } from './transport';
 
 /** Wire envelope: `{ c: channel, d: payload }`. Payloads must be JSON. */
@@ -26,21 +26,19 @@ export interface TrysteroOptions {
 export class TrysteroTransport implements Transport {
   readonly selfId: PeerId = selfId;
   private readonly listeners = new Listeners();
-  private readonly room: Room;
-  private readonly action;
+  private readonly config: NostrRoomConfig;
+  private readonly roomId: string;
+  private room!: Room;
+  private action!: MessageAction<JsonValue>;
+  private closed = false;
 
   constructor(opts: TrysteroOptions) {
-    const config: NostrRoomConfig = { appId: opts.appId };
-    if (opts.password !== undefined) config.password = opts.password;
-    if (opts.rtcConfig !== undefined) config.rtcConfig = opts.rtcConfig;
-    if (opts.turnConfig !== undefined) config.turnConfig = opts.turnConfig;
-    this.room = joinRoom(config, opts.roomId);
-    this.action = this.room.makeAction<JsonValue>('mgc');
-    this.action.onMessage = (env, { peerId }) => {
-      if (isEnvelope(env)) this.listeners.dispatch(env.c, env.d, peerId);
-    };
-    this.room.onPeerJoin = (id) => this.listeners.join.forEach((h) => h(id));
-    this.room.onPeerLeave = (id) => this.listeners.leave.forEach((h) => h(id));
+    this.config = { appId: opts.appId };
+    if (opts.password !== undefined) this.config.password = opts.password;
+    if (opts.rtcConfig !== undefined) this.config.rtcConfig = opts.rtcConfig;
+    if (opts.turnConfig !== undefined) this.config.turnConfig = opts.turnConfig;
+    this.roomId = opts.roomId;
+    this.join();
   }
 
   send(channel: string, data: unknown, to?: PeerId): void {
@@ -64,7 +62,36 @@ export class TrysteroTransport implements Transport {
   connections(): Record<PeerId, RTCPeerConnection> {
     return this.room.getPeers();
   }
+  /**
+   * Trystero keeps a left room's connections for about two minutes and hands them to a rejoin of
+   * the same app, dead or not; closing them first makes the rejoin negotiate new ones. The old
+   * room is muted first, so its late events cannot reach the listeners. The new room finds its
+   * peers over the network, so the leaves reported here always come before their joins.
+   */
+  reset(): void {
+    if (this.closed) return;
+    const old = this.room;
+    const peers = Object.entries(old.getPeers());
+    old.onPeerJoin = null;
+    old.onPeerLeave = null;
+    this.action.onMessage = null;
+    for (const [, pc] of peers) pc.close();
+    void old.leave();
+    this.join();
+    for (const [id] of peers) this.listeners.leave.forEach((h) => h(id));
+  }
   close(): void {
+    this.closed = true;
     void this.room.leave();
+  }
+
+  private join(): void {
+    this.room = joinRoom(this.config, this.roomId);
+    this.action = this.room.makeAction<JsonValue>('mgc');
+    this.action.onMessage = (env, { peerId }) => {
+      if (isEnvelope(env)) this.listeners.dispatch(env.c, env.d, peerId);
+    };
+    this.room.onPeerJoin = (id) => this.listeners.join.forEach((h) => h(id));
+    this.room.onPeerLeave = (id) => this.listeners.leave.forEach((h) => h(id));
   }
 }

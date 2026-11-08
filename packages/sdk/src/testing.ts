@@ -4,7 +4,7 @@ import type { Game, ViewContext } from './game';
 import { headlessScreen, SteppedFrames, type CanvasOp, type HeadlessScreen } from './headless';
 import { linkInProcess } from './in-process';
 import { runMatchWith, type MatchEvent, type MatchHandle } from './match';
-import type { DeviceId, Input, JsonValue, MatchInfo, MatchResult, PauseReason } from './types';
+import type { Device, DeviceId, Input, JsonValue, MatchInfo, MatchResult, PauseReason } from './types';
 import type { NetFrame } from './wire';
 
 export interface TestMatchOptions {
@@ -48,6 +48,15 @@ export interface TestMatch<S extends JsonValue = JsonValue> {
    * return (`null`), then everything it set off. Time does not move.
    */
   setPaused(reason: PauseReason | null): Promise<void>;
+  /**
+   * Peer `deviceId`'s page reloads mid-Match: its `runMatch` stops and a new
+   * one starts on a fresh screen with nothing retained, as on a reloaded
+   * phone; its view gets the current picture from the Host's answer to its
+   * `hello`, then everything that set off lands. The Host does not pause (the
+   * reload is quicker than its loss detection). `drawn`, `state`, `latest`
+   * and `events` then read the new page. Throws for the Host.
+   */
+  reload(deviceId: DeviceId): Promise<void>;
   /** The latest state `deviceId`'s view has applied. */
   state(deviceId: DeviceId): S | undefined;
   /** The same with its host time: the view's `latest()`. */
@@ -106,7 +115,8 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
     const wire = JSON.parse(JSON.stringify(frame)) as NetFrame;
     queueMicrotask(() => devices.get(to)?.handle.deliver(wire, from));
   };
-  for (const d of o.match.devices) {
+  /** `d`'s page: its `runMatch` on a fresh screen, replacing whatever ran there. */
+  const start = (d: Device): void => {
     const { deviceId, tile } = d;
     const screen = headlessScreen(frames, { widthPx: d.screenMm.x * pxPerMm, heightPx: d.screenMm.y * pxPerMm, dpr: 1 });
     const events: MatchEvent[] = [];
@@ -129,7 +139,8 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
     );
     const surface = tile && new Surface({ id: deviceId, x: tile.x, y: tile.y, w: tile.w, h: tile.h, rot: tile.rot }, pxPerMm);
     devices.set(deviceId, { handle, events, screen, surface });
-  }
+  };
+  for (const d of o.match.devices) start(d);
 
   const device = (id: DeviceId) => {
     const d = devices.get(id);
@@ -185,6 +196,13 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
     drawn: (deviceId) => device(deviceId).screen.canvases[0]?.context.ops ?? [],
     async setPaused(reason) {
       device(hostId).handle.setPaused(reason);
+      await settle();
+    },
+    async reload(deviceId) {
+      if (deviceId === hostId) throw new Error(`createTestMatch: the Host ${hostId} cannot reload: its Match would end`);
+      device(deviceId).handle.stop('link-lost');
+      views.delete(deviceId);
+      start(o.match.devices.find((d) => d.deviceId === deviceId)!);
       await settle();
     },
     latest,

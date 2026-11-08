@@ -208,15 +208,13 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
     if (room.length === 0) return;
     location.assign(`?room=${room}`);
   });
-  /** The Game Start starts: the Host's last pick in this tab, else the first by name. */
-  const GAME_KEY = 'mgc.game';
-  let game = games.find((g) => g.id === sessionStorage.getItem(GAME_KEY)) ?? games[0]!;
+  /** The Game Start starts: the lobby's pick, saved across a reload of the Host's page, else the first by name. */
+  let game = games.find((g) => g.id === lobby.picked) ?? games[0]!;
   lobby.setGame(game);
   gameSeg.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-g]');
     if (!btn) return;
     game = games[Number(btn.dataset['g'])] ?? game;
-    sessionStorage.setItem(GAME_KEY, game.id);
     lobby.setGame(game);
     refusal = '';
     render();
@@ -382,8 +380,11 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
 
     const byId = new Map(entries.map((e) => [e.info.deviceId, e]));
     const syncOf = (e: RosterEntry | undefined, self: boolean): string => {
+      if (self) return '';
+      // Two missed heartbeats (`WEAK_MS`): still there and still in the Match, not paused for.
+      if (e?.link === 'weak') return `${statusDot('wait')} weak connection`;
       const synced = e?.sync.synced === true;
-      return self ? '' : `${statusDot(synced ? 'ok' : 'wait')} ${synced ? syncStats(e.sync) : 'syncing'}`;
+      return `${statusDot(synced ? 'ok' : 'wait')} ${synced ? syncStats(e.sync) : 'syncing'}`;
     };
     const late = (id: string) => match !== undefined && !match.devices.some((m) => m.deviceId === id) && 'joins the next match';
     // ◀ ▶ move a Tile along the Tile order; never past the ends, never a Controller, never while a Match runs.
@@ -414,7 +415,7 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
       });
     }
     for (const e of entries) {
-      if (!e.present) rows.push({ html: `<li class="pending"><span class="n">·</span><span class="who">${esc(e.info.name)}</span><span class="meta">disconnected</span><span class="sync"></span></li>`, sync: '' });
+      if (e.link === 'lost') rows.push({ html: `<li class="pending"><span class="n">·</span><span class="who">${esc(e.info.name)}</span><span class="meta">disconnected</span><span class="sync"></span></li>`, sync: '' });
     }
     // The rows are rebuilt only when phones, order or names change, so a tap on ◀ ▶ is never lost to a clock report.
     const html = rows.map((r) => r.html).join('');
@@ -454,8 +455,11 @@ function peerStrip(root: HTMLElement, o: HudOptions): Hud {
       const { layout, match } = lobby;
       const index = layout?.devices.findIndex((d) => d.id === me) ?? -1;
       if (session.status === 'searching') {
-        state.innerHTML = `${statusDot('off')} Looking for the host`;
+        state.innerHTML = `${statusDot('off')} Looking for the host…`;
         meta.textContent = 'keep the host screen open';
+      } else if (session.status === 'reconnecting') {
+        state.innerHTML = `${statusDot('wait')} Reconnecting to the host…`;
+        meta.textContent = 'the connection dropped · trying again';
       } else if (session.status === 'syncing') {
         state.innerHTML = `${statusDot('wait')} Syncing clocks`;
         meta.textContent = 'measuring the offset to the host';

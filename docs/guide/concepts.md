@@ -36,11 +36,11 @@ Where the Players come from is the Game's choice, `Manifest.seats`:
 
 - `'ends'` (default): the lobby seats at most **two** Players, slot 0 at the first Tile and slot 1 at the last Tile in Tile order (`SLOTS = 2`, `apps/pwa/src/lobby.ts:9-10`). Pong, Air Hockey, Tap Race, Snake, Breakout.
 - `'tiles'`: one Player per phone on the table, in Tile order, seated at it; the Bot chip adds a bot after them when the manifest has `bots`. Tap Race, Breakout.
-- `'controllers'`: one Player per phone the Host marks as a Controller (the "Players' phones" chips), the person holding it, seated at that Controller (`Player.deviceId`); no bots (`apps/pwa/src/lobby.ts:333-342`). Quiz. The Game's host hands each Controller to the Player seated at it (`setHolder`).
+- `'controllers'`: one Player per phone the Host marks as a Controller (the "Players' phones" chips), the person holding it, seated at that Controller (`Player.deviceId`); no bots (`apps/pwa/src/lobby.ts:421-430`). Quiz. The Game's host hands each Controller to the Player seated at it (`setHolder`).
 
 For `'ends'`:
 
-- `match.players` lists the slots' Players, Player 1 first. A human is `{ playerId, name, deviceId }`, seated at that Tile; a bot is `{ playerId: 'bot:<slot>', name: 'Bot', bot: true }` with no `deviceId` (`apps/pwa/src/lobby.ts:320-331`, `440-443`).
+- `match.players` lists the slots' Players, Player 1 first. A human is `{ playerId, name, deviceId }`, seated at that Tile; a bot is `{ playerId: 'bot:<slot>', name: 'Bot', bot: true }` with no `deviceId` (`apps/pwa/src/lobby.ts:399-409`, `528-531`).
 - Middle Tiles of a row of three or more seat nobody. Controllers are never seated. With one Tile, slot 1 can only be a bot.
 - Read who sits where from `Player.deviceId`, never from a Player's index, and map an `Input.deviceId` to its Player the same way (template: `games/_template/src/index.ts:51-52`).
 - A Manifest's `players` range counts bots, and the lobby never produces more than two Players, whatever the range says.
@@ -105,7 +105,7 @@ The host game runs the Match once, on the Host, and **publishes** state; views d
 | ticking: has `tick`, manifest `tickHz` > 0 (default 60, `apps/pwa/src/lobby.ts:7-8`) | `tick(dt, now)` every `1 / tickHz` s; input, messages and due timers arrive just before the step's `tick` | continuous motion (Pong) |
 | event-driven: no `tick`, or `tickHz: 0` | each input, message and timer as it arrives; no steps at all | turns, taps, timers (template, Pass) |
 
-The fixed step runs on the Host tab's animation frames, at most 5 catch-up steps per frame; the rest of a longer stall is dropped (`MAX_CATCH_UP_STEPS`, `packages/sdk/src/match.ts:78`, `342-357`). A Host tab that is hidden gets no animation frames, so its steps stop.
+The fixed step runs on the Host tab's animation frames, at most 5 catch-up steps per frame; the rest of a longer stall is dropped (`MAX_CATCH_UP_STEPS`, `packages/sdk/src/match.ts:86`, `366-381`). A Host tab that is hidden gets no animation frames, so its steps stop.
 
 ### Input
 
@@ -123,7 +123,7 @@ The fixed step runs on the Host tab's animation frames, at most 5 catch-up steps
 
 ## Timers
 
-`ctx.timer(tag, delayMs)` calls `onTimer(tag, now)` after `delayMs`, where `now` is the shared time it was due (`packages/sdk/src/match.ts:307-322`).
+`ctx.timer(tag, delayMs)` calls `onTimer(tag, now)` after `delayMs`, where `now` is the shared time it was due (`packages/sdk/src/match.ts:331-346`).
 
 - The same tag replaces the earlier timer; `null` cancels it.
 - Paused time does not count: a pause freezes the delay left, the resume runs it on. A timer set while paused starts counting at the resume.
@@ -135,20 +135,21 @@ Use `ctx.timer` on the host, never `setTimeout`: it is pause-aware and runs on t
 
 ## Pause and resume
 
-The platform pauses a Match when the Host loses one of the Match's Devices, naming it (`{ kind: 'device-lost', deviceId }`), and resumes once every lost Device is back **and** has synced its clock (`apps/pwa/src/pause.ts:12-35`). The Host notices a lost phone only when the transport reports it gone, 10–13 s after it went (observed 10.2–12.8 s, `.scratch/m2-pong-sdk/issues/06-pause-resume.md:158`). Every phone shows "Waiting for <Player>" (or "phone N", "the controller").
+The platform pauses a Match when the Host loses one of the Match's Devices, naming it (`{ kind: 'device-lost', deviceId }`), and resumes once every lost Device is back **and** has synced its clock (`apps/pwa/src/pause.ts:12-35`). The Host notices a lost phone after 5 s of silence on its connection (`LOST_MS`, `packages/core/src/session.ts`; the 1 Hz clock pings are the heartbeat, and a phone silent for 2.5 s already shows a weak link in the roster), no longer only when the transport reports it gone 10–13 s later (observed 10.2–12.8 s before, `.scratch/m2-pong-sdk/issues/06-pause-resume.md:158`). Every phone shows "Waiting for <Player>" (or "phone N", "the controller").
 
-While paused (`packages/sdk/src/match.ts:434-471`):
+While paused (`packages/sdk/src/match.ts:458-498`):
 
 | | Host game | Views |
 |---|---|---|
 | on pause | a `cancel` for every open pointer, then the messages and due timers already accepted, then `onPause(reason)`; `onPause` again if the reason changes | `onPause(reason)`; `draw` stops, the canvas keeps its last frame |
 | meanwhile | no `tick`, no input, no messages, no timers; `publish` is kept, not sent | input and `send` still leave, and the Host drops them |
-| on resume | `onResume(now)` first; steps restart at `now` | the kept states arrive (`latest()` is current), then `onResume(now)` |
+| on resume | `onResume(now, pausedMs)` first; steps restart at `now` | the kept states arrive (`latest()` is current), then `onResume(now, pausedMs)` |
 
+- `pausedMs` is how long the Match stood still on the shared clock, from the first pause (a reason that changes mid-pause does not restart it), the same on the host and every view. Shift a deadline you keep yourself by it (`turnEndsAt += pausedMs`), or use `ctx.timer`, which is pause-aware already.
 - A game that publishes only on change re-publishes in `onResume` (Pong's host: `games/pong/src/index.ts:214-217`).
 - A state stamped before the resume describes the paused moment: extrapolate from `max(t, now)`, not from `t` (Pong's view: `games/pong/src/index.ts:276-284`).
-- A finger held across a pause is cancelled at the host; its later moves are dropped until it lifts and touches again (`packages/sdk/src/match.ts:280-291`).
-- A view that starts while the Match is paused (a reloaded phone) gets `onResume` without an `onPause`.
+- A finger held across a pause is cancelled at the host; its later moves are dropped until it lifts and touches again (`packages/sdk/src/match.ts:304-315`).
+- A phone that reloads mid-Match, paused or not, asks the Host for the current picture as its view opens (its runtime's `hello`): the Holders, the kept states for it, and the pause while paused, so it draws the current state at once and a change-only state is not blank until the next change. During a pause it gets `onPause`, then `onResume` with the same `pausedMs` as everyone; if the resume reached it before that answer, `onResume` alone. A state may arrive twice (from the answer and from the resume); apply it as you would once.
 
 ## Ending
 
@@ -159,7 +160,7 @@ While paused (`packages/sdk/src/match.ts:434-471`):
 
 ## Faults and the close ladder
 
-Nothing a Game throws crosses into the platform; it becomes a `fault` event on that Device and goes to the Host's game log and console. Repeated or fatal faults close a side (`packages/sdk/src/game.ts:10-14`, constants at `packages/sdk/src/match.ts:78-85`, `packages/sdk/src/game-side.ts:18`):
+Nothing a Game throws crosses into the platform; it becomes a `fault` event on that Device and goes to the Host's game log and console. Repeated or fatal faults close a side (`packages/sdk/src/game.ts:10-14`, constants at `packages/sdk/src/match.ts:86-93`, `packages/sdk/src/game-side.ts:18`):
 
 | What happens | Result |
 |---|---|

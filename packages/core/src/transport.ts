@@ -15,6 +15,11 @@ export interface Transport {
   onPeerJoin(handler: (id: PeerId) => void): () => void;
   onPeerLeave(handler: (id: PeerId) => void): () => void;
   peers(): PeerId[];
+  /**
+   * Forget every connection and rediscover: the others see a leave, then a join, for this id.
+   * This side sees a leave for each of them, then a join as each is found again. A no-op after `close()`.
+   */
+  reset(): void;
   close(): void;
 }
 

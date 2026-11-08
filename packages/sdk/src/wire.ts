@@ -43,8 +43,12 @@ export type Shared =
   | { v: 1; t: 'clock'; clock: ClockWire }
   /** `now`: shared time of the pause. Sent again with the new reason when the reason changes while paused. */
   | { v: 1; t: 'pause'; reason: PauseReason; now: number }
-  /** `now`: shared time of the resume, where ticks restart; `clock` re-anchors the game side's clock. */
-  | { v: 1; t: 'resume'; now: number; clock: ClockWire }
+  /**
+   * `now`: shared time of the resume, where ticks restart; `clock` re-anchors
+   * the game side's clock; `pausedMs`: how long the Match stood still on the
+   * shared clock, from the first `pause` (`now − pause.now`, ≥ 0).
+   */
+  | { v: 1; t: 'resume'; now: number; clock: ClockWire; pausedMs: number }
   /** `detail`: why, in words, for the platform's overlay; games see only `reason` and `result`. */
   | { v: 1; t: 'close'; reason: CloseReason; detail?: string; result?: MatchResult };
 
@@ -101,14 +105,20 @@ export type ViewUp =
   /** One per view per animation frame at most; moves coalesced to one per pointer. */
   | { v: 1; t: 'input'; inputs: RawInput[] }
   /** `ctx.send(msg)`: for the host game's `onMessage`. */
-  | { v: 1; t: 'send'; msg: JsonValue };
+  | { v: 1; t: 'send'; msg: JsonValue }
+  /**
+   * A Peer runtime asks the Host for the current picture: Holders, its
+   * retained states, the pause. Sent when its view link opens and on
+   * `MatchHandle.hello()`; the Host answers that Device alone.
+   */
+  | { v: 1; t: 'hello' };
 
 export type Down = HostDown | ViewDown;
 export type Up = HostUp | ViewUp;
 
 /** Between Devices over the platform Transport: the subset of the view grammar that is not local. */
 export type NetDown = Extract<ViewDown, { t: 'state' | 'holders' | 'pause' | 'resume' | 'close' }>;
-export type NetUp = Extract<ViewUp, { t: 'input' | 'send' }>;
+export type NetUp = Extract<ViewUp, { t: 'input' | 'send' | 'hello' }>;
 export type NetFrame = NetDown | NetUp;
 
 const CLOSE_REASONS: readonly string[] = ['ended', 'aborted', 'version', 'protocol', 'fault', 'link-lost'] satisfies CloseReason[];
@@ -121,7 +131,7 @@ export function isNetDown(f: unknown): f is NetDown {
   if (r['t'] === 'state') return 'state' in r && typeof r['at'] === 'number' && (r['to'] === undefined || typeof r['to'] === 'string');
   if (r['t'] === 'holders') return Array.isArray(r['holders']) && r['holders'].every(isHolderEntry);
   if (r['t'] === 'pause') return Number.isFinite(r['now']) && isPauseReason(r['reason']);
-  if (r['t'] === 'resume') return Number.isFinite(r['now']) && isClockWire(r['clock']);
+  if (r['t'] === 'resume') return Number.isFinite(r['now']) && isClockWire(r['clock']) && Number.isFinite(r['pausedMs']) && (r['pausedMs'] as number) >= 0;
   if (r['t'] === 'close') {
     return typeof r['reason'] === 'string' && CLOSE_REASONS.includes(r['reason']) && (r['detail'] === undefined || typeof r['detail'] === 'string');
   }
@@ -155,6 +165,7 @@ export function isNetUp(f: unknown): f is NetUp {
   const r = f as Record<string, unknown>;
   if (r['v'] !== WIRE_VERSION) return false;
   if (r['t'] === 'input') return Array.isArray(r['inputs']) && r['inputs'].every(isRawInput);
+  if (r['t'] === 'hello') return true;
   return r['t'] === 'send' && isJson(r['msg']);
 }
 

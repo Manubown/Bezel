@@ -106,10 +106,17 @@ function isRequest(d: unknown): d is ClockRequest {
   return typeof r['q'] === 'number' && typeof r['t0'] === 'number';
 }
 
-/** Host side: answer clock requests with host receive/send timestamps. */
-export function serveClock(transport: Transport, localNow: LocalNow = performanceNow): () => void {
+/**
+ * Host side: answer clock requests with host receive/send timestamps. `onRequest` sees
+ * each request's sender first; `false` leaves the request unanswered.
+ */
+export function serveClock(
+  transport: Transport,
+  localNow: LocalNow = performanceNow,
+  onRequest: (from: PeerId) => boolean = () => true,
+): () => void {
   return transport.onMessage(CLOCK_CHANNEL, (data, from) => {
-    if (!isRequest(data)) return;
+    if (!isRequest(data) || !onRequest(from)) return;
     const t1 = localNow();
     const reply: ClockReply = { q: data.q, t0: data.t0, t1, t2: localNow() };
     transport.send(CLOCK_CHANNEL, reply, from);
@@ -120,7 +127,7 @@ export interface ClockSyncOptions {
   /** Pings sent back-to-back on start. */
   burst?: number;
   burstIntervalMs?: number;
-  /** Steady-state ping interval to track drift. */
+  /** Steady-state ping interval: tracks drift, and is the Session's heartbeat. */
   periodicMs?: number;
 }
 
@@ -146,7 +153,7 @@ export class ClockSync {
   ) {
     this.burst = opts.burst ?? 10;
     this.burstIntervalMs = opts.burstIntervalMs ?? 100;
-    this.periodicMs = opts.periodicMs ?? 5000;
+    this.periodicMs = opts.periodicMs ?? 1000;
   }
 
   onUpdate(handler: (state: ClockState) => void): () => void {

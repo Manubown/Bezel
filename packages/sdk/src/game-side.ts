@@ -192,7 +192,7 @@ class HostSide extends GameSide {
     if (f.t === 'msg') this.guard('onMessage', () => this.handlers.onMessage?.(f.msg, f.from));
     else if (f.t === 'timer') this.guard('onTimer', () => this.handlers.onTimer?.(f.tag, f.now));
     else if (f.t === 'pause') this.guard('onPause', () => this.handlers.onPause?.(f.reason));
-    else if (f.t === 'resume') this.guard('onResume', () => this.handlers.onResume?.(f.now));
+    else if (f.t === 'resume') this.guard('onResume', () => this.handlers.onResume?.(f.now, f.pausedMs));
     else if (f.t === 'tick' && this.handlers.tick) {
       this.tickNow = f.now;
       this.guard('tick', () => this.handlers.tick?.(f.dt, f.now));
@@ -297,7 +297,7 @@ class ViewSide extends GameSide {
       this.painter.pause();
       this.guard('onPause', () => this.handlers.onPause?.(f.reason));
     } else if (f.t === 'resume') {
-      this.guard('onResume', () => this.handlers.onResume?.(f.now));
+      this.guard('onResume', () => this.handlers.onResume?.(f.now, f.pausedMs));
       this.painter.resume();
     } else if (f.t === 'holders') {
       for (const { deviceId, playerId } of f.holders) {

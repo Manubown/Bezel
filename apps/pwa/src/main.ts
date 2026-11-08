@@ -1,16 +1,17 @@
-import { TrysteroTransport, hostSession, joinSession } from '@mgc/core';
+import { TrysteroTransport, hostSession, joinSession, type DeviceId } from '@mgc/core';
 import { inProcessLink, runMatch, type MatchHandle, type MatchInfo, type MatchResult, type NetFrame } from '@mgc/sdk';
 import { claimDeviceId, claimPlayerId, deviceInfo, pageZoom } from './device';
 import { GAMES } from './games';
 import { LOG_LINES, logLineOf } from './gamelog';
 import { openHud, type Play } from './hud';
-import { openLobby } from './lobby';
-import { describePause, pauseOnDeviceLoss } from './pause';
+import { openLobby, sessionLobbyStore } from './lobby';
+import { describePause, pauseOnDeviceLoss, type PauseNotice } from './pause';
 import { drawMetronome, startCanvasLoop } from './metronome';
 import { createRecorder } from './recorder';
+import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
 import { describeClose } from './result';
 import { drawPreview } from './scene';
-import { keepAwakeOnTouch } from './wake';
+import { awake, keepAwake } from './wake';
 
 const APP_ID = 'mobilegameconnect';
 /** Match frames between Devices; the SDK never sees the channel. */
@@ -60,7 +61,7 @@ async function start(): Promise<void> {
   const turn = params.has('turn');
   // The session log: every event this page sees, kept across reloads, exported from the HUD.
   let sharedNow = (): number => performance.now();
-  const rec = createRecorder({ now: () => sharedNow(), deviceId, role: room ? 'peer' : 'host', code });
+  const rec = createRecorder({ now: () => sharedNow(), deviceId, role: room ? 'peer' : 'host', code, awake });
   rec.log('device', {
     ua: navigator.userAgent,
     platform: self.name,
@@ -76,13 +77,17 @@ async function start(): Promise<void> {
     turn,
   });
   rec.observe();
+  // The screen stays on from the first tap on the page, lobby and Match alike, for the page's lifetime (D11).
+  keepAwake();
   // Phones are measured upright. The lock only works installed/fullscreen; in a browser tab index.html's `#rotate` overlay asks instead.
   (screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> }).lock?.('portrait').catch(() => {});
   const trystero = new TrysteroTransport({ appId: APP_ID, roomId: code, ...(turn && { turnConfig: TURN_SERVERS }) });
   const transport = rec.transport(trystero, () => trystero.connections());
   const session = room ? joinSession(transport, self) : hostSession(transport, self);
   sharedNow = () => session.clock.now();
-  const lobby = openLobby(session, self.pxPerMm, claimPlayerId(deviceId));
+  // Dev only: the console (and a browser smoke) can cut this page's connections with `__mgc.transport.reset()`.
+  if (import.meta.env.DEV) Object.assign(window, { __mgc: { transport, session } });
+  const lobby = openLobby(session, self.pxPerMm, claimPlayerId(deviceId), room ? undefined : sessionLobbyStore(code));
   const host = () => session.roster()[0]?.info.deviceId;
   // Connectivity and clock: the roster as it changes (status, who is present, each Device's rtt/offset).
   let rosterKey = '';
@@ -95,6 +100,7 @@ async function start(): Promise<void> {
   });
   session.onDeviceLost((id) => rec.log('device-lost', { deviceId: id }));
   session.onDeviceBack((id) => rec.log('device-back', { deviceId: id }));
+  rec.links(session);
   // The lobby: the Match it froze (the whole MatchInfo once), and the Game it names.
   let loggedMatch: string | undefined;
   lobby.onChange(() => {
@@ -106,10 +112,22 @@ async function start(): Promise<void> {
   });
 
   const play: Play = { running: false, paused: undefined, stopped: undefined, last: undefined, log: [] };
-  /** The Match running on this Device. */
-  let current: { matchId: string; handle: MatchHandle } | undefined;
+  /** The Match running on this Device: `host` is the Session's Host when it began; `stop` closes it, `detail` replacing the runtime's words on the card. */
+  let current: { matchId: string; handle: MatchHandle; host: DeviceId | undefined; stop(reason: 'aborted' | 'link-lost', detail?: string): void } | undefined;
   /** A Device runs a Match once: after it closed here, it is not rejoined, unless it closed because the Session dropped. */
   let joined: string | undefined;
+  /** The running Match's pause as its runtime last reported it. */
+  let matchPause: PauseNotice | undefined;
+  /** `current` rides out a reconnect (`rejoin.ts`): from its first `keep` until the `hello` or the close, and the grace timer runs as long. */
+  let rejoining = false;
+  let grace: number | undefined;
+  let graceExpired = false;
+  const endRejoin = (): void => {
+    rejoining = false;
+    clearTimeout(grace);
+    grace = undefined;
+    graceExpired = false;
+  };
   const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted'), log: rec });
   /** At most one HUD render per animation frame for the game log: a game may log on every frame. */
   let logRender = 0;
@@ -129,12 +147,13 @@ async function start(): Promise<void> {
     }
     play.running = true;
     play.paused = undefined;
+    matchPause = undefined;
     play.stopped = undefined;
     play.log = [];
     gameLayer.hidden = false;
-    // The screen stays on from the Match's first touch until it closes.
-    const sleep = keepAwakeOnTouch();
     let result: MatchResult | undefined;
+    /** The card's detail when this Device stopped the Match for a reason its runtime cannot name (`linkLostDetail`). */
+    let said: string | undefined;
     // Who sits where in the Match: a pause names the lost Device's Player.
     const seated = new Map(match.players.flatMap((p) => (p.deviceId === undefined ? [] : [[p.deviceId, p.name] as const])));
     let unfollow = (): void => {};
@@ -156,7 +175,9 @@ async function start(): Promise<void> {
         if (line) play.log = [...play.log, line].slice(-LOG_LINES);
         if (e.t === 'ended') result = e.result;
         if (e.t === 'paused' || e.t === 'resumed') {
-          play.paused = e.t === 'paused' ? describePause(match, e.reason, seated) : undefined;
+          matchPause = e.t === 'paused' ? describePause(match, e.reason, seated) : undefined;
+          // While reconnecting, `RECONNECTING` stays up until the `hello` (`follow`).
+          if (!rejoining) play.paused = matchPause;
           hud.render();
         }
         if (e.t === 'view-closed') {
@@ -168,31 +189,63 @@ async function start(): Promise<void> {
           return;
         }
         unfollow();
-        sleep();
+        endRejoin();
         current = undefined;
         play.running = false;
         play.paused = undefined;
+        matchPause = undefined;
         play.stopped = undefined;
-        play.last = { reason: e.reason, detail: e.detail, players: match.players, ...(result && { result }) };
+        play.last = { reason: e.reason, detail: said ?? e.detail, players: match.players, ...(result && { result }) };
         gameLayer.hidden = true;
         lobby.close(); // the Host's reopens the lobby on every Device; on a Peer, a no-op
         hud.render();
       },
       authority: session.role === 'host',
     });
-    current = { matchId: match.matchId, handle };
+    current = {
+      matchId: match.matchId,
+      handle,
+      host: host(),
+      stop: (reason, detail) => {
+        said = detail;
+        handle.stop(reason);
+      },
+    };
     if (session.role === 'host') unfollow = pauseOnDeviceLoss(session, match, handle);
     hud.render();
   };
 
   const follow = (): void => {
     const { match } = lobby;
-    // The Match went away under this Device: the Host closed it, or the Session ended.
-    if (current && current.matchId !== match?.matchId) {
-      const dropped = session.status === 'searching';
-      current.handle.stop(dropped ? 'link-lost' : 'aborted');
-      // Lost with the connection, not closed: when the Session finds the Host again, this Device rejoins it.
-      if (dropped) joined = undefined;
+    const r: Rejoin = { status: session.status, lobbyMatchId: match?.matchId, currentMatchId: current?.matchId, rejoining, graceExpired, hostId: host(), matchHostId: current?.host };
+    switch (decideRejoin(r)) {
+      case 'keep':
+        rejoining = true;
+        // One grace per reconnect, from its first `keep`, however often the Session goes `syncing` and back meanwhile.
+        grace ??= window.setTimeout(() => {
+          graceExpired = true;
+          follow();
+        }, REJOIN_GRACE_MS);
+        play.paused = RECONNECTING;
+        hud.render();
+        break;
+      case 'hello':
+        endRejoin();
+        current?.handle.hello();
+        // The Host answers with its pause, if any (a `paused` event when it differs); meanwhile the runtime's last word on it.
+        play.paused = matchPause;
+        hud.render();
+        break;
+      case 'stop-link-lost':
+        current?.stop('link-lost', linkLostDetail(r));
+        // Lost with the connection, not closed: when the Session finds the Host again, this Device rejoins it.
+        joined = undefined;
+        break;
+      case 'stop-aborted':
+        current?.stop('aborted');
+        break;
+      case 'none':
+        break;
     }
     // Only once the Session is ready, so the Match runs on the Host's clock (a reloaded Peer gets the Match while syncing).
     if (!current && match && session.status === 'ready' && match.matchId !== joined && match.devices.some((d) => d.deviceId === deviceId)) begin(match);

@@ -1,5 +1,5 @@
 import type { DeviceId, RosterEntry, Session, SessionStatus } from '@mgc/core';
-import { Surface, buildLayout, isLayout, type DeviceRect, type Layout, type Rect, type TemplateId } from '@mgc/layout';
+import { Surface, TEMPLATE_IDS, buildLayout, isLayout, type DeviceRect, type Layout, type Rect, type TemplateId } from '@mgc/layout';
 import type { Device, Manifest, MatchInfo, Player, PlayerId, Range, Tile } from '@mgc/sdk';
 
 /** The lobby's Session channel: Host → Peers the lobby state, Peer → Host who sits there. */
@@ -46,6 +46,8 @@ export interface Lobby {
   readonly match: MatchInfo | undefined;
   /** The manifest id of the Game `match` runs; set and cleared with it. */
   readonly game: string | undefined;
+  /** Host: the manifest id of the Game picked for the next Start (`setGame`), kept across a reload of its page; undefined on a Peer. */
+  readonly picked: string | undefined;
   /** Where the Players come from, after the picked Game's manifest (`setGame`); `'ends'` until one is picked. */
   readonly seats: Seats;
   /** A Device's role in the next Match, as the Host set it (`setRole`); `'tile'` unless marked a Controller. */
@@ -62,6 +64,7 @@ export interface Lobby {
   /**
    * The Tile order, first Tile first. Tile Devices it leaves out follow in roster order; a Device
    * that is away keeps its place for when it is back. Controllers and Devices not in the roster are ignored.
+   * Devices of a restored Tile order (`openLobby`'s `store`) that are not back yet lose their places.
    */
   setOrder(deviceIds: readonly DeviceId[]): void;
   /** Moves a present Tile Device `delta` places along the Tile order (negative: towards the first), stopping at the ends. */
@@ -79,9 +82,47 @@ export interface Lobby {
   close(): void;
 }
 
-/** `playerId`: the persisted id of the Player who sits at this Device. */
-export function openLobby(session: Session, pxPerMm: number, playerId: PlayerId): Lobby {
-  return session.role === 'host' ? new HostLobby(session, pxPerMm, playerId) : new PeerLobby(session, pxPerMm, playerId);
+/**
+ * `playerId`: the persisted id of the Player who sits at this Device. `store`, on the Host only: where
+ * its decisions outlive a reload of the page. A Host lobby with a saved configuration takes the
+ * template, Game, seats and bots at once; each Device of the saved Tile order takes its place and role
+ * when it appears in the roster, Devices the order does not name follow as usual, and the first order
+ * set by hand (`setOrder`, `move`) forgets the places of those not back yet.
+ */
+export function openLobby(session: Session, pxPerMm: number, playerId: PlayerId, store?: LobbyStore): Lobby {
+  return session.role === 'host' ? new HostLobby(session, pxPerMm, playerId, store) : new PeerLobby(session, pxPerMm, playerId);
+}
+
+/** The Host's lobby decisions, saved across a reload of its page: nothing derived from them, never a Match. */
+export interface SavedLobby {
+  readonly template: TemplateId;
+  /** The Tile order, first Tile first: every Tile Device of the roster, present or not. */
+  readonly order: readonly DeviceId[];
+  /** The roles the Host set (`setRole`), by Device. */
+  readonly roles: Readonly<Record<DeviceId, Role>>;
+  /** The picked Game's manifest id (`setGame`). */
+  readonly game: string | undefined;
+  readonly seats: Seats;
+  /** The Player slots that are bots. */
+  readonly bots: readonly number[];
+}
+
+/** Where a Host lobby keeps its `SavedLobby`. */
+export interface LobbyStore {
+  load(): SavedLobby | undefined;
+  save(saved: SavedLobby): void;
+}
+
+/** `sessionStorage` `mgc.lobby.<code>`: per room code and tab, the lifetime of the code a reloaded Host keeps (`main.ts`). */
+export function sessionLobbyStore(code: string): LobbyStore {
+  const key = `mgc.lobby.${code}`;
+  return {
+    load: () => {
+      const json = sessionStorage.getItem(key);
+      return json === null ? undefined : readSaved(JSON.parse(json));
+    },
+    save: (saved) => sessionStorage.setItem(key, JSON.stringify(saved)),
+  };
 }
 
 /** What a lobby shows; Host → Peers as a `state` message. A Player's seat is its `deviceId`. */
@@ -114,6 +155,7 @@ abstract class LobbyBase {
   seats: Seats = 'ends';
   match: MatchInfo | undefined;
   game: string | undefined;
+  picked: string | undefined;
   private controllers: readonly DeviceId[] = [];
   private readonly listeners = new Set<() => void>();
   private shown = '';
@@ -160,8 +202,10 @@ abstract class LobbyBase {
 class HostLobby extends LobbyBase implements Lobby {
   private template: TemplateId = 'row';
   private readonly roles = new Map<DeviceId, Role>();
-  /** `setOrder`'s Tile order: roster Devices in the Tile role only, present or not. */
+  /** The Tile order, `setOrder`'s or the saved one: Devices in the Tile role only, present or not. */
   private order: DeviceId[] = [];
+  /** Devices of the saved Tile order not yet in the roster: they keep their places until the Host sets an order by hand. */
+  private readonly pending = new Set<DeviceId>();
   /** The Player slots that are bots. */
   private readonly bots = new Set<number>();
   /** The Player id each Device reported for itself. */
@@ -179,9 +223,26 @@ class HostLobby extends LobbyBase implements Lobby {
   private sent = '';
   /** Peers present when the state was last sent. */
   private reached = new Set<DeviceId>();
+  /** The configuration last given to `store`, as JSON. */
+  private stored = '';
 
-  constructor(session: Session, pxPerMm: number, playerId: PlayerId) {
+  constructor(
+    session: Session,
+    pxPerMm: number,
+    playerId: PlayerId,
+    private readonly store: LobbyStore | undefined,
+  ) {
     super(session, pxPerMm);
+    const saved = store?.load();
+    if (saved) {
+      this.template = saved.template;
+      for (const [id, role] of Object.entries(saved.roles)) this.roles.set(id, role);
+      this.order = [...new Set(saved.order)].filter((id) => this.assigned(id) === 'tile');
+      for (const id of this.order) this.pending.add(id);
+      this.picked = saved.game;
+      this.seats = saved.seats;
+      for (const slot of saved.bots) this.bots.add(slot);
+    }
     this.seatIds.set(session.self.deviceId, playerId);
     session.onChange(() => this.refresh());
     session.onMessage(LOBBY_CHANNEL, (data, from) => {
@@ -195,9 +256,10 @@ class HostLobby extends LobbyBase implements Lobby {
 
   setGame(game: Manifest): void {
     const seats = game.seats ?? 'ends';
-    if (this.frozen || seats === this.seats) return;
+    if (this.frozen || (game.id === this.picked && seats === this.seats)) return;
+    this.picked = game.id;
+    if (seats !== this.seats) this.chosen = undefined;
     this.seats = seats;
-    this.chosen = undefined;
     this.refresh();
   }
 
@@ -216,7 +278,9 @@ class HostLobby extends LobbyBase implements Lobby {
 
   setOrder(deviceIds: readonly DeviceId[]): void {
     if (this.frozen) return;
-    const tiles = new Set(this.tileOrder());
+    // An order by hand replaces the saved one: its Devices that are not back yet lose their places.
+    const tiles = new Set(this.tileOrder().filter((id) => !this.pending.has(id)));
+    this.pending.clear();
     this.order = [...new Set(deviceIds)].filter((id) => tiles.has(id));
     this.refresh();
   }
@@ -287,7 +351,7 @@ class HostLobby extends LobbyBase implements Lobby {
     return this.roles.get(deviceId) ?? 'tile';
   }
 
-  /** Every roster Device in the Tile role, present or not, in Tile order: `order`, then the rest in roster order. */
+  /** Every Tile Device of `order` (saved ones not back yet included) and of the roster, present or not, in Tile order: `order`, then the rest in roster order. */
   private tileOrder(): DeviceId[] {
     const tiles = this.session
       .roster()
@@ -298,6 +362,7 @@ class HostLobby extends LobbyBase implements Lobby {
 
   private refresh(): void {
     const roster = this.session.roster();
+    for (const e of roster) this.pending.delete(e.info.deviceId);
     const present = roster.filter((e) => e.present);
     const here = new Map(present.map((e) => [e.info.deviceId, e.info]));
     const sizes = this.tileOrder().flatMap((id) => {
@@ -317,6 +382,17 @@ class HostLobby extends LobbyBase implements Lobby {
     // Peers hear of it before anything here reacts to it (a Match start, say).
     this.publish(state, present);
     this.show(state);
+    this.save();
+  }
+
+  /** Gives the Host's decisions to `store` when one of them changed. */
+  private save(): void {
+    if (!this.store) return;
+    const saved: SavedLobby = { template: this.template, order: this.tileOrder(), roles: Object.fromEntries(this.roles), game: this.picked, seats: this.seats, bots: [...this.bots].sort() };
+    const json = JSON.stringify(saved);
+    if (json === this.stored) return;
+    this.stored = json;
+    this.store.save(saved);
   }
 
   /** The default Players, one per slot: its bot, or the human at its Tile once that Device said who sits there. */
@@ -403,7 +479,7 @@ class HostLobby extends LobbyBase implements Lobby {
   }
 }
 
-/** Mirrors the Host's lobby; tells the Host who sits here once the Session is ready. */
+/** Mirrors the Host's lobby; tells the Host who sits here on every `ready`, a re-attach's included. */
 class PeerLobby extends LobbyBase implements Lobby {
   private status: SessionStatus | undefined;
 
@@ -440,7 +516,7 @@ class PeerLobby extends LobbyBase implements Lobby {
     this.status = this.session.status;
     if (this.status === was) return;
     if (this.status === 'ready') this.session.send(LOBBY_CHANNEL, { t: 'seat', playerId: this.playerId } satisfies SeatMessage);
-    // The Host is gone and the Session with it (ADR-0002).
+    // No Host: none yet, or closed. `reconnecting` keeps what the Host said, for a Match riding it out (`rejoin.ts`).
     if (this.status === 'searching') this.show({ layout: undefined, players: [], controllers: [], seats: 'ends', match: undefined, game: undefined });
   }
 }
@@ -487,13 +563,14 @@ function deepFreeze<T>(v: T): T {
   return v;
 }
 
-// Everything below reads untrusted data off the network into fresh objects.
+// Everything below reads untrusted data (off the network, or a saved lobby) into fresh objects.
 
 type Obj = Record<string, unknown>;
 
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isStr = (v: unknown): v is string => typeof v === 'string';
+const isSeats = (v: unknown): v is Seats => v === 'ends' || v === 'tiles' || v === 'controllers';
 
 function all<T>(v: unknown, read: (x: unknown) => T | undefined): T[] | undefined {
   if (!Array.isArray(v)) return undefined;
@@ -511,7 +588,7 @@ function readState(d: unknown): Shown | undefined {
   const layout = d['layout'] === null ? null : isLayout(d['layout']) ? structuredClone(d['layout']) : undefined;
   const players = all(d['players'], readPlayer);
   const controllers = all(d['controllers'], (x) => (isStr(x) ? x : undefined));
-  const seats = d['seats'] === 'ends' || d['seats'] === 'tiles' || d['seats'] === 'controllers' ? d['seats'] : undefined;
+  const seats = isSeats(d['seats']) ? d['seats'] : undefined;
   const match = d['match'] === null ? null : readMatch(d['match']);
   const game = d['game'] === null ? null : isStr(d['game']) ? d['game'] : undefined;
   if (layout === undefined || !players || !controllers || !seats || match === undefined || game === undefined) return undefined;
@@ -566,4 +643,21 @@ function readMatch(v: unknown): MatchInfo | undefined {
   const bounds = readRect(v['bounds']);
   if (!isStr(matchId) || !isNum(seed) || !isNum(tickHz) || !players || !devices || !tiles || !bounds) return undefined;
   return deepFreeze({ matchId, seed, tickHz, players, devices, tiles, bounds });
+}
+
+/** A `SavedLobby`; undefined when it is not one (another build wrote it). A Game id that is not a string is left out. */
+function readSaved(v: unknown): SavedLobby | undefined {
+  if (!isObj(v)) return undefined;
+  const { template: t, order: o, roles: r, game, seats, bots: b } = v;
+  const template = TEMPLATE_IDS.find((id) => id === t);
+  const order = all(o, (x) => (isStr(x) ? x : undefined));
+  const bots = all(b, (x) => (typeof x === 'number' && Number.isInteger(x) && x >= 0 && x < SLOTS ? x : undefined));
+  if (!isObj(r)) return undefined;
+  const roles: [DeviceId, Role][] = [];
+  for (const [id, role] of Object.entries(r)) {
+    if (role !== 'tile' && role !== 'controller') return undefined;
+    roles.push([id, role]);
+  }
+  if (!template || !order || !bots || !isSeats(seats)) return undefined;
+  return { template, order, roles: Object.fromEntries(roles), game: isStr(game) ? game : undefined, seats, bots };
 }

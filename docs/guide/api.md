@@ -103,7 +103,7 @@ export interface HostHandlers<M extends JsonValue> {
   onHolder?(controller: DeviceId, playerId: PlayerId | null): void;
   onTimer?(tag: string, now: number): void;
   onPause?(reason: PauseReason): void;
-  onResume?(now: number): void;
+  onResume?(now: number, pausedMs: number): void;
   dispose?(): void;
 }
 ```
@@ -115,8 +115,8 @@ export interface HostHandlers<M extends JsonValue> {
 | `onMessage(msg, from)` | a view's `send`, in arrival order with input; `from` is stamped by the platform. Sent while paused: dropped |
 | `onHolder(controller, playerId)` | a Controller's Holder changed; what arrived before it was stamped with the previous Holder |
 | `onTimer(tag, now)` | a timer elapsed; `now` is the shared time it was due |
-| `onPause(reason)` | the Match paused: no `tick`, input, message or timer until `onResume`. Again if the reason changes |
-| `onResume(now)` | the Match resumed at `now`; a Game that publishes only on change re-publishes here |
+| `onPause(reason)` | the Match paused: no `tick`, input, message or timer until `onResume`. Again if the reason changes; `onResume`'s `pausedMs` counts from the first |
+| `onResume(now, pausedMs)` | the Match resumed at `now`; `pausedMs`: how long the Match stood still on the shared clock, from the first pause; shift your deadlines by it, or use a timer (timers are pause-aware already). A Game that publishes only on change re-publishes here |
 | `dispose()` | the Match closed; last call |
 
 ### `ViewContext<S, M>`
@@ -165,7 +165,7 @@ export interface ViewHandlers<S extends JsonValue, M extends JsonValue> {
   onInput?(i: Input): void;
   onHolder?(controller: DeviceId, playerId: PlayerId | null): void;
   onPause?(reason: PauseReason): void;
-  onResume?(now: number): void;
+  onResume?(now: number, pausedMs: number): void;
   onEnd?(r: { reason: CloseReason; result?: MatchResult }): void;
   dispose?(): void;
   input?: 'coalesced' | 'off';
@@ -180,7 +180,7 @@ export interface ViewHandlers<S extends JsonValue, M extends JsonValue> {
 | `onInput(i)` | this Device's own input as it leaves for the host: local echo for prediction |
 | `onHolder(controller, playerId)` | any Controller's Holder changed; a Controller's own view checks `controller === ctx.deviceId` |
 | `onPause(reason)` | `draw` stops (the canvas keeps its last frame) until `onResume`. Again if the reason changes |
-| `onResume(now)` | the kept states arrived just before (`latest()` is current); extrapolate from `max(t, now)`. A view started during the pause gets it without `onPause` |
+| `onResume(now, pausedMs)` | the kept states arrived just before (`latest()` is current); extrapolate from `max(t, now)`. `pausedMs`: how long the Match stood still on the shared clock, from the first pause, the same as the host's; shift your deadlines by it. A Peer's view started during the pause hears the pause from the Host's answer to its runtime's `hello`, so it gets `onPause` first, unless the resume came before that answer |
 | `onEnd({ reason, result? })` | the Match closed; `result` when the host ended it. `dispose` follows |
 | `dispose()` | last call |
 | `input` | `'coalesced'` (default): the SDK captures pointers on `root` (`touch-action: none`, pointer capture), maps px to mm, sends at most one move per pointer per frame. `'off'`: no capture; a DOM view handles its own events |
@@ -300,7 +300,7 @@ export class Surface {
 
 ## Platform-facing
 
-`apps/pwa` runs a Match with these (`apps/pwa/src/main.ts:141-182`). A Game does not import them; they are listed so the seam is complete.
+`apps/pwa` runs a Match with these (`apps/pwa/src/main.ts:160-204`). A Game does not import them; they are listed so the seam is complete.
 
 ### `runMatch`
 
@@ -319,6 +319,7 @@ export interface MatchOptions {
 export interface MatchHandle {
   deliver(frame: NetFrame, from: DeviceId): void;
   setPaused(reason: PauseReason | null): void;
+  hello(): void;
   stop(reason: 'aborted' | 'link-lost'): void;
 }
 ```
@@ -335,7 +336,8 @@ Runs one Device's part of a Match: its view, plus the host side with `authority`
 | `onEvent(e)` | every `MatchEvent` on this Device |
 | `authority` | `true` on the Host: also runs the host side |
 | `deliver(frame, from)` | a frame off the Transport; `from` is the Device whose channel carried it |
-| `setPaused(reason \| null)` | Host only: pause everywhere, or resume with `null` |
+| `setPaused(reason \| null)` | Host only: pause everywhere, or resume with `null` (the `resume` frame carries `pausedMs`) |
+| `hello()` | Peer only (a no-op on the Host): asks the Host again for every Holder (if any is set), this Device's retained states, and the pause while paused. The view link sends it by itself when it opens, so a page that starts mid-Match draws the current state; the platform calls it on re-attach with the runtime still running. The Host ignores it from a Device outside the Match |
 | `stop(reason)` | closes this Device's part; on the Host, the Match on every Device |
 
 ### `MatchEvent`
@@ -412,12 +414,12 @@ export type RejectOf = 'publish' | 'set-holder' | 'timer' | 'end';
 | `HostDown` | platform → host game: `Shared`, `init`, `tick`, `input`, `msg`, `timer`, `reject` |
 | `ViewDown` | platform → view: `Shared`, `init`, `state` |
 | `HostUp` | host game → platform: `fault`, `log`, `ready`, `handlers`, `publish`, `set-holder`, `timer`, `end` |
-| `ViewUp` | view → platform: `fault`, `log`, `ready`, `input`, `send` |
+| `ViewUp` | view → platform: `fault`, `log`, `ready`, `input`, `send`, `hello` (sent by a Peer's runtime, not a game) |
 | `Down`, `Up` | `HostDown \| ViewDown`, `HostUp \| ViewUp` |
 | `Fault` | a handler threw; `fatal` when that side cannot go on |
 | `Log` | `ctx.log` arguments |
 | `RejectOf` | which host request a `reject` refuses |
-| `NetDown`, `NetUp`, `NetFrame` | the frames that cross between Devices: `state`, `holders`, `pause`, `resume`, `close` from the Host; `input`, `send` to it |
+| `NetDown`, `NetUp`, `NetFrame` | the frames that cross between Devices: `state`, `holders`, `pause`, `resume` (with `pausedMs`), `close` from the Host; `input`, `send`, `hello` to it |
 
 The full frame grammar and its ordering rules: `packages/sdk/src/wire.ts` and [`docs/sdk-design.md`](../sdk-design.md) §4–§5.
 
@@ -439,6 +441,7 @@ export interface TestMatch<S extends JsonValue = JsonValue> {
   send(deviceId: DeviceId, msg: JsonValue): Promise<void>;
   drawn(deviceId: DeviceId): readonly CanvasOp[];
   setPaused(reason: PauseReason | null): Promise<void>;
+  reload(deviceId: DeviceId): Promise<void>;
   state(deviceId: DeviceId): S | undefined;
   latest(deviceId: DeviceId): { state: S; t: number } | undefined;
   result(): MatchResult | undefined;
@@ -457,6 +460,7 @@ A whole Match in one process: `runMatch` on every Device over the in-process lin
 | `send(deviceId, msg)` | that Device's view `send`s `msg` to the host game, then everything it set off lands |
 | `drawn(deviceId)` | what that view drew in its last frame: every canvas call as `[name, ...args]` (`['fillStyle=', v]` for a property write), after the SDK's clear and world transform. Read it one frame after the state you expect it to show |
 | `setPaused(reason)` | the Host platform's pause (`null` resumes); time does not move |
+| `reload(deviceId)` | a Peer's page reloads mid-Match: its `runMatch` stops and a new one starts on a fresh screen, its view starting from the Host's answer to its `hello`; the Host does not pause. `drawn`, `state`, `latest`, `events` then read the new page. Throws for the Host |
 | `state(deviceId)` | the latest state that view applied |
 | `latest(deviceId)` | the same with its host time |
 | `result()` | the result once the host game ended the Match |

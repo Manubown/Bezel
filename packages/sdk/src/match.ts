@@ -48,6 +48,14 @@ export interface MatchHandle {
    * from the resume's time.
    */
   setPaused(reason: PauseReason | null): void;
+  /**
+   * Peer only; a no-op on the Host. Asks the Host for the current picture:
+   * every Holder (if any is set), this Device's retained states, and the
+   * pause while paused, for this Device alone. The view link asks by itself
+   * when it opens; the platform calls this when it re-attaches to the Host
+   * with this runtime still running.
+   */
+  hello(): void;
   /** Closes this Device's part; on the Host, the Match on every Device. */
   stop(reason: 'aborted' | 'link-lost'): void;
 }
@@ -93,6 +101,7 @@ type HoldersFrame = Extract<Down, { t: 'holders' }>;
 type Inbound = { t: 'input'; input: Input } | { t: 'msg'; msg: JsonValue; from: Sender } | { t: 'timer'; tag: string; now: number };
 
 const ENDED = 'the game ended the Match';
+const HELLO: NetUp = { v: 1, t: 'hello' };
 const STOPPED: Record<'aborted' | 'link-lost', string> = {
   aborted: 'stopped by the platform',
   'link-lost': 'the platform lost the connection',
@@ -139,7 +148,7 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   // Retention: the last broadcast state and the last state for each Device
   // alone, in arrival order (a state replaces its key's entry and moves to the
   // end). A Peer holds its own two; the Host holds every Device's and re-posts
-  // them on resume.
+  // them on resume and to a Peer that says `hello`.
   const retained = new Map<DeviceId | undefined, StateFrame>();
   const retain = (f: StateFrame): void => {
     retained.delete(f.to);
@@ -155,8 +164,9 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   const holdersFrame = (): HoldersFrame => ({ v: 1, t: 'holders', holders: holderList() });
 
   // This Device's view. One that becomes ready late starts from the retained
-  // states (and the pause, while paused). Its input and messages go to the
-  // host runtime: here on the Host, over the net on a Peer, paused or not.
+  // states (and the pause, while paused); on a Peer it then says `hello`, as a
+  // page that started mid-Match holds nothing yet. Its input and messages go to
+  // the host runtime: here on the Host, over the net on a Peer, paused or not.
   let viewOpened = false;
   const view: GameLink = new GameLink('view', () => o.link({ side: 'view', root: o.self.mount }), env, {
     open() {
@@ -164,6 +174,7 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
       view.post({ v: 1, t: 'init', side: 'view', match: o.match, self, holders: holderList(), clock: clockWire() });
       for (const f of retainedFor(me.deviceId)) view.post(f);
       if (pausedBy) view.post(pausedBy);
+      if (!o.authority) o.send(HELLO);
       viewOpened = true;
       opened();
     },
@@ -238,8 +249,21 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
     }
     arrived();
   };
+  /**
+   * A Peer's `hello`: every Holder (if any is set), its retained states, then
+   * the pause while paused, to that Device alone. Not input: answered while
+   * paused too. The Host's own view replays locally when it opens; a Device
+   * outside the Match gets nothing.
+   */
+  const answerHello = (d: DeviceId): void => {
+    if (over || d === me.deviceId || !roleOf.has(d)) return;
+    if ([...holders.values()].some((p) => p !== null)) o.send(holdersFrame(), d);
+    for (const f of retainedFor(d)) o.send(f, d);
+    if (pausedBy) o.send(pausedBy, d);
+  };
   const take = (f: NetUp, from: DeviceId): void => {
     if (f.t === 'input') return ingest(f.inputs, from);
+    if (f.t === 'hello') return answerHello(from);
     const role = roleOf.get(from);
     // Paused: dropped, like input.
     if (over || pausedBy || role === undefined) return;
@@ -447,14 +471,17 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   };
   /**
    * Host: every view gets the retained states, then `resume` with a fresh
-   * clock frame (the host game first, so its `onResume` publish follows them),
-   * then timers and steps run on from now.
+   * clock frame and how long the Match stood still since the first pause (the
+   * host game first, so its `onResume` publish follows them), then timers and
+   * steps run on from now.
    */
   const resume = (): void => {
     if (!pausedBy) return;
-    pausedBy = undefined;
     const clock = clockWire();
-    const frame: Extract<Down, { t: 'resume' }> = { v: 1, t: 'resume', now: clock.sentAt, clock };
+    // ≥ 0 even if the shared clock was re-estimated backwards meanwhile.
+    const pausedMs = Math.max(0, clock.sentAt - pausedBy.now);
+    pausedBy = undefined;
+    const frame: Extract<Down, { t: 'resume' }> = { v: 1, t: 'resume', now: clock.sentAt, clock, pausedMs };
     host?.post(frame);
     // A Peer back as a new page knows no Holder yet.
     if ([...holders.values()].some((p) => p !== null)) o.send(holdersFrame());
@@ -520,7 +547,7 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
         } else if (frame.t === 'resume') {
           // Also to a runtime that started during the pause: its retained states describe the paused moment.
           pausedBy = undefined;
-          view.post({ v: 1, t: 'resume', now: frame.now, clock: clockWire() });
+          view.post({ v: 1, t: 'resume', now: frame.now, clock: clockWire(), pausedMs: frame.pausedMs });
           o.onEvent({ t: 'resumed' });
         } else close(frame.reason, frame.detail ?? 'closed by the Host', frame.result);
       }
@@ -529,6 +556,9 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
       if (!o.authority || over) return;
       if (reason) pause(reason);
       else resume();
+    },
+    hello() {
+      if (!o.authority && !over) o.send(HELLO);
     },
     stop(reason) {
       close(reason, STOPPED[reason]);
