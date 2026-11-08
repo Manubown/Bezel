@@ -12,6 +12,8 @@ const SLOTS = 2;
 const BOT_NAME = 'Bot';
 
 export type Role = Device['role'];
+/** Where a Game's Players come from: `Manifest.seats`. */
+export type Seats = NonNullable<Manifest['seats']>;
 
 /** A Player slot: who plays at the first (slot 0) or the last (slot 1) Tile in Tile order. */
 export interface Slot {
@@ -45,7 +47,7 @@ export interface Lobby {
   /** The manifest id of the Game `match` runs; set and cleared with it. */
   readonly game: string | undefined;
   /** Where the Players come from, after the picked Game's manifest (`setGame`); `'ends'` until one is picked. */
-  readonly seats: 'ends' | 'controllers';
+  readonly seats: Seats;
   /** A Device's role in the next Match, as the Host set it (`setRole`); `'tile'` unless marked a Controller. */
   roleOf(deviceId: DeviceId): Role;
   /** `layout`, `players`, a role, or `match` changed. */
@@ -88,7 +90,7 @@ interface Shown {
   players: readonly Player[];
   /** The Devices marked Controller. */
   controllers: readonly DeviceId[];
-  seats: 'ends' | 'controllers';
+  seats: Seats;
   match: MatchInfo | undefined;
   game: string | undefined;
 }
@@ -98,7 +100,7 @@ type StateMessage = {
   layout: Layout | null;
   players: readonly Player[];
   controllers: readonly DeviceId[];
-  seats: 'ends' | 'controllers';
+  seats: Seats;
   match: MatchInfo | null;
   game: string | null;
 };
@@ -109,7 +111,7 @@ abstract class LobbyBase {
   surface: Surface | undefined;
   players: readonly Player[] = [];
   slots: readonly Slot[] = slotsOf(undefined, []);
-  seats: 'ends' | 'controllers' = 'ends';
+  seats: Seats = 'ends';
   match: MatchInfo | undefined;
   game: string | undefined;
   private controllers: readonly DeviceId[] = [];
@@ -309,7 +311,7 @@ class HostLobby extends LobbyBase implements Lobby {
       layout = sizes.length > 0 ? buildLayout(this.template, sizes) : undefined;
       this.chosen = undefined;
     }
-    const players = this.chosen ? this.seated(this.chosen, here) : this.seats === 'controllers' ? this.controllerPlayers(present) : this.slotPlayers(layout);
+    const players = this.chosen ? this.seated(this.chosen, here) : this.seats === 'controllers' ? this.controllerPlayers(present) : this.seats === 'tiles' ? this.tilePlayers(layout) : this.slotPlayers(layout);
     const controllers = roster.map((e) => e.info.deviceId).filter((id) => this.assigned(id) === 'controller');
     const state: Shown = { layout, players, controllers, seats: this.seats, match: this.frozen, game: this.frozen && this.frozenGame };
     // Peers hear of it before anything here reacts to it (a Match start, say).
@@ -328,6 +330,16 @@ class HostLobby extends LobbyBase implements Lobby {
       if (deviceId === undefined || playerId === undefined) return [];
       return [{ playerId, name: this.names.get(playerId) ?? defaultName(slot), deviceId }];
     });
+  }
+
+  /** `seats: 'tiles'`: one Player per Tile in Tile order, once that Device said who sits there, then the bot slots that are on. */
+  private tilePlayers(layout: Layout | undefined): Player[] {
+    const humans = (layout?.devices ?? []).flatMap((d, i): Player[] => {
+      const playerId = this.seatIds.get(d.id);
+      return playerId === undefined ? [] : [{ playerId, name: this.names.get(playerId) ?? defaultName(i), deviceId: d.id }];
+    });
+    const bots = [...this.bots].sort().map((slot): Player => ({ playerId: botId(slot), name: this.names.get(botId(slot)) ?? BOT_NAME, bot: true }));
+    return [...humans, ...bots];
   }
 
   /** `seats: 'controllers'`: one Player per present Controller Device, in roster order, once that Device said who holds it. */
@@ -499,7 +511,7 @@ function readState(d: unknown): Shown | undefined {
   const layout = d['layout'] === null ? null : isLayout(d['layout']) ? structuredClone(d['layout']) : undefined;
   const players = all(d['players'], readPlayer);
   const controllers = all(d['controllers'], (x) => (isStr(x) ? x : undefined));
-  const seats = d['seats'] === 'ends' || d['seats'] === 'controllers' ? d['seats'] : undefined;
+  const seats = d['seats'] === 'ends' || d['seats'] === 'tiles' || d['seats'] === 'controllers' ? d['seats'] : undefined;
   const match = d['match'] === null ? null : readMatch(d['match']);
   const game = d['game'] === null ? null : isStr(d['game']) ? d['game'] : undefined;
   if (layout === undefined || !players || !controllers || !seats || match === undefined || game === undefined) return undefined;

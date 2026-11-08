@@ -208,6 +208,33 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect(host.players.map((p) => p.playerId)).toEqual([seat('d0'), seat('d1')]);
   });
 
+  it('seats: tiles — a Player at every Tile in Tile order, bots appended on top; Peers see the same', () => {
+    const { host, lobby } = table(['d1', 'd2']);
+    const peer = lobby('d1');
+    const RACE: Manifest = { ...DUEL, id: 'test.race', name: 'Race', tiles: { min: 1, max: 4 }, players: { min: 1, max: 6 }, bots: true, seats: 'tiles' };
+    host.setGame(RACE);
+    vi.advanceTimersByTime(100);
+    expect(host.players).toEqual([
+      { playerId: seat('d0'), name: 'Player 1', deviceId: 'd0' },
+      { playerId: seat('d1'), name: 'Player 2', deviceId: 'd1' },
+      { playerId: seat('d2'), name: 'Player 3', deviceId: 'd2' },
+    ]);
+    host.move('d2', -2);
+    host.setBot(0, true);
+    vi.advanceTimersByTime(100);
+    // Tile order is Player order; the bot comes after every human.
+    expect(host.players.map((p) => p.deviceId ?? p.playerId)).toEqual(['d2', 'd0', 'd1', 'bot:0']);
+    expect(peer.players).toEqual(host.players);
+    const match = host.start(RACE);
+    expect(match.players.map((p) => p.deviceId ?? p.playerId)).toEqual(['d2', 'd0', 'd1', 'bot:0']);
+    expect(match.tiles.map((t) => t.deviceId)).toEqual(['d2', 'd0', 'd1']);
+    host.close();
+    host.setGame(DUEL);
+    vi.advanceTimersByTime(100);
+    // Back to the ends: slot 0 is the bot, slot 1 the Player at the last Tile.
+    expect(host.players.map((p) => p.deviceId ?? p.playerId)).toEqual(['bot:0', 'd1']);
+  });
+
   it('orders the Tiles as the Host says, on the Host and the Peer; a Device that drops and returns keeps its place; Controllers are never in the order', () => {
     const { hub, host, lobby, join } = table(['d1', 'd2', 'd3']);
     const peer = lobby('d2');

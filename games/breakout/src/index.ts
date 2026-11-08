@@ -217,6 +217,7 @@ export default defineGame<BreakoutState, BreakoutMessage>({
     players: { min: 1, max: 4 },
     templates: ['row', 'grid'],
     bots: true,
+    seats: 'tiles', // a Player at every phone on the table: every bottom paddle has a human
     tickHz: 60,
     host: './index.js',
     view: './index.js',

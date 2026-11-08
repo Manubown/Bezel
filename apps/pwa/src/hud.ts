@@ -328,13 +328,22 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
       : lobby.seats === 'controllers'
         ? // A Player per Controller phone: mark phones as Controllers above and each holder gets a row here.
           lobby.players.map((p, i): SlotRow => ({ n: i + 1, player: p, where: 'Controller' }))
-        : lobby.slots.flatMap((s, slot): SlotRow[] => {
-            const on = s.player?.bot === true;
-            // An empty slot is listed only where a bot could take it; a bot always, so it can be turned off.
-            if (!s.player && !game.bots) return [];
-            const where = on ? '' : s.player ? phoneAt(tileIds, s.deviceId) : s.deviceId === undefined ? 'no phone' : 'joining…';
-            return [{ n: slot + 1, player: s.player, where, ...((game.bots || on) && { bot: { slot, on } }) }];
-          });
+        : lobby.seats === 'tiles'
+          ? // A Player per phone on the table, then the bots that are on; a Bot chip for each bot that could still be added.
+            [
+              ...lobby.players.map((p, i): SlotRow => {
+                const slot = p.bot ? Number(p.playerId.slice('bot:'.length)) : undefined;
+                return { n: i + 1, player: p, where: p.bot ? '' : phoneAt(tileIds, p.deviceId), ...(slot !== undefined && { bot: { slot, on: true } }) };
+              }),
+              ...(game.bots ? lobby.slots.flatMap((s, slot): SlotRow[] => (lobby.players.some((p) => p.bot && p.playerId === `bot:${slot}`) ? [] : [{ n: lobby.players.length + 1, player: undefined, where: 'add a bot', bot: { slot, on: false } }])).slice(0, 1) : []),
+            ]
+          : lobby.slots.flatMap((s, slot): SlotRow[] => {
+              const on = s.player?.bot === true;
+              // An empty slot is listed only where a bot could take it; a bot always, so it can be turned off.
+              if (!s.player && !game.bots) return [];
+              const where = on ? '' : s.player ? phoneAt(tileIds, s.deviceId) : s.deviceId === undefined ? 'no phone' : 'joining…';
+              return [{ n: slot + 1, player: s.player, where, ...((game.bots || on) && { bot: { slot, on } }) }];
+            });
     const key = `${match ? 'frozen' : 'open'}|${slotRows.map((r) => `${r.n}:${r.player?.playerId ?? ''}@${r.where}:${r.bot?.on ?? ''}`).join(',')}`;
     if (key !== playersKey) {
       playersKey = key;

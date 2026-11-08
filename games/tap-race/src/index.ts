@@ -42,6 +42,7 @@ export default defineGame<TapRaceState, TapRaceMessage>({
     controllers: { min: 0, max: 0 }, // phones held in hand
     players: { min: 1, max: 4 },
     bots: true, // the Host may make a Player slot a bot; this host game plays it
+    seats: 'tiles', // every phone on the table seats a Player: targets can appear on each
     tickHz: 0, // event-driven: no `tick`, only inputs and timers wake the host
     host: './index.js',
     view: './index.js',

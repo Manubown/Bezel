@@ -117,11 +117,12 @@ export interface Manifest {
   /** Default false; true: the Host may make a Player slot a bot, and the host game plays every `Player.bot`. */
   bots?: boolean;
   /**
-   * Where the Players come from. `'ends'` (default): one at the first Tile and one at the last.
-   * `'controllers'`: one per Controller Device, the person holding that phone, seated
-   * (`Player.deviceId`) at its Controller; no bots.
+   * Where the Players come from. `'ends'` (default): one at the first Tile and one at the last, a
+   * bot in either slot when `bots`. `'tiles'`: one per Tile in Tile order, seated (`Player.deviceId`)
+   * at it, plus up to two bots when `bots`. `'controllers'`: one per Controller Device, the person
+   * holding that phone, seated at its Controller; no bots.
    */
-  seats?: 'ends' | 'controllers';
+  seats?: 'ends' | 'tiles' | 'controllers';
   /** Default 60; 0 = event-driven host, no tick. */
   tickHz?: number;
   /** Bundle entry paths; may be the same file. */
