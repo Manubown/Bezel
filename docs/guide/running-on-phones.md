@@ -5,23 +5,23 @@
 `pnpm dev` starts Vite on port 5173 with `host: true` (reachable from the LAN) and a self-signed certificate from `@vitejs/plugin-basic-ssl` (`apps/pwa/vite.config.ts`). HTTPS is required on phones for the screen wake lock and a secure context for WebRTC.
 
 - Open the `Network` address Vite prints (`https://<your-LAN-ip>:5173/`) on the Host phone. Each phone's browser warns about the self-signed certificate once; accept it.
-- Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE` (`apps/pwa/src/hud.ts:124-129`), so a `localhost` Host hands the other phones an address they cannot reach.
+- Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE`, plus `&turn` when the Host has it (`apps/pwa/src/hud.ts:127-129`), so a `localhost` Host hands the other phones an address they cannot reach.
 - Another port: `pnpm --filter @mgc/pwa dev --port 5181`.
 - Without a laptop: every push to `master` publishes the PWA to https://manubown.github.io/Bezel/ (`.github/workflows/pages.yml`), with a real certificate but only the Games on `master`. `BASE_PATH=/Bezel/ pnpm build` builds the same into `apps/pwa/dist` (README).
 
 ## Network
 
 - Put every phone on the same Wi-Fi, or on one phone's hotspot. The Match itself runs phone-to-phone over WebRTC.
-- Every phone also needs **internet**: signaling (how phones find each other) goes through public Nostr relays via Trystero (`packages/core/src/trystero-transport.ts:28-31`). The offline fallback (SDP by QR code) is planned for M5 (`docs/PLAN.md:80`) and not built.
+- Every phone also needs **internet**: signaling (how phones find each other) goes through public Nostr relays via Trystero (`packages/core/src/trystero-transport.ts:32-37`). The offline fallback (SDP by QR code) is planned for M5 (`docs/PLAN.md:86`) and not built.
 - The Session is a star: Peers talk only to the Host (ADR-0002). If the Host's page goes away, the Session ends; Peers show "Looking for the host".
 
 ## Join
 
-- A phone that opens the address **without** `?room=` becomes a Host with a new 4-letter code (letters and digits without 0, O, 1, I, L: `apps/pwa/src/main.ts:17-18`). A reloaded Host tab keeps its code, so its Peers find it again (`apps/pwa/src/main.ts:19-20`, `32-37`).
+- A phone that opens the address **without** `?room=` becomes a Host with a new 4-letter code (letters and digits without 0, O, 1, I, L: `apps/pwa/src/main.ts:18-19`). A reloaded Host tab keeps its code, so its Peers find it again (`apps/pwa/src/main.ts:20-21`, `41-46`).
 - **QR:** a Peer scans the Host's QR code and opens `…/?room=CODE`.
-- **Code:** a Peer opens the address (the Host's sheet shows it: "Scan to join, or open <address> and enter the code."), types the code into its own sheet's "Code" field and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:189-200`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:48`).
+- **Code:** a Peer opens the address (the Host's sheet shows it: "Scan to join, or open <address> and enter the code."), types the code into its own sheet's "Code" field and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:199-210`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:58`).
 
-A Peer's top strip says where it is (`apps/pwa/src/hud.ts:409-444`):
+A Peer's top strip says where it is (`apps/pwa/src/hud.ts:441-466`):
 
 | Strip | Meaning |
 |---|---|
@@ -34,16 +34,16 @@ A Peer's top strip says where it is (`apps/pwa/src/hud.ts:409-444`):
 
 ## The Host's sheet
 
-Top to bottom (`apps/pwa/src/hud.ts:132-166`):
+Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 
 | Control | What it does |
 |---|---|
-| bar: code · "N phones · Row" · Setup/Hide | folds the sheet; while a Match runs: "<Game> · playing/paused · N faults" and the newest game-log line |
+| bar: code · "N phones · Row" · Setup/Hide | folds the sheet. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:270-276`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused · N faults" with the newest game-log line under it |
 | QR code, address, "Code" field + Join | how Peers join; Join leaves this table for another one |
-| Game row | picks the Game "Start" starts; sorted by name, the first is picked until you pick another |
-| Arrangement: Row / Column / Grid | the template; the default is Row (`apps/pwa/src/lobby.ts:151`) |
-| Controllers: one chip per phone | pressed = Controller (held in hand, out of the Layout and the Tile order); press again to make it a Tile |
-| Players: P1, P2 | each slot's name (editable, up to 24 characters), where it sits ("phone 1"), and a **Bot** chip when the Game's manifest has `bots: true` |
+| Game row | picks the Game "Start" starts; sorted by name; the Host's last pick in this tab is picked again (`sessionStorage` `mgc.game`), else the first (`apps/pwa/src/hud.ts:211-214`). The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
+| Arrangement: Row / Column / Grid | the template; the default is Row (`apps/pwa/src/lobby.ts:159`) |
+| Controllers, or "Players’ phones" when the Game has `seats: 'controllers'` (`apps/pwa/src/hud.ts:291-294`): one chip per phone | pressed = Controller (held in hand, out of the Layout and the Tile order); press again to make it a Tile. Under "Players’ phones" each pressed phone is one Player's |
+| Players: P1, P2 (`seats: 'ends'`), or one row per Controller phone (`seats: 'controllers'`) | each Player's name (editable, up to 24 characters), where it sits ("phone 1", or "Controller"), and, with `'ends'`, a **Bot** chip when the Game's manifest has `bots: true` (`apps/pwa/src/hud.ts:318-337`) |
 | Start <Game> / End match | Start freezes the Match; End match stops it on every phone ("Match stopped") |
 | reason line | why Start was refused ([messages](troubleshooting.md#start-is-refused)), else "Last match: …" |
 | game log | the running (or last) Match's faults, `ctx.log` lines and close, newest first; the last 50 (`apps/pwa/src/gamelog.ts:10`) |
@@ -64,8 +64,8 @@ Phone 1 is always the "first phone". On every phone the lobby draws a millimetre
 ### Tile order, seats and bots
 
 - The Tile order starts as the join order, Host first. ◀ moves a Tile towards the first place, ▶ towards the last; both stop at the ends and are disabled while a Match runs.
-- P1 is whoever sits at the **first** Tile, P2 whoever sits at the **last** (`SLOTS = 2`, `apps/pwa/src/lobby.ts:9-10`). Middle Tiles seat nobody; Controllers are never seated. With one Tile, P2 can only be a bot ("no phone").
-- A **Bot** chip turns its slot into a bot the host game plays (`playerId: 'bot:0'` or `'bot:1'`). The lobby refuses Start with a bot if the Game does not support bots.
+- With `seats: 'ends'` (the default; [seats](concepts.md#seats-and-bots)), P1 is whoever sits at the **first** Tile, P2 whoever sits at the **last** (`SLOTS = 2`, `apps/pwa/src/lobby.ts:9-10`). Middle Tiles seat nobody; Controllers are never seated. With one Tile, P2 can only be a bot ("no phone"). With `seats: 'controllers'` (Quiz) every phone pressed under "Players’ phones" seats one Player, in roster order, and no Tile seats anyone (`apps/pwa/src/lobby.ts:333-342`).
+- A **Bot** chip (`seats: 'ends'` only) turns its slot into a bot the host game plays (`playerId: 'bot:0'` or `'bot:1'`). The lobby refuses Start with a bot if the Game does not support bots.
 - Names stay with the Player id, and a phone keeps its Player id across reloads (`apps/pwa/src/device.ts:59-71`).
 
 ## `pxPerMm` is a guess
@@ -83,8 +83,8 @@ A Tile's size in mm is its visible CSS size divided by this, so a 420 × 860 px 
 
 ## Screen size, rotation, iOS toolbars
 
-- Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:47`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:85-97`).
-- Rotate a phone, or let iOS Safari show or hide its toolbars, after that and its Tile no longer matches its screen. Hold the phone the way it will lie, then reload it.
+- Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:56`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:105-117`).
+- Load the page with the phone sideways, or let iOS Safari show or hide its toolbars after that, and its Tile no longer matches its screen. Hold the phone upright, then reload it.
 - A phone added to the home screen opens without browser toolbars (`display: fullscreen` in `apps/pwa/public/manifest.webmanifest`).
 
 ## Screen wake lock
@@ -104,7 +104,7 @@ The Host learns that a phone is gone only when the transport reports it, 10–13
 
 ## Installing as a PWA
 
-The web manifest asks for `display: fullscreen` and any orientation. On iOS, Share → "Add to Home Screen" installs it full-screen (README). There is no service worker, so the installed app still loads from the server it was installed from (the dev server, or the hosted build).
+The web manifest asks for `display: fullscreen` and `orientation: portrait`. On iOS, Share → "Add to Home Screen" installs it full-screen (README). There is no service worker, so the installed app still loads from the server it was installed from (the dev server, or the hosted build).
 
 ## The session log: what each phone records, and how to get it off the phone
 
@@ -147,4 +147,4 @@ Every push to `master` publishes the PWA to **https://manubown.github.io/Bezel/*
 
 ## Several tabs on one computer
 
-Each tab of one desktop browser gets its own Device id (a Web Lock per id; a reloaded tab takes its own back: `apps/pwa/src/device.ts:41-57`), so one computer can run a Host tab (`https://localhost:5173/`) and Peer tabs (`https://localhost:5173/?room=CODE`). Keep every tab visible, in separate windows: a hidden tab stops its view's `draw` (`packages/sdk/src/game-side.ts:416`), and a hidden Host tab gets no animation frames, so its host's `tick` stops. Desktop tabs use `pxPerMm` 3.78.
+Each tab of one desktop browser gets its own Device id (a Web Lock per id; a reloaded tab takes its own back: `apps/pwa/src/device.ts:41-57`), so one computer can run a Host tab (`https://localhost:5173/`) and Peer tabs (`https://localhost:5173/?room=CODE`). Keep every tab visible, in separate windows: a hidden tab stops its view's `draw` (`packages/sdk/src/game-side.ts:419`), and a hidden Host tab gets no animation frames, so its host's `tick` stops. Desktop tabs use `pxPerMm` 3.78.

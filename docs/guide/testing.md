@@ -111,19 +111,19 @@ for (const id of ['d0', 'd1']) expect(t.events(id).filter((e) => e.t === 'fault'
 
 ## Hand-building a `MatchInfo`
 
-Build it the way the lobby does (`apps/pwa/src/lobby.ts:235-260`), or the test proves something the app never runs:
+Build it the way the lobby does (`apps/pwa/src/lobby.ts:251-276`), or the test proves something the app never runs:
 
 | Field | The lobby's rule |
 |---|---|
 | `matchId` | any string |
 | `seed` | a 32-bit unsigned integer; fix it in a test |
 | `tickHz` | the manifest's `tickHz`, or 60 when it has none (`apps/pwa/src/lobby.ts:7-8`). Keep the two equal |
-| `players` | at most two: slot 0 the human at the first Tile (`deviceId` set) or the bot `{ playerId: 'bot:0', name: 'Bot', bot: true }`; slot 1 the same for the last Tile (`bot:1`) |
+| `players` | `seats: 'ends'` (the default): at most two, slot 0 the human at the first Tile (`deviceId` set) or the bot `{ playerId: 'bot:0', name: 'Bot', bot: true }`; slot 1 the same for the last Tile (`bot:1`). `seats: 'controllers'`: one human per Controller, `deviceId` that Controller's, in roster order, no bots ([seats](concepts.md#seats-and-bots)) |
 | `devices` | every Device, the Host first. A Tile: `{ deviceId, role: 'tile', name, tile, screenMm: { x: tile.w, y: tile.h } }`. A Controller: `{ deviceId, role: 'controller', name, screenMm }`, no `tile` |
 | `tiles` | the Tile Devices' `tile`s, in Tile order |
 | `bounds` | the axis-aligned box around every Tile |
 
-A test may go beyond what the lobby produces today (Players without a Tile, more than two Players, rotated Tiles). Say so in the test's name, so a reader knows it covers a Game rule and not a lobby case.
+A test may go beyond what the lobby produces today (Players seated nowhere, more than two Players under `seats: 'ends'`, rotated Tiles). Say so in the test's name, so a reader knows it covers a Game rule and not a lobby case.
 
 ### Controllers
 

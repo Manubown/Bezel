@@ -6,7 +6,7 @@ How the packages fit together and where a Match's data flows. The code is the so
 
 ```mermaid
 flowchart TB
-  subgraph apps/pwa
+  subgraph pwa["apps/pwa"]
     main[main.ts<br/>transport → Session → lobby → Match → lobby]
     hud[hud.ts · Host sheet, Peer strip]
     lobby[lobby.ts · Layout, roles, seats, Start]
@@ -24,14 +24,14 @@ flowchart TB
   games --> sdk
 ```
 
-Dependency rules, checked by each package's own tests:
+Dependency rules. The arrows are the only ones the `package.json` dependencies allow; every Game's test additionally scans its own sources and fails on any specifier but `@mgc/sdk`:
 
 | Package | May import | Never imports |
 |---|---|---|
 | `@mgc/core` | `trystero` | anything in the repo |
 | `@mgc/layout` | – | `core` (ADR-0005: the Layout is pure millimetre math) |
-| `@mgc/sdk` | `@mgc/layout` (re-exports `Surface`, `Vec2`, `Rect`) | `core`: the SDK never sees a transport |
-| `games/*` | `@mgc/sdk` | `core`, `layout`, `apps/pwa` (each Game's test pins this) |
+| `@mgc/sdk` | `@mgc/layout` (re-exports `Surface`, `Vec2`, `Rect`); `@mgc/core` in its tests only | `core` at runtime: the SDK never sees a transport |
+| `games/*` | `@mgc/sdk` | `core`, `layout`, `apps/pwa` (each Game's "imports nothing but the SDK" test) |
 | `apps/pwa` | all three packages, `games/*` via discovery | – |
 
 ## 2. One phone, from page load to a running Game (`apps/pwa/src/main.ts`)

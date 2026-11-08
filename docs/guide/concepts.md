@@ -34,12 +34,13 @@ Each factory is the init: its handlers run only after it returned, so async setu
 
 Where the Players come from is the Game's choice, `Manifest.seats`:
 
-- `'ends'` (default): the lobby seats at most **two** Players, slot 0 at the first Tile and slot 1 at the last Tile in Tile order (`SLOTS = 2`, `apps/pwa/src/lobby.ts`). Pong, Air Hockey, Tap Race, Snake, Breakout.
-- `'controllers'`: one Player per phone the Host marks as a Controller (the "Players' phones" chips), the person holding it, seated at that Controller (`Player.deviceId`); no bots. Quiz. The Game's host hands each Controller to the Player seated at it (`setHolder`).
+- `'ends'` (default): the lobby seats at most **two** Players, slot 0 at the first Tile and slot 1 at the last Tile in Tile order (`SLOTS = 2`, `apps/pwa/src/lobby.ts:9-10`). Pong, Air Hockey, Tap Race, Snake, Breakout.
+- `'tiles'`: one Player per phone on the table, in Tile order, seated at it; the Bot chip adds a bot after them when the manifest has `bots`. Tap Race, Breakout.
+- `'controllers'`: one Player per phone the Host marks as a Controller (the "Players' phones" chips), the person holding it, seated at that Controller (`Player.deviceId`); no bots (`apps/pwa/src/lobby.ts:333-342`). Quiz. The Game's host hands each Controller to the Player seated at it (`setHolder`).
 
 For `'ends'`:
 
-- `match.players` lists the slots' Players, Player 1 first. A human is `{ playerId, name, deviceId }`, seated at that Tile; a bot is `{ playerId: 'bot:<slot>', name: 'Bot', bot: true }` with no `deviceId` (`apps/pwa/src/lobby.ts:305-315`, `412-415`).
+- `match.players` lists the slots' Players, Player 1 first. A human is `{ playerId, name, deviceId }`, seated at that Tile; a bot is `{ playerId: 'bot:<slot>', name: 'Bot', bot: true }` with no `deviceId` (`apps/pwa/src/lobby.ts:320-331`, `440-443`).
 - Middle Tiles of a row of three or more seat nobody. Controllers are never seated. With one Tile, slot 1 can only be a bot.
 - Read who sits where from `Player.deviceId`, never from a Player's index, and map an `Input.deviceId` to its Player the same way (template: `games/_template/src/index.ts:51-52`).
 - A Manifest's `players` range counts bots, and the lobby never produces more than two Players, whatever the range says.
@@ -49,7 +50,7 @@ For `'ends'`:
 
 ## World, Tiles and the Surface
 
-The **World** is one coordinate space in millimetres shared by all Tiles (ADR-0005): x right, y down. Every `Tile` is a rectangle in it: `x, y` is where the screen's top-left corner lies, `w, h` its size, and `rot` turns the screen's own axes **clockwise, in radians, about that corner** (`packages/sdk/src/types.ts:14-18`, `packages/layout/src/types.ts:24-33`).
+The **World** is one coordinate space in millimetres shared by all Tiles (ADR-0005): x right, y down. Every `Tile` is a rectangle in it: `x, y` is where the screen's top-left corner lies, `w, h` its size, and `rot` turns the screen's own axes **clockwise, in radians, about that corner** (`packages/sdk/src/types.ts:14-18`, `packages/layout/src/types.ts:16-25`).
 
 - `match.tiles` is the Layout in Tile order (Layout order; the HUD numbers phones 1, 2, …). `match.bounds` is the axis-aligned box around every Tile.
 - The lobby's templates (row, column, grid) put a 4 mm gap between phones and always produce `rot: 0` (`packages/layout/src/templates.ts:4-5`, `16`, `27`, `54`). A rotated Tile exists today only in a hand-built `MatchInfo` in a test ([testing](testing.md#rotated-tiles)).
@@ -92,7 +93,7 @@ The host game runs the Match once, on the Host, and **publishes** state; views d
 - `ctx.publish(state, to?)` sends `state` to every view, or to Device `to` alone. One call is one frame on the wire: never coalesced, never rate-limited, so the Game owns the wire rate. Host upload ≈ (number of Peers) × state size × publish rate (ADR-0002); Pong's ~200 B at 60 Hz to 3 Peers is about 36 KB/s (`docs/sdk-design.md` §5).
 - State is plain JSON. `publish`, `send` and `end` throw a `TypeError` at the call site for anything else: `undefined`, `NaN`/`Infinity`, functions, `Map`/`Date`/class instances, cycles (`packages/sdk/src/json.ts`).
 - Each state is stamped with a host time: the step's `now` inside `tick`, else `ctx.now()`. A view reads it as `onState(state, t)`, `ctx.latest()`, or `Frame.state` / `Frame.t` in `draw`.
-- A view holds **one** latest state: a state published to it alone replaces the last broadcast one and the other way round (`packages/sdk/src/game-side.ts:289-291`).
+- A view holds **one** latest state: a state published to it alone replaces the last broadcast one and the other way round (`packages/sdk/src/game-side.ts:292-294`).
 - Before the first `publish` a view has no state (`Frame.state` is `undefined`) and most views draw nothing. Publish a first state in the host factory (`games/_template/src/index.ts:56-57`).
 - Extrapolation and prediction are the Game's. `Frame.now - Frame.t` is how old the state is; Pong moves the ball on by at most 100 ms of that (`games/pong/src/index.ts:35`, `284`). A view's `onInput` echoes this Device's own input as it leaves, for local prediction.
 - Randomness: seed it from `ctx.match.seed` (the same on every Device) so tests are deterministic. Pong's mulberry32 is at `games/pong/src/index.ts:72-82`.

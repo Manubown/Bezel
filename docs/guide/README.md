@@ -23,3 +23,6 @@ How to build, test, run and debug a Game for MobileGameConnect. The guide is ver
 | [`docs/sdk-design.md`](../sdk-design.md) | the SDK contract in full, with ordering and error rules |
 | [`games/_template/`](../../games/_template/) | the smallest complete Game; `pnpm new-game` copies it |
 | [`games/pong/`](../../games/pong/), [`games/pass/`](../../games/pass/) | reference Games: tick-driven Tiles with bots; a Controller with Holders, timers and a DOM view |
+| [`games/tap-race/`](../../games/tap-race/), [`games/snake/`](../../games/snake/), [`games/quiz/`](../../games/quiz/), [`games/air-hockey/`](../../games/air-hockey/), [`games/breakout/`](../../games/breakout/) | the five Games built from the template, each for one SDK path (the tutorial Game; rotated Tiles at 30 Hz; one Player per Controller with DOM views; 180° facing Tiles; a grid with large state); each has a `README.md` |
+| [`docs/architecture.md`](../architecture.md) | the platform around the SDK: packages, a phone's path from page load to a running Game, where a change goes |
+| [`CONTRIBUTING.md`](../../CONTRIBUTING.md) | checks, conventions, friction logs, the issue tracker, the `stable` channel |

@@ -1,6 +1,6 @@
 # Live test 1 (2026-11-07, hosted build) — what the phone logs say
 
-Status: ready-for-human (fixes 1–4 shipped 2026-11-08; 5 in progress; B1 open)
+Status: ready-for-human (fixes 1–5 shipped 2026-11-08, `97cbe3b` + `942ef63`; B1 `Manifest.seats: 'controllers'` in the tree awaiting a browser smoke; next live run answers §1)
 Logs: `docs/liveLogs/` (9 distinct files; the Host's were copied into two folders). Devices by log: Host `4c5a2d` iPhone 15 Pro Max (iOS 18.7, Safari 27.2); Peers `cd877e`/`fdd0e4` = the iPhone 12 (two tabs, 390×699 CSS px), `c49301` iPhone 14 (Safari 26.6.1), `291836` + `9d1921` iPhones (no log exported), `725754` + `68c03d` Android.
 
 ## 1. The connection dies 0.2 s after it opens; Trystero reports it 11 s later; repeat (the "trying but isn't" state)
@@ -51,6 +51,6 @@ Eleven 37-byte files containing only the log's filename: iOS passes `title` as a
 2. ✅ `recorder.ts`: no `title` on share; `ice` lines (connection/ICE state + selected candidate pair with types/mDNS/rtt) on join, every state change and leave.
 3. ✅ `device.ts`: `pageZoom()` corrects `pxPerMm` for Safari Page Zoom; `device` line logs `zoom`.
 4. ✅ `TrysteroTransport` takes `rtcConfig`/`turnConfig`; `?turn` on the Host adds Open Relay TURN and the QR carries the flag.
-5. Breakout per-Tile floors + touch-to-start, Snake survival on rows: `.scratch/{breakout,snake}/issues/02-live-test-fixes.md`. B1 (Quiz seating) still needs the decision.
+5. ✅ `942ef63`: Breakout per-Tile floors + touch-to-start, Snake survival on rows: `.scratch/{breakout,snake}/issues/02-live-test-fixes.md`. B1 (Quiz seating): `Manifest.seats: 'ends' | 'controllers'`, the lobby seats one Player per Controller for Quiz; unit tests green, browser smoke pending.
 
 **Next live run** answers §1: compare `ice` lines of connections that die at 11 s with ones that live (pair types, mDNS, whether the pair changed before `disconnected`), once with and once without `?turn`.

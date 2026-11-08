@@ -46,7 +46,7 @@ export interface Manifest {
   templates?: ('row' | 'column' | 'grid')[];
   minTileMm?: { w: number; h: number };
   bots?: boolean;
-  seats?: 'ends' | 'controllers';
+  seats?: 'ends' | 'tiles' | 'controllers';
   tickHz?: number;
   host: string;
   view: string;
@@ -63,6 +63,7 @@ export interface Range { min: number; max: number; }
 | `templates` | the arrangements the Game accepts; absent: any |
 | `minTileMm` | the smallest Tile the Game accepts |
 | `bots` | default `false`; `true`: the Host may make a Player slot a bot and the host game plays every `Player.bot` |
+| `seats` | default `'ends'`: the lobby seats at most two Players, at the first and the last Tile, a bot in either slot when `bots` allows. `'controllers'`: one Player per Controller phone, seated at it, no bots ([concepts](concepts.md#seats-and-bots)) |
 | `tickHz` | default 60; `0` = event-driven host, no `tick` |
 | `host`, `view` | bundle entry paths for M3; may be the same file. Unused while Games run in-process |
 
@@ -145,7 +146,7 @@ export interface ViewContext<S extends JsonValue, M extends JsonValue> {
 | `deviceId`, `role` | this Device and its role |
 | `tile`, `surface` | Tiles only: this Device's rectangle in world mm and its world ↔ px mapping (`surface.worldToPx` places DOM elements over world points) |
 | `screenMm` | this Device's own screen, mm; a Controller's input and `draw` use it (origin top-left) |
-| `pxPerMm` | CSS px per mm on this Device, for DOM sized in mm (CSS `mm` units are not physical on phones; `apps/pwa/src/device.ts:73-83`) |
+| `pxPerMm` | CSS px per mm on this Device, for DOM sized in mm (CSS `mm` units are not physical on phones): the user-agent guess times the page's zoom (`apps/pwa/src/device.ts:73-83`, `115`) |
 | `dpr` | the device pixel ratio, read live |
 | `root` | an SDK-owned element (`position:absolute; inset:0`) the view may fill; `mount` gets the same element |
 | `now()` | shared clock, ms |
@@ -295,11 +296,11 @@ export class Surface {
 | `worldAabb()` | the axis-aligned world box the screen covers (exact when `rot` is 0) |
 | `applyTo(ctx, dpr)` | sets the context's transform so drawing is in world mm; the SDK does this before every `draw` |
 
-`DeviceRect` is not exported by `@mgc/sdk`; pass an object literal (`packages/layout/src/surface.ts`, `packages/layout/src/types.ts:24-33`).
+`DeviceRect` is not exported by `@mgc/sdk`; pass an object literal (`packages/layout/src/surface.ts`, `packages/layout/src/types.ts:16-25`).
 
 ## Platform-facing
 
-`apps/pwa` runs a Match with these (`apps/pwa/src/main.ts:88-129`). A Game does not import them; they are listed so the seam is complete.
+`apps/pwa` runs a Match with these (`apps/pwa/src/main.ts:141-182`). A Game does not import them; they are listed so the seam is complete.
 
 ### `runMatch`
 

@@ -20,7 +20,7 @@ The workspace is `apps/*`, `packages/*`, `games/*` (`pnpm-workspace.yaml`). CI (
 
 ## Where things go
 
-Read [`docs/architecture.md`](docs/architecture.md) §5 "Where a change goes" first. The dependency rules there are tested: a Game imports `@mgc/sdk` only; `@mgc/sdk` imports `@mgc/layout` only; `@mgc/layout` imports nothing from the repo.
+Read [`docs/architecture.md`](docs/architecture.md) §1 for the dependency rules (a Game imports `@mgc/sdk` only, and its test fails on anything else; `@mgc/sdk` depends on `@mgc/layout` only; `@mgc/layout` on nothing) and §5 for where each kind of change goes.
 
 ### Adding a Game
 
@@ -32,7 +32,7 @@ pnpm vitest run games/<slug>
 
 - Ids are `mgc.<slug>`, package names `@mgc/<slug>`. The PWA discovers `games/*/src/index.ts` by glob; register nothing.
 - Keep the template's test shape: rules over `createTestMatch`, and the imports-only test that pins `@mgc/sdk` as the sole dependency.
-- Give the Game a `README.md` in its folder saying what SDK path it exercises; the seven existing Games do.
+- Give the Game a `README.md` in its folder saying what SDK path it exercises and what it taught; the five Games built on the template do.
 - While building, keep a friction log at `.scratch/<slug>/friction.md`: one entry per SDK, platform, doc or tooling problem, with the file:line, what you expected, what happened, the workaround. Friction logs are where SDK fixes come from (`.scratch/sdk-friction-1/spec.md` is the consolidation of the first five).
 
 ### Changing the SDK
@@ -45,7 +45,7 @@ Anything a Game can see is a contract: `packages/sdk/src/{types,game,wire}.ts`. 
 
 ## Docs
 
-- `docs/guide/` is the developer-facing documentation and is versioned with the code. Where a page cites a file as `path:line`, the citation is a claim about that line: when you move code, fix the citation; when you change behaviour, fix the sentence. Ticket `.scratch/dev-onboarding/issues/02` describes the script that verifies every citation resolves.
+- `docs/guide/` is the developer-facing documentation and is versioned with the code. Where a page cites a file as `path:line`, the citation is a claim about that line: when you move code, fix the citation; when you change behaviour, fix the sentence. `.scratch/dev-onboarding/issues/02-developer-guide.md` describes the script that verifies every citation resolves.
 - Use the terms in `GLOSSARY.md` exactly (Session, Device, Host, Peer, Tile, Layout, Surface, World, Game, Match, Player, Controller, Holder, Input) and avoid the synonyms it lists.
 - A decision that constrains future work gets an ADR in `docs/adr/NNNN-<slug>.md`; contradicting an existing ADR is a conversation, not a silent override (`docs/agents/domain.md`).
 

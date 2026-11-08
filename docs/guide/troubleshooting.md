@@ -1,6 +1,6 @@
 # Troubleshooting
 
-One entry per symptom: what you see, why, what to do. Where a Game says something, look in two places: the Host's sheet ("game log": faults, `ctx.log` lines, refusals and closes) and the browser console of the phone it happened on (`<Game>: fault in host.tick: …` with the stack, `<Game> host: …` for logs; `apps/pwa/src/main.ts:95-100`). In a test, the same lines are `t.events(deviceId)`.
+One entry per symptom: what you see, why, what to do. Where a Game says something, look in two places: the Host's sheet ("game log": faults, `ctx.log` lines, refusals and closes) and the browser console of the phone it happened on (`<Game>: fault in host.tick: …` with the stack, `<Game> host: …` for logs; `apps/pwa/src/main.ts:150-151`). In a test, the same lines are `t.events(deviceId)`.
 
 ## Setup
 
@@ -13,7 +13,7 @@ One entry per symptom: what you see, why, what to do. Where a Game says somethin
 
 - **Symptom:** `pnpm install` stops with a frozen-lockfile error ("specifiers in the lockfile … don't match").
 - **Cause:** the new `games/<slug>/package.json` adds a workspace package, so `pnpm-lock.yaml` must change, and pnpm will not change it when the `CI` environment variable is set (seen in `.scratch/dev-onboarding/issues/01-template-discovery-typecheck.md:31`).
-- **Fix:** `pnpm install --no-frozen-lockfile`, and commit the updated `pnpm-lock.yaml`: CI installs with `--frozen-lockfile` (`.github/workflows/pages.yml:29`).
+- **Fix:** `pnpm install --no-frozen-lockfile`, and commit the updated `pnpm-lock.yaml`: CI installs with `--frozen-lockfile` (`.github/workflows/pages.yml:37`).
 
 ### My Game is not in the Host's Game row
 
@@ -37,9 +37,9 @@ The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `game
 
 | Cause | Fix |
 |---|---|
-| a phone has no internet: signaling goes through public Nostr relays (`packages/core/src/trystero-transport.ts:28-31`) | give every phone internet; there is no offline mode yet (M5, `docs/PLAN.md:80`) |
+| a phone has no internet: signaling goes through public Nostr relays (`packages/core/src/trystero-transport.ts:32-37`) | give every phone internet; there is no offline mode yet (M5, `docs/PLAN.md:86`) |
 | the phones are on different networks | put them on one Wi-Fi or one phone's hotspot (README) |
-| the Host page was opened as `localhost`, so its QR code points at `localhost` (`apps/pwa/src/hud.ts:124-129`) | open the Host page at the `Network` address Vite prints |
+| the Host page was opened as `localhost`, so its QR code points at `localhost` (`apps/pwa/src/hud.ts:127-129`) | open the Host page at the `Network` address Vite prints |
 | the Peer opened the address without `?room=`, so it became a Host of its own table | type the Host's code into its "Code" field, or open `/?room=CODE` |
 | the Host's page is closed, hidden or asleep: the Session lives on the Host (ADR-0002) | keep the Host's screen on and the page open |
 
@@ -48,13 +48,13 @@ The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `game
 | Cause | Fix |
 |---|---|
 | it joined after Start: no joins mid-Match ("Match in progress · you join the next one") | wait for the next Match |
-| its build does not have that Game: the console says `This phone has no Game <id>: it sits Match <id> out` (`apps/pwa/src/main.ts:72-75`). A phone on the hosted build can join a dev-server table's code | open every phone on the same server |
+| its build does not have that Game: the console says `This phone has no Game <id>: it sits Match <id> out` (`apps/pwa/src/main.ts:125-129`). A phone on the hosted build can join a dev-server table's code | open every phone on the same server |
 
 ## Starting
 
 ### Start is refused
 
-The reason shows under the Start button. The lobby checks in this order (`apps/pwa/src/lobby.ts:339-364`):
+The reason shows under the Start button. The lobby checks in this order (`apps/pwa/src/lobby.ts:366-391`):
 
 | Message | Cause | Fix |
 |---|---|---|
@@ -65,8 +65,8 @@ The reason shows under the Start button. The lobby checks in this order (`apps/p
 | `Phone 2 is 61.3 × 120 mm; <Game> needs Tiles of at least 65 × 120 mm` | `manifest.minTileMm`; sizes come from the `pxPerMm` guess | use a bigger phone, or lower `minTileMm` |
 | `Phone 2 is still joining` | a phone has not synced its clock or said who sits there yet | wait for its sync dot in the roster |
 | `Two Players have the same id` | two phones reported one Player id; each phone's Player id is stored in its browser (`apps/pwa/src/device.ts:59-71`) | clear the site data on one of them, so it gets new ids |
-| `<Game> needs 2 Players; 1 seated` | `manifest.players` counts the slots' Players: only the first and the last Tile seat anyone, and an empty slot counts for nobody | add a phone at the end, or press a Bot chip (if the Game has bots) |
-| `A Match is already running` (`apps/pwa/src/lobby.ts:236`) | | End match first |
+| `<Game> needs 2 Players; 1 seated` | `manifest.players` counts the seated Players, bots included: with `seats: 'ends'` only the first and the last Tile seat anyone and an empty slot counts for nobody; with `seats: 'controllers'` each Controller phone that has said who holds it seats one ([seats](concepts.md#seats-and-bots)) | `'ends'`: add a phone at the end, or press a Bot chip (if the Game has bots); `'controllers'`: press another phone's chip under "Players’ phones" |
+| `A Match is already running` (`apps/pwa/src/lobby.ts:252`) | | End match first |
 
 Numbers in the table are examples; the message names the Game and the real counts.
 
@@ -133,20 +133,20 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 
 | Cause | Fix |
 |---|---|
-| the phone is a Tile that seats nobody: only the first and the last Tile seat a Player (`apps/pwa/src/lobby.ts:9-10`), so a lookup by `Player.deviceId` finds no one (the template ignores it: `games/_template/src/index.ts:63-64`) | decide what a middle Tile's touch means in your Game; it still arrives with its `deviceId` |
+| the phone is a Tile that seats nobody: with `seats: 'ends'` only the first and the last Tile seat a Player (`apps/pwa/src/lobby.ts:9-10`), with `seats: 'controllers'` no Tile does ([seats](concepts.md#seats-and-bots)), so a lookup by `Player.deviceId` finds no one (the template ignores it: `games/_template/src/index.ts:63-64`) | decide what an unseated Tile's touch means in your Game; it still arrives with its `deviceId` |
 | the phone is a Controller nobody holds: its input carries no `playerId` | `setHolder` it to a Player first |
 | the Match is paused, or the finger was down across a pause | see above |
 | the view set `input: 'off'`: the SDK captures no pointers on it, so only the view's own listeners see touches | keep the default (`'coalesced'`) for a canvas view; a DOM view that sets `'off'` sends what it needs with `send` |
 
 ### Nothing animates on a phone in the background, or the whole Match freezes when the Host's screen is hidden
 
-- **Cause:** `draw` runs only while the page is visible (`packages/sdk/src/game-side.ts:416`). The host's `tick` runs on the Host tab's animation frames, which a hidden tab does not get; when it is back, at most 5 steps are caught up and the rest is dropped (`packages/sdk/src/match.ts:78`, `342-357`).
+- **Cause:** `draw` runs only while the page is visible (`packages/sdk/src/game-side.ts:419`). The host's `tick` runs on the Host tab's animation frames, which a hidden tab does not get; when it is back, at most 5 steps are caught up and the rest is dropped (`packages/sdk/src/match.ts:78`, `342-357`).
 - **Fix:** keep game logic in the host and out of `draw`; keep the Host's screen on. On a computer, put each tab in its own visible window.
 
 ### Objects are different sizes on different phones, or do not line up across a bezel
 
-- **Cause:** each phone's px per mm is a guess from its user agent (`apps/pwa/src/device.ts:73-83`); a phone whose real density differs draws everything too large or too small. A phone rotated, or whose iOS toolbar appeared, after its page loaded keeps the size it measured then.
-- **Fix:** none in a Game (it sees only mm). Check the lobby's millimetre grid across the phones; reload a phone after turning it ([running on phones](running-on-phones.md#pxpermm-is-a-guess)).
+- **Cause:** each phone's px per mm is a guess from its user agent (`apps/pwa/src/device.ts:73-83`); a phone whose real density differs draws everything too large or too small. A phone whose page loaded while it was sideways, or whose iOS toolbar appeared after its page loaded, keeps the size it measured then.
+- **Fix:** none in a Game (it sees only mm). Check the lobby's millimetre grid across the phones; reload a phone while holding it upright ([running on phones](running-on-phones.md#pxpermm-is-a-guess)).
 
 ### Every phone reloads and the Match is gone when someone saves a file
 
@@ -225,7 +225,7 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 ### A middle phone, or a phone in a grid's top row, does nothing for anyone
 
 - **Cause:** with `seats: 'ends'` (the default) the lobby seats two Players, at the first and the last Tile in Tile order (`apps/pwa/src/lobby.ts`); every other Tile seats nobody, and in a row-major grid the first Tile is always top-left.
-- **Fix:** today, treat unseated Tiles as field (Breakout) or spawn nothing there (Tap Race), and let the Host reorder phones with ◀ ▶. A per-Tile seating rule is on the backlog (`.scratch/sdk-friction-1/spec.md` B1); a per-Controller one exists (`seats: 'controllers'`).
+- **Fix:** today, treat unseated Tiles as field (Breakout) or spawn nothing there (Tap Race), and let the Host reorder phones with ◀ ▶. A Game that wants a Player at every phone declares `seats: 'tiles'` (Tap Race, Breakout do); `seats: 'controllers'` seats the Controller phones (Quiz).
 
 ### Quiz has one Player although three phones are Controllers
 
@@ -257,7 +257,7 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 - **Cause:** every published number is a 17-digit double, and every frame carries ~235 B of transport envelope on top of the state (measured by Breakout and Snake). Half of a typical state is digits.
 - **Fix:** round world mm to 0.1 before publishing (`Math.round(x * 10) / 10`): −43 % on Breakout's state. Budget: Host upload ≈ (N − 1) × tickHz × (state + 235 B); Pong is ~36 KB/s with 3 Peers.
 
-### The Host's screen is covered at the bottom during a Match
+### A tap in the bottom-right corner of the Host's Tile opens the Host's sheet
 
-- **Cause:** the Host's folded HUD bar sits over the bottom 15–21 mm of its Tile during play and takes taps there (`apps/pwa/src/hud.ts:263-289`). Peers have no bar.
-- **Fix:** keep targets and controls out of the bottom ~20 mm of a Tile until the bar is moved (backlog B3).
+- **Cause:** while a Match runs, the Host's folded sheet is a small "Setup" pill 8 px in from the bottom-right corner of its screen, over its Tile (`apps/pwa/src/hud.ts:270-276`, `apps/pwa/index.html:42-44`). A tap on it opens the sheet over the Game (`apps/pwa/src/hud.ts:191-197`); the Game never sees that tap. Peers have no pill.
+- **Fix:** keep small targets and controls out of the Host Tile's bottom-right corner; tap "Hide" to fold the sheet back to the pill.

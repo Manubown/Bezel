@@ -77,13 +77,13 @@ A Game is ~100 lines: a manifest (how many Tiles, Controllers, Players), a host 
 
 ```mermaid
 flowchart LR
-  subgraph Host phone
-    HS[Session · clock · roster] --> L[Lobby: Layout, roles, seats]
+  subgraph host["Host phone"]
+    HS[Session · clock · roster] --> L["Lobby: Layout, roles, seats"]
     L -->|Start freezes MatchInfo| M[Match runtime]
     M --> GH[game.host]
     M --> GV0[game.view]
   end
-  subgraph Peer phone
+  subgraph peer["Peer phone"]
     PS[Session · clock offset] --> PM[Match runtime] --> GV1[game.view]
   end
   HS <-->|WebRTC data channel| PS
