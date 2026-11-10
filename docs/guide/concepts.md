@@ -95,7 +95,7 @@ The host game runs the Match once, on the Host, and **publishes** state; views d
 - Each state is stamped with a host time: the step's `now` inside `tick`, else `ctx.now()`. A view reads it as `onState(state, t)`, `ctx.latest()`, or `Frame.state` / `Frame.t` in `draw`.
 - A view holds **one** latest state: a state published to it alone replaces the last broadcast one and the other way round (`packages/sdk/src/game-side.ts:292-294`).
 - Before the first `publish` a view has no state (`Frame.state` is `undefined`) and most views draw nothing. Publish a first state in the host factory (`games/_template/src/index.ts:56-57`).
-- Extrapolation and prediction are the Game's. `Frame.now - Frame.t` is how old the state is; Pong moves the ball on by at most 100 ms of that (`games/pong/src/index.ts:35`, `284`). A view's `onInput` echoes this Device's own input as it leaves, for local prediction.
+- Extrapolation and prediction are the Game's. `Frame.now - Frame.t` is how old the state is. States arrive over a reliable, ordered channel, so one lost packet delays every state behind it: a view that draws the last state as it is shows a frozen picture for that long, then a jump. Pong moves the ball on along its path by up to a second of that age, bouncing it off the table's edges and off a paddle that covers it where it reaches the paddle's face (`games/pong/src/index.ts:35`, `284-288`), so a stall does not hide the ball on a Tile it crosses. A view's `onInput` echoes this Device's own input as it leaves, for local prediction.
 - Randomness: seed it from `ctx.match.seed` (the same on every Device) so tests are deterministic. Pong's mulberry32 is at `games/pong/src/index.ts:72-82`.
 
 ### Ticking or event-driven

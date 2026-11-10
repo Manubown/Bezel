@@ -12,14 +12,14 @@
 ## Network
 
 - Put every phone on the same Wi-Fi, or on one phone's hotspot. The Match itself runs phone-to-phone over WebRTC.
-- Every phone also needs **internet**: signaling (how phones find each other) goes through public Nostr relays via Trystero (`packages/core/src/trystero-transport.ts:32-37`). The offline fallback (SDP by QR code) is planned for M5 (`docs/PLAN.md:86`) and not built.
+- Every phone also needs **internet**: signaling (how phones find each other) goes through public Nostr relays via Trystero (`packages/core/src/trystero-transport.ts:138-140`). The offline fallback (SDP by QR code) is planned for M5 (`docs/PLAN.md:88`) and not built.
 - The Session is a star: Peers talk only to the Host (ADR-0002). If the Host's page goes away, the Session is gone until the Host is back under the same code; Peers show "Reconnecting to the host…" and look for it again by themselves.
 
 ## Join
 
-- A phone that opens the address **without** `?room=` becomes a Host with a new 4-letter code (letters and digits without 0, O, 1, I, L: `apps/pwa/src/main.ts:19-20`). A reloaded Host tab keeps its code, so its Peers find it again (`apps/pwa/src/main.ts:21-22`, `42-47`), and its lobby: arrangement, Tile order, Controllers, Game and bots come back as the phones do; the running Match does not ([the host phone reloaded](troubleshooting.md#the-host-phone-reloaded)).
+- A phone that opens the address **without** `?room=` becomes a Host with a new 4-letter code (letters and digits without 0, O, 1, I, L: `apps/pwa/src/main.ts:20-21`). A reloaded Host tab keeps its code, so its Peers find it again (`apps/pwa/src/main.ts:22-23`, `41-46`), and its lobby: arrangement, Tile order, Controllers, Game and bots come back as the phones do; the running Match does not ([the host phone reloaded](troubleshooting.md#the-host-phone-reloaded)).
 - **QR:** a Peer scans the Host's QR code and opens `…/?room=CODE`.
-- **Code:** a Peer opens the address (the Host's sheet shows it: "Scan to join, or open <address> and enter the code."), types the code into its own sheet's "Code" field and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:199-210`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:59`).
+- **Code:** a Peer opens the address (the Host's sheet shows it: "Scan to join, or open <address> and enter the code."), types the code into its own sheet's "Code" field and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:199-210`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:58`).
 
 A Peer's top strip says where it is (`apps/pwa/src/hud.ts:443-481`):
 
@@ -84,13 +84,13 @@ A Tile's size in mm is its visible CSS size divided by this, so a 420 × 860 px 
 
 ## Screen size, rotation, iOS toolbars
 
-- Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:57`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:105-117`).
+- Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:56`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:105-117`).
 - Load the page with the phone sideways, or let iOS Safari show or hide its toolbars after that, and its Tile no longer matches its screen. Hold the phone upright, then reload it.
 - A phone added to the home screen opens without browser toolbars (`display: fullscreen` in `apps/pwa/public/manifest.webmanifest`).
 
 ## Screen wake lock
 
-Every phone asks for a screen wake lock on its first tap or key press on the page (the join field, the Host's sheet, the lobby, the Game), asks again when the page is visible again (the system drops the lock while it is hidden), and on the next tap if a request was refused; it holds the lock for as long as the page is open, lobby and Match alike (`apps/pwa/src/wake.ts:9-56`, `apps/pwa/src/main.ts:80-81`). The request needs that one tap: a phone nobody has touched since its page loaded follows its own auto-lock, and can sleep, drop out, and pause the Match. Tap every phone once after it joins. Browsers without the Screen Wake Lock API just keep their auto-lock. The `tick` log line says whether the lock is held (`wake`).
+Every phone asks for a screen wake lock on its first tap or key press on the page (the join field, the Host's sheet, the lobby, the Game), asks again when the page is visible again (the system drops the lock while it is hidden), and on the next tap if a request was refused; it holds the lock for as long as the page is open, lobby and Match alike (`apps/pwa/src/wake.ts:9-56`, `apps/pwa/src/main.ts:83-84`). The request needs that one tap: a phone nobody has touched since its page loaded follows its own auto-lock, and can sleep, drop out, and pause the Match. Tap every phone once after it joins. Browsers without the Screen Wake Lock API just keep their auto-lock. The `tick` log line says whether the lock is held (`wake`).
 
 ## Losing a phone
 
@@ -117,9 +117,9 @@ Every page keeps a log of what it saw (`apps/pwa/src/recorder.ts`), in IndexedDB
 
 | `k` | When | Fields |
 |---|---|---|
-| `device` | page load | `ua`, `platform`, `pxPerMm`, `viewport`, `screen`, `dpr`, `touchPoints`, `cores`, `standalone`, `url` |
+| `device` | page load | `ua`, `platform`, `pxPerMm`, `viewport`, `screen`, `dpr`, `touchPoints`, `cores`, `standalone`, `url`, `turn` (this page has TURN servers), `turnProblem` (the build's TURN setting is unusable, and why) |
 | `viewport` | load, and every resize / toolbar change | `width`, `height`, `inner`, `dpr` |
-| `tick` | once a second | `fps` (this page's animation frames), `hidden`, `wake` (a screen wake lock is held), `peers` (WebRTC connections this page holds: on the Host one per Peer; on a Peer above 1 means Trystero's Peer↔Peer mesh); `tx` / `rx`: frames `n` and bytes `b` sent / received since the last tick, per channel (`msg` carries Match frames and the lobby, `clk` clock pings, `clkrep` clock reports, `roster`, `hello`, `info`) |
+| `tick` | once a second | `fps` (this page's animation frames), `hidden`, `wake` (a screen wake lock is held), `peers` (WebRTC connections this page holds: on the Host one per Peer; on a Peer above 1 means Trystero's Peer↔Peer mesh); `tx` / `rx`: frames `n` and bytes `b` sent / received since the last tick, per channel (`msg` carries Match frames and the lobby, `clk` clock pings, `clkrep` clock reports, `roster`, `hello`, `info`); on a Peer in a Match, `state`: the Host's state frames that arrived this second: `n`, `gap` (the longest time between two consecutive ones, ms; a silence of several seconds is on the line of the second that ends it), `ageMin` / `ageAvg` / `ageMax` (shared time at arrival minus the time the Host published it, ms) |
 | `peer-join`, `peer-leave` | the transport sees a connection come or go | `peer` (transport id), `peers` left, `afterMs` connected |
 | `roster` | status, presence or any Device's sync changed | `status`, `roster[]` with `deviceId`, `name`, `present`, `synced`, `rtt`, `offset` |
 | `link` | a Device's connection changed, as this page's roster says: `ok`, `weak` (2.5 s silent), `lost` (5 s, or the connection closed); one line for each Device's first entry | `deviceId`, `link` |
@@ -130,12 +130,15 @@ Every page keeps a log of what it saw (`apps/pwa/src/recorder.ts`), in IndexedDB
 | `visibility` | the page went to the background or came back | `hidden` |
 | `error` | an uncaught error or rejection on the page | `message`, `stack` |
 | `ice` | a peer connection joined, changed connection/ICE state, or left | `peer`, `event`, `connection`, `ice`, `gathering`, `signaling`, `pair` (selected candidate pair: `local`/`remote` `type` host/srflx/prflx/relay, `proto`, `mdns`, `v6`; `rtt`, bytes) |
+| `relay` | this Peer's transport went relay-only, or back to every path | `relayOnly`, `failures` (connection attempts in a row that did not last, before it went relay-only) |
 
-Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Peer's sync; `select(.k=="tick") | .fps` the frame rate; `select(.k=="tick") | .peers` on a Peer shows whether it holds connections to other Peers besides the Host (the mesh); `select(.k=="link")` lists every `weak`/`lost` stretch; the gap between a `peer-leave` and the `device-lost` that follows is the leave-detection latency; `match:paused`/`match:resumed` and `match:fault` carry their reasons. Faults with stacks and every `ctx.log` line are in there even after the HUD's 50-line log has rolled over.
+Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Peer's sync; `select(.k=="tick") | .fps` the frame rate; `select(.k=="tick") | .peers` on a Peer shows whether it holds connections to other Peers besides the Host (the mesh); `select(.k=="link")` lists every `weak`/`lost` stretch; the gap between a `peer-leave` and the `device-lost` that follows is the leave-detection latency; `match:paused`/`match:resumed` and `match:fault` carry their reasons. `select(.k=="tick" and .state) | [.t, .state.n, .state.gap, .state.ageMax]` on a Peer shows how the Host's states arrived: at 60 states a second a `gap` near 17 ms is an even stream, a `gap` of hundreds of ms a delivery stall (the view had nothing new to draw for that long), and `ageMax` how stale the oldest one was; a pause shows as one large `gap` at the resume. Faults with stacks and every `ctx.log` line are in there even after the HUD's 50-line log has rolled over.
 
 ## Connectivity flags
 
-- A TURN relay is in the ICE servers by default (Open Relay's public servers, `apps/pwa/src/main.ts` `TURN_SERVERS`): ICE still prefers a direct pair, the relay is the fallback for networks where the direct path dies (live tests 1–3: iPhones on a Personal Hotspot looped on a connect/drop cycle without it; connected first time with it). `?noturn` on the Host's address leaves it out, for comparison; the QR carries the flag so every Peer does the same. The `device` log line records `turn`.
+- **The TURN relay.** A build carries the TURN servers of an account its maintainer owns, as the build-time setting `VITE_MGC_TURN_SERVERS` (a JSON array of ICE servers; `apps/pwa/src/turn.ts`). `pnpm setup-turn` (run it from Git Bash on Windows) walks you through a free Metered account, writes the setting to `apps/pwa/.env.local` for the dev server and local builds, and sets the repository secret `MGC_TURN_SERVERS` the hosted build reads (`.github/workflows/pages.yml`). The servers are readable in the published JavaScript; the wizard says how to revoke them. A build without the setting has no relay: phones connect directly or not at all, and the `device` log line says `turn: false` (with `turnProblem` when the setting is there and unusable).
+- **When a phone uses it.** ICE prefers a direct pair, so on a network that works the relay carries nothing. A Peer whose connection to the Host died three times in a row without lasting 15 s stops trying the direct path and joins through the relay only (`RELAY_AFTER` in `apps/pwa/src/main.ts`; the policy is `packages/core/src/relay-escalation.ts`); its log gets a `relay` line and its `ice` lines show a `relay` pair. If the relay does not connect within 20 s the phone goes back to trying every path. A relayed connection costs latency (the packets leave the table and come back) and counts against the account's quota.
+- `?noturn` on the Host's address leaves the relay out, for comparison runs; the QR carries the flag so every Peer does the same.
 - Phones are measured upright: the manifest asks for portrait (locked when installed), and a browser tab turned sideways shows "Turn your phone upright" until turned back.
 - Safari Page Zoom is corrected for (`device.ts` `pageZoom`): 75 % zoom no longer makes a phone's Tile a third too large.
 

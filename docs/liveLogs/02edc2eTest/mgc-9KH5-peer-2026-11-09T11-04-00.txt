@@ -1,0 +1,352 @@
+{"t":30222,"w":1794222240558,"k":"export","deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","role":"peer","code":"9KH5","lines":351,"since":1794221816363}
+{"t":1446,"w":1794221816363,"k":"device","ua":"Mozilla/5.0 (Android 15; Mobile; rv:159.0) Gecko/159.0 Firefox/159.0","platform":"Linux armv81","pxPerMm":6.3,"zoom":1,"viewport":{"w":346.79998779296875,"h":659.0333251953125},"screen":{"w":347,"h":765},"dpr":3.5294117647058822,"touchPoints":5,"cores":8,"standalone":false,"url":"https://manubown.github.io/Bezel/?room=KK9T","turn":true}
+{"t":1446,"w":1794221816363,"k":"viewport","width":346.79998779296875,"height":659.0333251953125,"inner":{"width":347,"height":659},"dpr":3.5294117647058822}
+{"t":2450,"w":1794221817367,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":3451,"w":1794221818368,"k":"tick","fps":57,"hidden":false,"wake":false,"peers":0}
+{"t":4452,"w":1794221819369,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":5453,"w":1794221820369,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":6453,"w":1794221821370,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":7453,"w":1794221822371,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":8454,"w":1794221823370,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":9456,"w":1794221824372,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":10455,"w":1794221825372,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":11456,"w":1794221826372,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":12457,"w":1794221827373,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":13457,"w":1794221828373,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":14457,"w":1794221829374,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":15457,"w":1794221830373,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":16458,"w":1794221831374,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":17457,"w":1794221832375,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":18460,"w":1794221833376,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":19460,"w":1794221834376,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":20461,"w":1794221835377,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":21460,"w":1794221836377,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":251,"w":1794221838096,"k":"device","ua":"Mozilla/5.0 (Android 15; Mobile; rv:159.0) Gecko/159.0 Firefox/159.0","platform":"Linux armv81","pxPerMm":6.3,"zoom":1,"viewport":{"w":346.79998779296875,"h":659.0333251953125},"screen":{"w":347,"h":765},"dpr":3.5294117647058822,"touchPoints":5,"cores":8,"standalone":false,"url":"https://manubown.github.io/Bezel/?room=KK9T","turn":true}
+{"t":251,"w":1794221838097,"k":"viewport","width":346.79998779296875,"height":659.0333251953125,"inner":{"width":347,"height":659},"dpr":3.5294117647058822}
+{"t":1254,"w":1794221839099,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":2254,"w":1794221840100,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":3254,"w":1794221841099,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":4254,"w":1794221842100,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":5255,"w":1794221843101,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":6256,"w":1794221844101,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":7257,"w":1794221845102,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":8257,"w":1794221846102,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":9258,"w":1794221847104,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":10259,"w":1794221848104,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":11264,"w":1794221849109,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":12263,"w":1794221850108,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":13265,"w":1794221851110,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":14264,"w":1794221852110,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":15265,"w":1794221853110,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":16266,"w":1794221854112,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":17267,"w":1794221855112,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":18270,"w":1794221856115,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":19269,"w":1794221857114,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":20268,"w":1794221858114,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":21270,"w":1794221859115,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":22271,"w":1794221860115,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":23270,"w":1794221861116,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":24271,"w":1794221862116,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":25271,"w":1794221863117,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":26272,"w":1794221864118,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":27273,"w":1794221865119,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":28275,"w":1794221866120,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":183,"w":1794221867467,"k":"device","ua":"Mozilla/5.0 (Android 15; Mobile; rv:159.0) Gecko/159.0 Firefox/159.0","platform":"Linux armv81","pxPerMm":6.3,"zoom":1,"viewport":{"w":346.79998779296875,"h":659.0333251953125},"screen":{"w":347,"h":765},"dpr":3.5294117647058822,"touchPoints":5,"cores":8,"standalone":false,"url":"https://manubown.github.io/Bezel/?room=KK9T","turn":true}
+{"t":183,"w":1794221867467,"k":"viewport","width":346.79998779296875,"height":659.0333251953125,"inner":{"width":347,"height":659},"dpr":3.5294117647058822}
+{"t":1186,"w":1794221868470,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":2186,"w":1794221869470,"k":"tick","fps":57,"hidden":false,"wake":false,"peers":0}
+{"t":3186,"w":1794221870470,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":4186,"w":1794221871471,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":5187,"w":1794221872471,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":6187,"w":1794221873471,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":7188,"w":1794221874472,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":8189,"w":1794221875473,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":9190,"w":1794221876475,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":10191,"w":1794221877475,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":11192,"w":1794221878475,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":12192,"w":1794221879476,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":13193,"w":1794221880477,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":14193,"w":1794221881476,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":15143,"w":1794221882427,"k":"visibility","hidden":true}
+{"t":38509,"w":1794221905793,"k":"tick","fps":2,"hidden":true,"wake":false,"peers":0}
+{"t":38509,"w":1794221905793,"k":"visibility","hidden":false}
+{"t":38992,"w":1794221906276,"k":"visibility","hidden":true}
+{"t":45187,"w":1794221912471,"k":"tick","fps":5,"hidden":true,"wake":false,"peers":0}
+{"t":487,"w":1794221912882,"k":"device","ua":"Mozilla/5.0 (Android 15; Mobile; rv:159.0) Gecko/159.0 Firefox/159.0","platform":"Linux armv81","pxPerMm":6.3,"zoom":1,"viewport":{"w":346.79998779296875,"h":659.0333251953125},"screen":{"w":347,"h":765},"dpr":3.5294117647058822,"touchPoints":5,"cores":8,"standalone":false,"url":"https://manubown.github.io/Bezel/","turn":true}
+{"t":487,"w":1794221912883,"k":"viewport","width":346.79998779296875,"height":659.0333251953125,"inner":{"width":347,"height":659},"dpr":3.5294117647058822}
+{"t":492,"w":1794221912888,"k":"link","deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","link":"ok"}
+{"t":1490,"w":1794221913886,"k":"tick","fps":56,"hidden":false,"wake":false,"peers":0}
+{"t":2490,"w":1794221914887,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":3492,"w":1794221915888,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":4494,"w":1794221916890,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":5494,"w":1794221917891,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":6494,"w":1794221918890,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":7495,"w":1794221919891,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":8497,"w":1794221920893,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":9496,"w":1794221921893,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":10496,"w":1794221922893,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":11498,"w":1794221923894,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":12502,"w":1794221924899,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":13504,"w":1794221925900,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":14504,"w":1794221926900,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":14606,"w":1794221927002,"k":"peer-join","peer":"DYtxL27rIKIAGStT8kym","peers":1}
+{"t":14611,"w":1794221927008,"k":"ice","peer":"DYtxL27rIKIAGStT8kym","event":"join","connection":"connected","ice":"connected","gathering":"gathering","signaling":"stable","sdp":"answer","pair":{"state":"succeeded","nominated":true,"rtt":0,"sent":1747,"recv":1363,"respRecv":0,"local":{"type":"srflx","proto":"udp","mdns":false,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},"others":[{"state":"in-progress","nominated":true,"rtt":0.058,"sent":0,"recv":0,"respRecv":1,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},{"state":"in-progress","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}}],"dc":{"state":"open","msgSent":3,"msgRecv":2,"bytesSent":458,"bytesRecv":171}}
+{"t":14711,"w":1794221927107,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":false}]}
+{"t":14711,"w":1794221927107,"k":"link","deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","link":"ok"}
+{"t":15505,"w":1794221927902,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":1,"tx":{"hello":{"n":1,"b":166},"roster":{"n":1,"b":402},"msg":{"n":2,"b":1380},"clk":{"n":8,"b":312}},"rx":{"info":{"n":1,"b":114},"clk":{"n":8,"b":136},"msg":{"n":1,"b":80}}}
+{"t":15694,"w":1794221928090,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":57,"offset":10038}]}
+{"t":16506,"w":1794221928902,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":1,"tx":{"clk":{"n":2,"b":79},"roster":{"n":1,"b":425}},"rx":{"clk":{"n":2,"b":35},"clkrep":{"n":1,"b":39}}}
+{"t":17509,"w":1794221929906,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":1,"tx":{"clk":{"n":1,"b":40}},"rx":{"clk":{"n":1,"b":18},"clkrep":{"n":1,"b":39}}}
+{"t":18512,"w":1794221930908,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":40}},"rx":{"clk":{"n":1,"b":18},"clkrep":{"n":1,"b":39}}}
+{"t":19516,"w":1794221931912,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":40}},"rx":{"clk":{"n":1,"b":18},"clkrep":{"n":1,"b":39}}}
+{"t":20517,"w":1794221932912,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":40}},"rx":{"clk":{"n":1,"b":18},"clkrep":{"n":1,"b":39}}}
+{"t":21517,"w":1794221933913,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":22518,"w":1794221934915,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":23522,"w":1794221935918,"k":"tick","fps":57,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":24522,"w":1794221936919,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":25470,"w":1794221937865,"k":"match","game":"mgc.pong","template":"row","match":{"matchId":"f2126de5-4a50-47b5-9401-0071e1c7e74e","seed":3937732944,"tickHz":60,"players":[{"playerId":"56a6a1e1-eab0-46af-b64f-2a985ba0c892","name":"Player 1","deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008"},{"playerId":"0aa61bba-1bd9-42cd-88f8-1c91a427f5a4","name":"Player 2","deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e"}],"devices":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","role":"tile","name":"Linux armv81","tile":{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","x":0,"y":11.220358005576287,"w":55.04761710999504,"h":104.60846431671628,"rot":0},"screenMm":{"x":55.04761710999504,"y":104.60846431671628}},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","role":"tile","name":"iPhone","tile":{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","x":59.04761710999504,"y":0,"w":70.49180327868852,"h":127.04918032786885,"rot":0},"screenMm":{"x":70.49180327868852,"y":127.04918032786885}}],"tiles":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","x":0,"y":11.220358005576287,"w":55.04761710999504,"h":104.60846431671628,"rot":0},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","x":59.04761710999504,"y":0,"w":70.49180327868852,"h":127.04918032786885,"rot":0}],"bounds":{"x":0,"y":0,"w":129.53942038868357,"h":127.04918032786885}}}
+{"t":25478,"w":1794221937875,"k":"match:started","matchId":"f2126de5-4a50-47b5-9401-0071e1c7e74e"}
+{"t":25522,"w":1794221937919,"k":"tick","fps":58,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41},"msg":{"n":1,"b":2009}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":26524,"w":1794221938920,"k":"tick","fps":57,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":61,"b":19373},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":1,"b":81},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":27523,"w":1794221939920,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":19341},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19},"msg":{"n":2,"b":396}}}
+{"t":28524,"w":1794221940920,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":19224},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":21,"b":4166},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":29525,"w":1794221941921,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":19297},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":13,"b":2564},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":30526,"w":1794221942922,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":19456},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":30892,"w":1794221943288,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":57,"offset":10037.5}]}
+{"t":31529,"w":1794221943926,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":61,"b":19475},"roster":{"n":1,"b":427},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":31900,"w":1794221944297,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":64,"offset":10043.5}]}
+{"t":32530,"w":1794221944926,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":19054},"roster":{"n":1,"b":427},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":32917,"w":1794221945313,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":64,"offset":10042.25}]}
+{"t":33531,"w":1794221945928,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":59,"b":18799},"roster":{"n":1,"b":428},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":42},"clk":{"n":1,"b":19}}}
+{"t":34532,"w":1794221946929,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":61,"b":19041},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":10,"b":2014},"clkrep":{"n":1,"b":42},"clk":{"n":1,"b":19}}}
+{"t":34949,"w":1794221947346,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":64,"offset":10041}]}
+{"t":35534,"w":1794221947930,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18745},"roster":{"n":1,"b":425},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":17,"b":3420},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":36535,"w":1794221948931,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18620},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":8,"b":1694},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":37535,"w":1794221949932,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18722},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":6,"b":1292},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":38536,"w":1794221950932,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":19445},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":39538,"w":1794221951935,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":61,"b":19524},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":40539,"w":1794221952936,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":59,"b":18547},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":40,"b":8013},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":41540,"w":1794221953937,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18692},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":42540,"w":1794221954936,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":19321},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19},"msg":{"n":6,"b":1188}}}
+{"t":43541,"w":1794221955938,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":61,"b":19111},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":42,"b":8312},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":44048,"w":1794221956445,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":67,"offset":10040.5}]}
+{"t":44543,"w":1794221956939,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18638},"roster":{"n":1,"b":427},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":51,"b":10205},"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":45543,"w":1794221957939,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":59,"b":19091},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":52,"b":10363},"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":46544,"w":1794221958940,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18663},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":23,"b":4598},"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":47544,"w":1794221959941,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18816},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":27,"b":5357},"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":48068,"w":1794221960463,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":65,"offset":10038.5}]}
+{"t":48546,"w":1794221960942,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":61,"b":19518},"roster":{"n":1,"b":427},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":29,"b":5785},"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":49077,"w":1794221961474,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":61,"offset":10038.5}]}
+{"t":49545,"w":1794221961942,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18738},"roster":{"n":1,"b":427},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":40,"b":7985},"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":50546,"w":1794221962943,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":19501},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":42,"b":8396},"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":51089,"w":1794221963486,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":61,"offset":10039}]}
+{"t":51548,"w":1794221963946,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18568},"roster":{"n":1,"b":425},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":35,"b":6975},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":52549,"w":1794221964945,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18452},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":10,"b":1982},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":53550,"w":1794221965946,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":59,"b":18351},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":53,"b":10436},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":54551,"w":1794221966948,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":61,"b":19338},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":46,"b":9121},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":55552,"w":1794221967947,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18909},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":43,"b":8484},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":56552,"w":1794221968948,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18576},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":51,"b":10070},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":57552,"w":1794221969948,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18675},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":51,"b":10081},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":58554,"w":1794221970951,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18976},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":42,"b":8308},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":59554,"w":1794221971951,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":19113},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":35,"b":6931},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":60555,"w":1794221972952,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":60,"b":18578},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":44,"b":8718},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":61152,"w":1794221973549,"k":"match:ended","matchId":"f2126de5-4a50-47b5-9401-0071e1c7e74e","result":{"scores":{"56a6a1e1-eab0-46af-b64f-2a985ba0c892":6,"0aa61bba-1bd9-42cd-88f8-1c91a427f5a4":7},"ranking":["0aa61bba-1bd9-42cd-88f8-1c91a427f5a4","56a6a1e1-eab0-46af-b64f-2a985ba0c892"]}}
+{"t":61152,"w":1794221973550,"k":"match:closed","matchId":"f2126de5-4a50-47b5-9401-0071e1c7e74e","reason":"ended","detail":"the game ended the Match"}
+{"t":61154,"w":1794221973550,"k":"lobby"}
+{"t":61556,"w":1794221973952,"k":"tick","fps":56,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":38,"b":12247},"clk":{"n":1,"b":41}},"rx":{"msg":{"n":28,"b":5539},"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":62558,"w":1794221974954,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":63142,"w":1794221975539,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":59,"offset":10036.5}]}
+{"t":63558,"w":1794221975954,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":427},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":64559,"w":1794221976955,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":65157,"w":1794221977554,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":59,"offset":10034.5}]}
+{"t":65559,"w":1794221977956,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":427},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":66560,"w":1794221978955,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":67560,"w":1794221979956,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":68562,"w":1794221980958,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":69561,"w":1794221981958,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":70562,"w":1794221982958,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":71564,"w":1794221983959,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":72563,"w":1794221984960,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":73564,"w":1794221985961,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":74565,"w":1794221986961,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":75565,"w":1794221987961,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":76566,"w":1794221988962,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":77566,"w":1794221989963,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":78567,"w":1794221990963,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":79194,"w":1794221991590,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":65,"offset":10039.5}]}
+{"t":79567,"w":1794221991963,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":427},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":80203,"w":1794221992600,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":65,"offset":10037}]}
+{"t":80568,"w":1794221992965,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":425},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":81569,"w":1794221993966,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":82571,"w":1794221994966,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":83571,"w":1794221995967,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":84211,"w":1794221996607,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":65,"offset":10035.5}]}
+{"t":84572,"w":1794221996967,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":427},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":85572,"w":1794221997968,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":86573,"w":1794221998969,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":87573,"w":1794221999969,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":88574,"w":1794222000971,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":89575,"w":1794222001971,"k":"tick","fps":58,"hidden":false,"wake":true,"peers":1,"tx":{"msg":{"n":1,"b":523},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":90575,"w":1794222002971,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":19}}}
+{"t":91242,"w":1794222003639,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":56,"offset":10035}]}
+{"t":91575,"w":1794222003972,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":425},"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":92577,"w":1794222004973,"k":"tick","fps":56,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41},"msg":{"n":1,"b":238}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":93577,"w":1794222005973,"k":"tick","fps":61,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":94578,"w":1794222006974,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":95579,"w":1794222007975,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":96579,"w":1794222008976,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":97580,"w":1794222009976,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":98580,"w":1794222010977,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":99582,"w":1794222011978,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":41}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":100582,"w":1794222012978,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":43}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":101583,"w":1794222013980,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":43}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":102584,"w":1794222014981,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":43}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":103585,"w":1794222015981,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":43}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":104586,"w":1794222016981,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":43}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":105585,"w":1794222017982,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":43}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":19}}}
+{"t":106586,"w":1794222018983,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":20}}}
+{"t":107312,"w":1794222019707,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":64,"offset":10032.5}]}
+{"t":107587,"w":1794222019982,"k":"tick","fps":58,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":427},"clk":{"n":1,"b":44}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":20}}}
+{"t":108305,"w":1794222020702,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":64,"offset":10036.75}]}
+{"t":108587,"w":1794222020983,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":428},"clk":{"n":1,"b":44}},"rx":{"clkrep":{"n":1,"b":42},"clk":{"n":1,"b":20}}}
+{"t":109587,"w":1794222021983,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clkrep":{"n":1,"b":42},"clk":{"n":1,"b":20}}}
+{"t":110333,"w":1794222022730,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":65,"offset":10032.5}]}
+{"t":110588,"w":1794222022984,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":427},"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":21}}}
+{"t":111588,"w":1794222023984,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":21}}}
+{"t":112589,"w":1794222024985,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":21}}}
+{"t":113589,"w":1794222025986,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":41},"clk":{"n":1,"b":21}}}
+{"t":114344,"w":1794222026741,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":58,"offset":10036}]}
+{"t":114590,"w":1794222026986,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":425},"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":115590,"w":1794222027987,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":116590,"w":1794222028987,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":117592,"w":1794222029989,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":118592,"w":1794222030989,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":119593,"w":1794222031990,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":120595,"w":1794222032990,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":121594,"w":1794222033991,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":122595,"w":1794222034991,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":123595,"w":1794222035992,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":124596,"w":1794222036991,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":125599,"w":1794222037995,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":126599,"w":1794222038995,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":127600,"w":1794222039996,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":128602,"w":1794222040998,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":129600,"w":1794222041998,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":45}},"rx":{"clkrep":{"n":1,"b":39},"clk":{"n":1,"b":21}}}
+{"t":130601,"w":1794222042998,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1}
+{"t":131602,"w":1794222043998,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1}
+{"t":132234,"w":1794222044630,"k":"link","deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","link":"weak"}
+{"t":132245,"w":1794222044642,"k":"ice","peer":"DYtxL27rIKIAGStT8kym","event":"weak","connection":"connected","ice":"connected","gathering":"complete","signaling":"stable","sdp":"answer","pair":{"state":"succeeded","nominated":true,"rtt":0.073,"sent":1116427,"recv":433491,"respRecv":22,"local":{"type":"srflx","proto":"udp","mdns":false,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},"others":[{"state":"in-progress","nominated":true,"rtt":0.058,"sent":0,"recv":0,"respRecv":1,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},{"state":"failed","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}}],"dc":{"state":"open","msgSent":2294,"msgRecv":1109,"bytesSent":967995,"bytesRecv":311807}}
+{"t":132606,"w":1794222045003,"k":"tick","fps":57,"hidden":false,"wake":true,"peers":1,"tx":{"roster":{"n":1,"b":427}}}
+{"t":132645,"w":1794222045041,"k":"visibility","hidden":true}
+{"t":134807,"w":1794222047317,"k":"ice","peer":"DYtxL27rIKIAGStT8kym","event":"ice","connection":"disconnected","ice":"disconnected","gathering":"complete","signaling":"stable","sdp":"answer","pair":{"state":"succeeded","nominated":true,"rtt":0.073,"sent":1117631,"recv":433491,"respRecv":22,"local":{"type":"srflx","proto":"udp","mdns":false,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},"others":[{"state":"in-progress","nominated":true,"rtt":0.058,"sent":0,"recv":0,"respRecv":1,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},{"state":"failed","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}}],"dc":{"state":"open","msgSent":2294,"msgRecv":1109,"bytesSent":967995,"bytesRecv":311807}}
+{"t":134809,"w":1794222047319,"k":"ice","peer":"DYtxL27rIKIAGStT8kym","event":"connection","connection":"disconnected","ice":"disconnected","gathering":"complete","signaling":"stable","sdp":"answer","pair":{"state":"succeeded","nominated":true,"rtt":0.073,"sent":1117631,"recv":433491,"respRecv":22,"local":{"type":"srflx","proto":"udp","mdns":false,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},"others":[{"state":"in-progress","nominated":true,"rtt":0.058,"sent":0,"recv":0,"respRecv":1,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},{"state":"failed","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}}],"dc":{"state":"open","msgSent":2294,"msgRecv":1109,"bytesSent":967995,"bytesRecv":311807}}
+{"t":141640,"w":1794222054150,"k":"device-lost","deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e"}
+{"t":141642,"w":1794222054151,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":false,"synced":true,"rtt":58,"offset":10036}]}
+{"t":141642,"w":1794222054151,"k":"link","deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","link":"lost"}
+{"t":141654,"w":1794222054163,"k":"visibility","hidden":false}
+{"t":141654,"w":1794222054163,"k":"tick","fps":0,"hidden":false,"wake":false,"peers":1}
+{"t":141658,"w":1794222054167,"k":"peer-leave","peer":"DYtxL27rIKIAGStT8kym","peers":0,"afterMs":127165}
+{"t":141665,"w":1794222054174,"k":"error","message":"InvalidStateError: Peer connection is closed","source":"https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js","line":48,"stack":"m@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:48:25646\nQf/transport/<@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:48:26256\njoin/this.room.onPeerLeave/<@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:60031\njoin/this.room.onPeerLeave@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:60019\nO@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:25189\nclose@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:26737\nclear/<@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:31069\nclear@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:31046\ni@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:31695\n$@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:1:15901\ncr/ae/b<@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:1724\n"}
+{"t":142658,"w":1794222055166,"k":"tick","fps":39,"hidden":false,"wake":true,"peers":0}
+{"t":143658,"w":1794222056167,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":144052,"w":1794222056561,"k":"peer-join","peer":"DYtxL27rIKIAGStT8kym","peers":1}
+{"t":144054,"w":1794222056562,"k":"ice","peer":"DYtxL27rIKIAGStT8kym","event":"join","connection":"connected","ice":"connected","gathering":"gathering","signaling":"stable","sdp":"answer","pair":{"state":"succeeded","nominated":true,"rtt":0,"sent":1782,"recv":1362,"respRecv":0,"local":{"type":"srflx","proto":"udp","mdns":false,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},"others":[{"state":"in-progress","nominated":true,"rtt":0.068,"sent":0,"recv":0,"respRecv":1,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},{"state":"in-progress","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}},{"state":"in-progress","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}}],"dc":{"state":"open","msgSent":3,"msgRecv":2,"bytesSent":458,"bytesRecv":171}}
+{"t":144116,"w":1794222056625,"k":"device-back","deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e"}
+{"t":144117,"w":1794222056625,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":false}]}
+{"t":144117,"w":1794222056625,"k":"link","deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","link":"ok"}
+{"t":144670,"w":1794222057178,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"hello":{"n":1,"b":166},"roster":{"n":1,"b":402},"msg":{"n":1,"b":238},"clk":{"n":6,"b":258}},"rx":{"info":{"n":1,"b":114},"clk":{"n":6,"b":114},"msg":{"n":1,"b":80}}}
+{"t":145135,"w":1794222057644,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":58,"offset":9925}]}
+{"t":145670,"w":1794222058179,"k":"tick","fps":54,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":4,"b":173},"roster":{"n":1,"b":424}},"rx":{"clk":{"n":4,"b":77},"clkrep":{"n":1,"b":38}}}
+{"t":146671,"w":1794222059180,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":147671,"w":1794222060180,"k":"tick","fps":58,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44},"msg":{"n":1,"b":239}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":148673,"w":1794222061181,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":149672,"w":1794222062182,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":150673,"w":1794222063182,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":151673,"w":1794222064183,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":152674,"w":1794222065183,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":153675,"w":1794222066183,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":154135,"w":1794222066644,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":61,"offset":9924}]}
+{"t":154674,"w":1794222067183,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44},"roster":{"n":1,"b":424}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":155675,"w":1794222068184,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":156146,"w":1794222068655,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":true,"synced":true,"rtt":56,"offset":9923}]}
+{"t":156675,"w":1794222069184,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":1,"tx":{"clk":{"n":1,"b":44},"roster":{"n":1,"b":424}},"rx":{"clk":{"n":1,"b":20},"clkrep":{"n":1,"b":38}}}
+{"t":156747,"w":1794222069256,"k":"visibility","hidden":true}
+{"t":168850,"w":1794222083090,"k":"ice","peer":"DYtxL27rIKIAGStT8kym","event":"ice","connection":"disconnected","ice":"disconnected","gathering":"complete","signaling":"stable","sdp":"answer","pair":{"state":"succeeded","nominated":true,"rtt":0.061,"sent":12394,"recv":11428,"respRecv":3,"local":{"type":"srflx","proto":"udp","mdns":false,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},"others":[{"state":"in-progress","nominated":true,"rtt":0.068,"sent":0,"recv":0,"respRecv":1,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},{"state":"failed","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}},{"state":"failed","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}}],"dc":{"state":"open","msgSent":36,"msgRecv":47,"bytesSent":7787,"bytesRecv":6929}}
+{"t":168854,"w":1794222083094,"k":"ice","peer":"DYtxL27rIKIAGStT8kym","event":"connection","connection":"disconnected","ice":"disconnected","gathering":"complete","signaling":"stable","sdp":"answer","pair":{"state":"succeeded","nominated":true,"rtt":0.061,"sent":12394,"recv":11428,"respRecv":3,"local":{"type":"srflx","proto":"udp","mdns":false,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},"others":[{"state":"in-progress","nominated":true,"rtt":0.068,"sent":0,"recv":0,"respRecv":1,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"prflx","proto":"udp","mdns":false,"v6":false}},{"state":"failed","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}},{"state":"failed","nominated":false,"rtt":0,"sent":0,"recv":0,"respRecv":0,"local":{"type":"host","proto":"udp","mdns":true,"v6":false},"remote":{"type":"srflx","proto":"udp","mdns":false,"v6":false}}],"dc":{"state":"open","msgSent":36,"msgRecv":47,"bytesSent":7787,"bytesRecv":6929}}
+{"t":189503,"w":1794222123989,"k":"peer-leave","peer":"DYtxL27rIKIAGStT8kym","peers":0,"afterMs":67427}
+{"t":189504,"w":1794222123989,"k":"error","message":"InvalidStateError: Peer connection is closed","source":"https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js","line":48,"stack":"m@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:48:25646\nQf/transport/<@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:48:26256\njoin/this.room.onPeerLeave/<@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:60031\njoin/this.room.onPeerLeave@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:60019\nO@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:25189\nclose@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:26737\nclear/<@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:31069\nclear@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:31046\ni@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:31695\n$@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:1:15901\nae@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:2:1341\n"}
+{"t":189504,"w":1794222123991,"k":"error","message":"InvalidStateError: Peer connection is closed","source":"https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js","line":48,"stack":"m@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:48:25646\nQf/transport/E/<@https://manubown.github.io/Bezel/assets/index-D0_m8DgT.js:48:25992\n"}
+{"t":195835,"w":1794222138932,"k":"device-lost","deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e"}
+{"t":195853,"w":1794222138951,"k":"roster","status":"ready","roster":[{"deviceId":"ba2511e5-6352-4371-be17-eb3803bc8008","name":"Linux armv81","present":true,"synced":true},{"deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","name":"iPhone","present":false,"synced":true,"rtt":56,"offset":9923}]}
+{"t":195853,"w":1794222138951,"k":"link","deviceId":"90b58f38-d658-40fb-ac23-3b103ee9c15e","link":"lost"}
+{"t":195856,"w":1794222138954,"k":"visibility","hidden":false}
+{"t":195859,"w":1794222138956,"k":"tick","fps":0,"hidden":false,"wake":false,"peers":0,"tx":{"clk":{"n":5,"b":220}},"rx":{"clk":{"n":5,"b":100},"clkrep":{"n":5,"b":190}}}
+{"t":196873,"w":1794222139970,"k":"tick","fps":37,"hidden":false,"wake":true,"peers":0}
+{"t":197873,"w":1794222140970,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":198874,"w":1794222141971,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":199875,"w":1794222142972,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":200877,"w":1794222143973,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":201877,"w":1794222144974,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":202878,"w":1794222145974,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":203878,"w":1794222146975,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":204710,"w":1794222147807,"k":"visibility","hidden":true}
+{"t":240915,"w":1794222184012,"k":"tick","fps":1,"hidden":true,"wake":false,"peers":0}
+{"t":240917,"w":1794222184015,"k":"visibility","hidden":false}
+{"t":241916,"w":1794222185013,"k":"tick","fps":53,"hidden":false,"wake":true,"peers":0}
+{"t":242667,"w":1794222185763,"k":"viewport","width":346.79998779296875,"height":393.8333435058594,"inner":{"width":347,"height":659},"dpr":3.5294117647058822}
+{"t":242920,"w":1794222186016,"k":"tick","fps":53,"hidden":false,"wake":true,"peers":0}
+{"t":243920,"w":1794222187018,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":244921,"w":1794222188017,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":245922,"w":1794222189018,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":246924,"w":1794222190020,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":247925,"w":1794222191021,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":248925,"w":1794222192022,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":604,"w":1794222193817,"k":"device","ua":"Mozilla/5.0 (Android 15; Mobile; rv:159.0) Gecko/159.0 Firefox/159.0","platform":"Linux armv81","pxPerMm":6.3,"zoom":1,"viewport":{"w":346.79998779296875,"h":659.0333251953125},"screen":{"w":347,"h":765},"dpr":3.5294117647058822,"touchPoints":5,"cores":8,"standalone":false,"url":"https://manubown.github.io/Bezel/?room=9KH5","turn":true}
+{"t":605,"w":1794222193817,"k":"viewport","width":346.79998779296875,"height":659.0333251953125,"inner":{"width":347,"height":659},"dpr":3.5294117647058822}
+{"t":1607,"w":1794222194819,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":2608,"w":1794222195819,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":3608,"w":1794222196820,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":4610,"w":1794222197822,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":5611,"w":1794222198824,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":6613,"w":1794222199826,"k":"tick","fps":59,"hidden":false,"wake":false,"peers":0}
+{"t":7616,"w":1794222200828,"k":"tick","fps":60,"hidden":false,"wake":false,"peers":0}
+{"t":8617,"w":1794222201830,"k":"tick","fps":58,"hidden":false,"wake":false,"peers":0}
+{"t":9619,"w":1794222202831,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":10623,"w":1794222203835,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":11623,"w":1794222204835,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":12625,"w":1794222205837,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":13625,"w":1794222206838,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":14626,"w":1794222207839,"k":"tick","fps":58,"hidden":false,"wake":true,"peers":0}
+{"t":183,"w":1794222210518,"k":"device","ua":"Mozilla/5.0 (Android 15; Mobile; rv:159.0) Gecko/159.0 Firefox/159.0","platform":"Linux armv81","pxPerMm":6.3,"zoom":1,"viewport":{"w":346.79998779296875,"h":659.0333251953125},"screen":{"w":347,"h":765},"dpr":3.5294117647058822,"touchPoints":5,"cores":8,"standalone":false,"url":"https://manubown.github.io/Bezel/?room=9KH5","turn":true}
+{"t":183,"w":1794222210518,"k":"viewport","width":346.79998779296875,"height":659.0333251953125,"inner":{"width":347,"height":659},"dpr":3.5294117647058822}
+{"t":190,"w":1794222210525,"k":"viewport","width":346.79998779296875,"height":659.0333251953125,"inner":{"width":347,"height":659},"dpr":3.5294117647058822}
+{"t":195,"w":1794222210531,"k":"visibility","hidden":false}
+{"t":1185,"w":1794222211521,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":2185,"w":1794222212521,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":3185,"w":1794222213520,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":4186,"w":1794222214521,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":5186,"w":1794222215521,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":6187,"w":1794222216522,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":7187,"w":1794222217523,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":8189,"w":1794222218525,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":9191,"w":1794222219527,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":10191,"w":1794222220527,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":11192,"w":1794222221528,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":12192,"w":1794222222528,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":13203,"w":1794222223538,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":14204,"w":1794222224539,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":15204,"w":1794222225540,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":16204,"w":1794222226540,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":17205,"w":1794222227540,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":18206,"w":1794222228541,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":19207,"w":1794222229543,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":20207,"w":1794222230542,"k":"tick","fps":61,"hidden":false,"wake":true,"peers":0}
+{"t":21207,"w":1794222231543,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":22208,"w":1794222232544,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":23208,"w":1794222233543,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":24209,"w":1794222234545,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":25209,"w":1794222235545,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":26213,"w":1794222236548,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":27212,"w":1794222237548,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}
+{"t":28213,"w":1794222238549,"k":"tick","fps":59,"hidden":false,"wake":true,"peers":0}
+{"t":29213,"w":1794222239548,"k":"tick","fps":60,"hidden":false,"wake":true,"peers":0}

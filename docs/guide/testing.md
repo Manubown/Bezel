@@ -199,7 +199,7 @@ it('imports nothing but the SDK', () => {
 });
 ```
 
-It needs `@types/node` (the template's `devDependencies`). Pong's version also pins `package.json`'s `dependencies` to `['@mgc/sdk']` (`games/pong/test/pong.test.ts:95-106`).
+It needs `@types/node` (the template's `devDependencies`). Pong's version also pins `package.json`'s `dependencies` to `['@mgc/sdk']` (`games/pong/test/pong.test.ts:133-144`).
 
 ## What the headless screen can and cannot do
 
