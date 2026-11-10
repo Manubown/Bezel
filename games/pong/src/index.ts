@@ -31,8 +31,8 @@ export const PONG = {
   presence: { holdMs: 5000 },
 } as const;
 
-/** A view extrapolates a state at most this far ahead, ms. */
-const MAX_AHEAD_MS = 100;
+/** A view extrapolates a state at most this far ahead, ms: a delivery stall must not hide the ball on a Tile it crosses (a middle one in 0.2 to 0.45 s); a longer one is a visibly weak link. */
+const MAX_AHEAD_MS = 1000;
 const FG = '#f2f0ea';
 const DIM = 'rgba(242, 240, 234, 0.35)';
 /** Behind a hold's message, over whatever it covers. */
@@ -280,12 +280,12 @@ export default defineGame<PongState, never>({
       },
       draw({ ctx: g, state: s, now, t }) {
         if (!s) return;
-        // Extrapolate on the shared clock, never past a paddle that will return it; a held ball stays where it is.
+        // Extrapolate on the shared clock; a held ball stays where it is. The paddle it heads for returns it if it covers it at its `face` (`hit` s on), but no further back than the other face.
         const moving = s.hold.length > 0 ? 0 : Math.max(0, Math.min(Math.max(now - Math.max(t, resumedAt), 0), MAX_AHEAD_MS) / 1000 - s.wait);
         const y = fold(s.ball.y + s.ball.vy * moving, T.top, T.bottom);
-        let x = s.ball.x + s.ball.vx * moving;
-        if (s.ball.vx < 0 && s.ball.x >= T.contact[0] && x < T.contact[0] && covers(s.pads[0], y)) x = 2 * T.contact[0] - x;
-        if (s.ball.vx > 0 && s.ball.x <= T.contact[1] && x > T.contact[1] && covers(s.pads[1], y)) x = 2 * T.contact[1] - x;
+        const [face, pad] = s.ball.vx < 0 ? [T.contact[0], s.pads[0]] : [T.contact[1], s.pads[1]];
+        const hit = (face - s.ball.x) / s.ball.vx;
+        const x = hit >= 0 && hit < moving && covers(pad, fold(s.ball.y + s.ball.vy * hit, T.top, T.bottom)) ? clamp(2 * face - s.ball.x - s.ball.vx * moving, T.contact[0], T.contact[1]) : s.ball.x + s.ball.vx * moving;
 
         g.fillStyle = DIM;
         g.font = '600 14px system-ui, sans-serif';

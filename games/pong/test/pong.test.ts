@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { DeviceId, MatchInfo, Player, Tile } from '@mgc/sdk';
+import type { DeviceId, Game, MatchInfo, Player, Tile } from '@mgc/sdk';
 import { createTestMatch, type TestMatch } from '@mgc/sdk/test';
 import pong, { PONG, type PongState } from '../src';
 
@@ -89,6 +89,44 @@ async function boLifts(t: TestMatch<PongState>, ms: number): Promise<number> {
   await play(t, [tracks(), tracks()], ms);
   await t.input('d1', 'up', { x: 109, y: t.state('d0')!.pads[1] });
   return t.now();
+}
+
+/**
+ * Pong whose host's states reach no view while `link.stalled` is set, as when a lost packet holds up everything
+ * behind it on the ordered data channel: the views draw on from the last state they got.
+ */
+function stalling(): { game: Game; link: { stalled: boolean } } {
+  const link = { stalled: false };
+  const game: Game = {
+    ...pong,
+    host: (ctx) =>
+      pong.host({
+        ...ctx,
+        publish(state, to) {
+          if (!link.stalled) ctx.publish(state, to);
+        },
+      }),
+  };
+  return { game, link };
+}
+
+/** Pong whose host publishes `state` at the start and nothing after: every view draws from it however old it grows. */
+const only = (state: PongState): Game => ({
+  ...pong,
+  host(ctx) {
+    ctx.publish(state);
+    return {};
+  },
+});
+
+/** A state mid-rally with the ball at `ball`: both paddles centred, no score, no rest, no hold; `more` overrides. */
+const rally = (ball: PongState['ball'], more: Partial<PongState> = {}): PongState => ({ ball, pads: [MID.y, MID.y], score: [0, 0], wait: 0, hold: [], started: true, ...more });
+
+/** Where `deviceId`'s view drew the ball's centre in its last frame, world mm. */
+function ballDrawn(t: TestMatch<PongState>, deviceId: DeviceId): { x: number; y: number } {
+  const arc = t.drawn(deviceId).find((op) => op[0] === 'arc' && op[3] === R);
+  if (!arc) throw new Error(`${deviceId} drew no ball`);
+  return { x: arc[1] as number, y: arc[2] as number };
 }
 
 describe('Pong', () => {
@@ -479,5 +517,95 @@ describe('Pong', () => {
     expect(after.at(-1)!.score).toEqual([held.score[0] + 1, held.score[1]]);
     expect(after.length).toBeLessThan(10);
     expect(after.every((s) => s.hold.length === 0)).toBe(true);
+  });
+
+  it('draws the ball on across the middle Tile through a stall in delivery, at most a second past its last state', async () => {
+    const three = rowMatch(3);
+    const [first, middle] = three.tiles as [Tile, Tile, Tile];
+    const { game, link } = stalling();
+    const t = await createTestMatch<PongState>({ game, match: three });
+    // Ann and Bo rally until the ball is on Ann's Tile heading east; then no state gets through.
+    await play(t, [tracks(), tracks()], 30_000, (s) => s.wait === 0 && s.ball.vx > 0 && s.ball.x > 40 && s.ball.x < first.x + first.w, three);
+    link.stalled = true;
+    const { state: s, t: at } = t.latest('d1')!;
+    expect(s.ball.x).toBeLessThan(first.x + first.w);
+    expect(s.ball.vx).toBeGreaterThan(0);
+    /** Where the state's velocity takes the ball `ms` after its stamp, clear of the walls and the paddles. */
+    const ahead = (ms: number) => ({ x: s.ball.x + (s.ball.vx * ms) / 1000, y: s.ball.y + (s.ball.vy * ms) / 1000 });
+
+    // 300 ms on, still with that state, the middle Tile shows the ball where its velocity has taken it.
+    await t.tick(300);
+    expect(t.latest('d1')!.t).toBe(at);
+    expect(t.now() - at).toBeCloseTo(300, 6);
+    const shown = ballDrawn(t, 'd1');
+    expect(shown.x).toBeCloseTo(ahead(300).x, 6);
+    expect(shown.y).toBeCloseTo(ahead(300).y, 6);
+    expect(shown.x).toBeGreaterThan(middle.x);
+    expect(shown.x).toBeLessThan(middle.x + middle.w);
+
+    // It moves on until a second past the stamp, and from then on stays put however long the stall lasts.
+    await t.tick(700 - STEP_MS);
+    const late = ballDrawn(t, 'd1');
+    await t.tick(STEP_MS);
+    const capped = ballDrawn(t, 'd1');
+    expect(Math.abs(capped.x - late.x)).toBeGreaterThan(1);
+    for (const ms of [STEP_MS, 500, 2000]) {
+      await t.tick(ms);
+      expect(ballDrawn(t, 'd1').x).toBeCloseTo(capped.x, 6);
+      expect(ballDrawn(t, 'd1').y).toBeCloseTo(capped.y, 6);
+    }
+    expect(t.latest('d1')!.t).toBe(at);
+  });
+
+  it('under a 300 ms old state still draws a held ball where it stopped and a resting one only after its rest', async () => {
+    // Held: where the state has it.
+    const flying = { x: 60, y: 70, vx: 150, vy: 20 };
+    const held = await createTestMatch<PongState>({ game: only(rally(flying, { hold: [1] })), match: TWO });
+    await held.tick(300);
+    expect(ballDrawn(held, 'd1')).toEqual({ x: flying.x, y: flying.y });
+
+    // Resting: at the centre while its rest lasts, then on for what is left of the 300 ms.
+    const serve = { ...MID, vx: 150, vy: 20 };
+    const rests = await createTestMatch<PongState>({ game: only(rally(serve, { wait: PONG.serveWait })), match: TWO });
+    await rests.tick(300);
+    expect(ballDrawn(rests, 'd1')).toEqual(MID);
+    const leaves = await createTestMatch<PongState>({ game: only(rally(serve, { wait: 0.1 })), match: TWO });
+    await leaves.tick(300);
+    expect(ballDrawn(leaves, 'd1').x).toBeCloseTo(MID.x + serve.vx * 0.2, 6);
+    expect(ballDrawn(leaves, 'd1').y).toBeCloseTo(MID.y + serve.vy * 0.2, 6);
+  });
+
+  it('moves a state from before a pause on from the resume, not from its stamp', async () => {
+    const flying = { x: 60, y: 70, vx: 150, vy: 20 };
+    const t = await createTestMatch<PongState>({ game: only(rally(flying)), match: TWO });
+    await t.setPaused({ kind: 'device-lost', deviceId: 'd1' });
+    await t.tick(3000);
+    await t.setPaused(null);
+    await t.tick(300);
+    expect(ballDrawn(t, 'd1').x).toBeCloseTo(flying.x + flying.vx * 0.3, 6);
+    expect(ballDrawn(t, 'd1').y).toBeCloseTo(flying.y + flying.vy * 0.3, 6);
+  });
+
+  it('returns a ball drawn far past a paddle if the paddle covers it where it reaches the face, and never past the other face', async () => {
+    // Heading east at 45°: it reaches Bo's face 203 ms on, 30.5 mm lower; 400 ms on it would be 60 mm lower.
+    const steep = { x: 100, y: 75, vx: 150, vy: 150 };
+    const crossing = steep.y + (steep.vy * (CONTACT[1] - steep.x)) / steep.vx;
+    const ahead = { x: steep.x + steep.vx * 0.4, y: steep.y + steep.vy * 0.4 };
+    expect(Math.abs(ahead.y - crossing)).toBeGreaterThan(REACH);
+    // Bo's paddle where the ball reaches his face: it comes back off it onto the table.
+    const met = await createTestMatch<PongState>({ game: only(rally(steep, { pads: [MID.y, crossing] })), match: TWO });
+    await met.tick(400);
+    expect(ballDrawn(met, 'd1').x).toBeCloseTo(2 * CONTACT[1] - ahead.x, 6);
+    // Bo's paddle where the ball would be by then, clear of where it passes his face: it goes on past him, off the table.
+    const missed = await createTestMatch<PongState>({ game: only(rally(steep, { pads: [MID.y, ahead.y] })), match: TWO });
+    await missed.tick(400);
+    expect(ballDrawn(missed, 'd1').x).toBeCloseTo(ahead.x, 6);
+
+    // One Tile, the fastest ball straight at Bo's paddle: 300 ms on it is back no further than Ann's face, still on the phone.
+    const one = rowMatch(1);
+    const annFace = one.bounds.x + PONG.paddle.inset + PONG.paddle.w + R;
+    const fast = await createTestMatch<PongState>({ game: only(rally({ x: 40, y: MID.y, vx: PONG.maxSpeed, vy: 0 })), match: one });
+    await fast.tick(300);
+    expect(ballDrawn(fast, 'd0').x).toBeCloseTo(annFace, 6);
   });
 });
