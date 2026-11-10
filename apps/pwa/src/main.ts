@@ -11,6 +11,7 @@ import { createRecorder } from './recorder';
 import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
 import { describeClose } from './result';
 import { drawPreview } from './scene';
+import { parseTurnServers } from './turn';
 import { awake, keepAwake } from './wake';
 
 const APP_ID = 'mobilegameconnect';
@@ -21,14 +22,11 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 /** sessionStorage: the room this tab hosts; a reloaded Host keeps its code, so its Peers find it again. */
 const HOST_ROOM_KEY = 'mgc.hostRoom';
 /**
- * A TURN relay (Open Relay's public servers; the credentials are public by design) joins the ICE servers by
- * default: ICE still prefers a direct pair, the relay is the fallback for networks where the direct path dies
- * (live tests 1–3: iPhones on a Personal Hotspot; Host + Peer with the relay connected first time). `?noturn`
- * leaves it out, for comparison runs; the QR carries the flag to every Peer so a Match never mixes paths.
+ * A Peer whose connection to the Host died this many times in a row without ever lasting goes through the build's
+ * TURN relay only from then on (connectivity-2 D2): about 13 s of "Reconnecting to the host…" at one attempt per
+ * `SYNC_TIMEOUT_MS`, long enough for a direct path that works one time in five to get its chances.
  */
-const TURN_SERVERS: RTCIceServer[] = [
-  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
-];
+const RELAY_AFTER = 3;
 
 const stage = document.getElementById('stage') as HTMLCanvasElement;
 /** A running Match's view: a positioned layer over the stage. */
@@ -59,7 +57,10 @@ async function start(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const room = params.get('room')?.toUpperCase();
   const code = room ?? hostRoomCode();
-  const turn = !params.has('noturn');
+  // The build's TURN relay (`VITE_MGC_TURN_SERVERS`, `turn.ts`): ICE prefers a direct pair, the relay is the fallback for
+  // networks where the direct path dies. `?noturn` leaves it out, for comparison runs; the QR carries the flag to every Peer.
+  const turnSetting = parseTurnServers(import.meta.env['VITE_MGC_TURN_SERVERS'] as string | undefined);
+  const turnServers = params.has('noturn') ? [] : turnSetting.servers;
   // The session log: every event this page sees, kept across reloads, exported from the HUD.
   let sharedNow = (): number => performance.now();
   const rec = createRecorder({ now: () => sharedNow(), deviceId, role: room ? 'peer' : 'host', code, awake });
@@ -75,14 +76,19 @@ async function start(): Promise<void> {
     cores: navigator.hardwareConcurrency,
     standalone: matchMedia('(display-mode: standalone)').matches,
     url: location.href,
-    turn,
+    turn: turnServers.length > 0,
+    ...(turnSetting.problem !== undefined && { turnProblem: turnSetting.problem }),
   });
   rec.observe();
   // The screen stays on from the first tap on the page, lobby and Match alike, for the page's lifetime (D11).
   keepAwake();
   // Phones are measured upright. The lock only works installed/fullscreen; in a browser tab index.html's `#rotate` overlay asks instead.
   (screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> }).lock?.('portrait').catch(() => {});
-  const trystero = new TrysteroTransport({ appId: APP_ID, roomId: code, ...(turn && { turnConfig: TURN_SERVERS }) });
+  const trystero = new TrysteroTransport({
+    appId: APP_ID,
+    roomId: code,
+    ...(turnServers.length > 0 && { turnConfig: turnServers, relayAfter: RELAY_AFTER, onRelayOnly: (relayOnly: boolean, failures: number) => rec.log('relay', { relayOnly, failures }) }),
+  });
   const transport = rec.transport(trystero, () => trystero.connections());
   const session = room ? joinSession(transport, self) : hostSession(transport, self);
   sharedNow = () => session.clock.now();

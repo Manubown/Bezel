@@ -22,6 +22,10 @@ _Avoid_: Server, master
 Any Device in a Session that is not the Host.
 _Avoid_: Client, guest
 
+**Relay**:
+A server outside the table that carries a Device's connection when no direct path to the other Device works.
+_Avoid_: Proxy, bridge; not the servers Devices find each other through (signaling), and not the Host passing Peers' messages on (routing)
+
 ### Surface
 
 **Tile**:

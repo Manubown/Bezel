@@ -62,3 +62,5 @@ The issue tracker is in the repo: one directory per feature under `.scratch/<fea
 ## Releases
 
 There is no version number; `master` is live at <https://manubown.github.io/Bezel/> after every push. A known-good commit is promoted with `pnpm stable <ref>`, which moves the `stable` git tag and pushes it; Pages then rebuilds <https://manubown.github.io/Bezel/stable/> from that commit (`.github/workflows/pages.yml`). Move the tag after a successful run on real phones, not after a green CI.
+
+The hosted build takes its TURN relay from the repository secret `MGC_TURN_SERVERS`; `pnpm setup-turn` (from Git Bash on Windows) sets it and the dev server's `apps/pwa/.env.local` (`docs/guide/running-on-phones.md` §Connectivity flags). A fork without the secret builds a PWA without a relay.

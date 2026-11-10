@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "pnpm -r exec tsc -p .",
     "new-game": "node scripts/new-game.mjs",
-    "stable": "node scripts/stable.mjs"
+    "stable": "node scripts/stable.mjs",
+    "setup-turn": "bash scripts/setup-turn.sh"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

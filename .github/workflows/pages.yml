@@ -41,8 +41,12 @@ jobs:
         env:
           # The repository name: Pages serves a project site from /<repo>/.
           BASE_PATH: /${{ github.event.repository.name }}/
+          # The TURN relay's ICE servers as a JSON array (`apps/pwa/src/turn.ts`); unset = no relay. `pnpm setup-turn` sets it.
+          VITE_MGC_TURN_SERVERS: ${{ secrets.MGC_TURN_SERVERS }}
       # The stable channel: the tagged commit, built from its own tree, served under /stable/.
       - name: Build the stable tag
+        env:
+          VITE_MGC_TURN_SERVERS: ${{ secrets.MGC_TURN_SERVERS }}
         run: |
           if git rev-parse -q --verify refs/tags/stable >/dev/null; then
             git worktree add ../stable stable
