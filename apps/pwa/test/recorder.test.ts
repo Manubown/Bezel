@@ -28,6 +28,26 @@ function parse(text: string): Line[] {
   return text.trimEnd().split('\n').map((l) => JSON.parse(l) as Line);
 }
 
+/** A Peer's recorder whose `tick` lines run on fake timers: `arrive` records one state frame reaching it at shared time `at`, `age` ms after the Host published it. */
+function stateRecorder() {
+  let now = 0;
+  const { win } = fakeWindow();
+  const rec = createRecorder({ now: () => now, deviceId: 'd1', role: 'peer', code: 'ABCD', store: memoryStore(), flushMs: 1000, win });
+  const stop = rec.observe();
+  return {
+    arrive(matchId: string, at: number, age: number): void {
+      now = at;
+      rec.state(matchId, at - age);
+    },
+    /** Runs to the next `tick` line. */
+    second: () => vi.advanceTimersByTimeAsync(1000),
+    async ticks(): Promise<Line[]> {
+      stop();
+      return parse(await rec.text()).filter((l) => l.k === 'tick');
+    },
+  };
+}
+
 describe('session recorder', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -138,6 +158,46 @@ describe('session recorder', () => {
       ['link', 'd1', 'weak'],
       ['link', 'd1', 'lost'],
       ['link', 'd1', 'ok'],
+    ]);
+  });
+
+  it('sums the state frames of a second into its `tick` line: count, ages, longest gap; nothing for a quiet second; afresh each second', async () => {
+    const { arrive, second, ticks } = stateRecorder();
+    arrive('m1', 100, 10); // the Match's first state: no gap
+    arrive('m1', 116.2, 15.2); // 16.2 ms later
+    arrive('m1', 150.04, 5.04); // 33.84 ms later
+    await second();
+    await second();
+    arrive('m1', 2100, 30);
+    arrive('m1', 2110, 20);
+    await second();
+
+    const [busy, quiet, next] = await ticks();
+    expect(busy!['state']).toEqual({ n: 3, gap: 33.8, ageMin: 5, ageAvg: 10.1, ageMax: 15.2 });
+    expect(quiet).not.toHaveProperty('state');
+    // Only this second's two arrivals; the gap before the first of them spans the quiet second.
+    expect(next!['state']).toEqual({ n: 2, gap: 1950, ageMin: 20, ageAvg: 25, ageMax: 30 });
+  });
+
+  it('reports a silence as `gap` on the line of the second that ends it, and starts each Match without one', async () => {
+    const { arrive, second, ticks } = stateRecorder();
+    arrive('m1', 500, 8);
+    await second();
+    await second();
+    arrive('m1', 2800, 12); // 2.3 s after the last one, two tick lines later
+    await second();
+    arrive('m2', 3100, 9); // a new Match: its first state has no predecessor
+    await second();
+    arrive('m2', 4300, 9);
+    arrive('m1', 4310, 4); // back to `m1`: a new sequence again, not 1.51 s after its last state
+    await second();
+
+    expect((await ticks()).map((l) => l['state'])).toEqual([
+      { n: 1, gap: 0, ageMin: 8, ageAvg: 8, ageMax: 8 },
+      undefined,
+      { n: 1, gap: 2300, ageMin: 12, ageAvg: 12, ageMax: 12 },
+      { n: 1, gap: 0, ageMin: 9, ageAvg: 9, ageMax: 9 },
+      { n: 2, gap: 1200, ageMin: 4, ageAvg: 6.5, ageMax: 9 },
     ]);
   });
 });

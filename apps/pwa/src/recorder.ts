@@ -20,8 +20,15 @@ export interface Recorder {
   /** A `link` line `{ deviceId, link }` each time a Device's `link` in `session`'s roster changes, its first entry included; returns the stop. */
   links(session: Pick<Session, 'roster' | 'onChange'>): () => void;
   /**
+   * One state frame of Match `matchId` reached this Device: `at` is the shared time the Host published it.
+   * Summed into the next `tick` line as `state`.
+   */
+  state(matchId: string, at: number): void;
+  /**
    * Starts the per-second `tick` line (frame rate, page hidden, wake lock held, the wrapped transport's connections as
-   * `peers`, wire totals) and the page listeners (visibility, viewport, errors); returns the stop.
+   * `peers`, wire totals, and in a second with state frames their `state`: `n` arrivals, `gap` the longest time between
+   * two consecutive arrivals of one Match ending in this second, `ageMin`/`ageAvg`/`ageMax` how old they were on arrival,
+   * all in ms of shared time) and the page listeners (visibility, viewport, errors); returns the stop.
    */
   observe(): () => void;
   /** The whole log as NDJSON text, summary line first. */
@@ -106,6 +113,15 @@ export function createRecorder(o: RecorderOptions): Recorder {
     t.b += bytes;
     wired = true;
   };
+  /**
+   * State frames since the last tick: how many, the longest gap before one, and their ages on arrival (`o.now()` minus
+   * the Host's publish time); none in a second without one.
+   */
+  let states: { n: number; gap: number; ageMin: number; ageSum: number; ageMax: number } | undefined;
+  /** The latest state frame's Match and arrival (`o.now()`), kept across ticks: a silence of several seconds shows as one gap. */
+  let lastMatch: string | undefined;
+  let lastArrival = 0;
+  const tenth = (ms: number): number => Math.round(ms * 10) / 10;
   /** The transport `transport` wraps: how many connections it holds goes on each `tick` line. */
   let wrapped: Transport | undefined;
   /** The connections `transport` was given to watch, by peer; kept past the leave so the leave's `ice` line can read them. */
@@ -235,6 +251,21 @@ export function createRecorder(o: RecorderOptions): Recorder {
       return session.onChange(follow);
     },
 
+    state(matchId, at) {
+      const now = o.now();
+      const age = now - at;
+      // The first state of a Match has no predecessor: a Match other than the previous arrival's starts without a gap.
+      const gap = matchId === lastMatch ? now - lastArrival : 0;
+      lastMatch = matchId;
+      lastArrival = now;
+      const s = (states ??= { n: 0, gap: 0, ageMin: age, ageSum: 0, ageMax: age });
+      s.n++;
+      s.gap = Math.max(s.gap, gap);
+      s.ageMin = Math.min(s.ageMin, age);
+      s.ageSum += age;
+      s.ageMax = Math.max(s.ageMax, age);
+    },
+
     observe() {
       const win = o.win ?? window;
       const doc = win.document;
@@ -252,6 +283,7 @@ export function createRecorder(o: RecorderOptions): Recorder {
         frames = 0;
         last = now;
         // `peers`: WebRTC connections this page holds, Host and Peer alike; above 1 on a Peer, the transport's mesh (connectivity-1 D6).
+        // `state`: only in a second in which state frames arrived.
         line('tick', {
           fps,
           hidden: doc.hidden,
@@ -259,9 +291,11 @@ export function createRecorder(o: RecorderOptions): Recorder {
           ...(wrapped && { peers: wrapped.peers().length }),
           ...(Object.keys(tx).length > 0 && { tx }),
           ...(Object.keys(rx).length > 0 && { rx }),
+          ...(states && { state: { n: states.n, gap: tenth(states.gap), ageMin: tenth(states.ageMin), ageAvg: tenth(states.ageSum / states.n), ageMax: tenth(states.ageMax) } }),
         });
         tx = {};
         rx = {};
+        states = undefined;
         wired = false;
       }, flushMs);
       const onVisibility = (): void => line('visibility', { hidden: doc.hidden });

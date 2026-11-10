@@ -261,7 +261,10 @@ async function start(): Promise<void> {
   session.onChange(follow);
   session.onMessage(MATCH_CHANNEL, (data, from) => {
     // Down frames originate on the Host only; the runtimes check what they take.
-    if (current && (session.role === 'host' || from === host())) current.handle.deliver(data as NetFrame, from);
+    if (!current || (session.role !== 'host' && from !== host())) return;
+    // How late and how unevenly the Host's states reach this Peer: the `tick` line's `state` (the Host's own view gets them in-process).
+    if (session.role === 'peer' && data && typeof data === 'object' && 't' in data && data.t === 'state' && 'at' in data && typeof data.at === 'number') rec.state(current.matchId, data.at);
+    current.handle.deliver(data as NetFrame, from);
   });
 
   startCanvasLoop(stage, (f) => {
