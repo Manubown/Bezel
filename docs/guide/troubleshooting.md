@@ -1,6 +1,6 @@
 # Troubleshooting
 
-One entry per symptom: what you see, why, what to do. Where a Game says something, look in two places: the Host's sheet ("game log": faults, `ctx.log` lines, refusals and closes) and the browser console of the phone it happened on (`<Game>: fault in host.tick: …` with the stack, `<Game> host: …` for logs; `apps/pwa/src/main.ts:175-176`). In a test, the same lines are `t.events(deviceId)`.
+One entry per symptom: what you see, why, what to do. Where a Game says something, look in two places: the Host's sheet ("game log": faults, `ctx.log` lines, refusals and closes) and the browser console of the phone it happened on (`<Game>: fault in host.tick: …` with the stack, `<Game> host: …` for logs; `apps/pwa/src/main.ts:191-192`). In a test, the same lines are `t.events(deviceId)`.
 
 ## Setup
 
@@ -39,7 +39,7 @@ The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `game
 |---|---|
 | a phone has no internet: signaling goes through public Nostr relays (`packages/core/src/trystero-transport.ts:138-140`) | give every phone internet; there is no offline mode yet (M5, `docs/PLAN.md:88`) |
 | the phones are on different networks | put them on one Wi-Fi or one phone's hotspot (README) |
-| the Host page was opened as `localhost`, so its QR code points at `localhost` (`apps/pwa/src/hud.ts:127-129`) | open the Host page at the `Network` address Vite prints |
+| the Host page was opened as `localhost`, so its QR code points at `localhost` (`apps/pwa/src/hud.ts:127-130`) | open the Host page at the `Network` address Vite prints |
 | the Peer opened the address without `?room=`, so it became a Host of its own table | type the Host's code into its "Code" field, or open `/?room=CODE` |
 | the Host's page is closed, hidden or asleep: the Session lives on the Host (ADR-0002) | keep the Host's screen on and the page open |
 
@@ -48,7 +48,7 @@ The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `game
 | Cause | Fix |
 |---|---|
 | it joined after Start: no joins mid-Match ("Match in progress · you join the next one") | wait for the next Match |
-| its build does not have that Game: the console says `This phone has no Game <id>: it sits Match <id> out` (`apps/pwa/src/main.ts:149-153`). A phone on the hosted build can join a dev-server table's code | open every phone on the same server |
+| its build does not have that Game: the console says `This phone has no Game <id>: it sits Match <id> out` (`apps/pwa/src/main.ts:165-169`). A phone on the hosted build can join a dev-server table's code | open every phone on the same server |
 
 ## Starting
 
@@ -85,13 +85,13 @@ Numbers in the table are examples; the message names the Game and the real count
 ### "Reconnecting to the host…" on a Peer
 
 - **What it means:** this phone had the Host and lost it: the connection closed, the Host was silent for 5 s (`LOST_MS`; the 1 Hz clock pings are the heartbeat), or a re-attach did not sync its clock within 4 s (`SYNC_TIMEOUT_MS`, `packages/core/src/session.ts`). The phone drops its connections and looks for the Host again by itself. In the lobby its strip says so; during a Match a card over the Game does: "Reconnecting to the host… · the match goes on when the connection is back".
-- **During a Match:** the phone keeps its part of the Match, its Game view and state, for 30 s (`REJOIN_GRACE_MS`, `apps/pwa/src/rejoin.ts:5-6`). Back with the same Host within that time, and the Host's lobby still names the Match, it says `hello` and the Host replays the current state and its pause to it: the Match goes on, no lobby, no result card (`apps/pwa/src/rejoin.ts:37-60`, `apps/pwa/src/main.ts:225-259`). Meanwhile the Host has lost the phone too: within 5 s it pauses the Match on every other phone ("Waiting for phone 2 · It lost its connection · the match goes on when it is back") and resumes once the phone is back and synced; the returning phone shows the same "Waiting for …" card until that resume. In the browser smoke a dropped connection was back and playing within 1.7 s.
+- **During a Match:** the phone keeps its part of the Match, its Game view and state, for 30 s (`REJOIN_GRACE_MS`, `apps/pwa/src/rejoin.ts:5-6`). Back with the same Host within that time, and the Host's lobby still names the Match, it says `hello` and the Host replays the current state and its pause to it: the Match goes on, no lobby, no result card (`apps/pwa/src/rejoin.ts:37-60`, `apps/pwa/src/main.ts:241-275`). Meanwhile the Host has lost the phone too: within 5 s it pauses the Match on every other phone ("Waiting for phone 2 · It lost its connection · the match goes on when it is back") and resumes once the phone is back and synced; the returning phone shows the same "Waiting for …" card until that resume. In the browser smoke a dropped connection was back and playing within 1.7 s.
 - **When it gives up:** after 30 s without the Host, the phone stops its part: "Connection lost", then the lobby. The Host keeps waiting until End match, and the phone rejoins the same Match by itself once its connection is back (its part starts afresh from the Host's state). If the Host is back without the Match, the card reads "Connection lost · The host phone restarted": its page reloaded ([the host phone reloaded](#the-host-phone-reloaded)), or it ended the Match while this phone was away, which a returning phone cannot tell apart. If the Host has started another Match meanwhile, the card reads "Connection lost".
 - **Fix:** keep every phone awake and on one network ([wake lock](running-on-phones.md#screen-wake-lock)). If it does not come back, reload the phone's page (its address keeps `?room=CODE`). Its log has the cause: a `peer-leave` (the connection closed) or `link` lines going `weak` before the `roster` line with `status: "reconnecting"` (silence).
 
 ### The Host's roster says "weak connection" for a phone
 
-- **What it means:** the Host has not heard that phone for 2.5 s, two missed clock heartbeats (`WEAK_MS`, `packages/core/src/session.ts`); the row shows its clock numbers again as soon as the phone is heard (`apps/pwa/src/hud.ts:382-388`). Not a pause: the Match goes on. After 5 s of silence (`LOST_MS`) the phone counts as lost: its row reads "disconnected", and a Match it is in pauses.
+- **What it means:** the Host has not heard that phone for 2.5 s, two missed clock heartbeats (`WEAK_MS`, `packages/core/src/session.ts`); the row shows its clock numbers again as soon as the phone is heard (`apps/pwa/src/hud.ts:383-389`). Not a pause: the Match goes on. After 5 s of silence (`LOST_MS`) the phone counts as lost: its row reads "disconnected", and a Match it is in pauses.
 - **Fix:** usually nothing; it was a blip. Often or for long: the phone's screen is turning off (tap it once), it is far from the Wi-Fi, or the network drops packets (live test 1's hotspot). The `link` lines in the Host's log list every `weak` and `lost` stretch per phone.
 
 ### "The game crashed" on every phone, or "The game stopped on this phone"
@@ -283,5 +283,5 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 
 ### A tap in the bottom-right corner of the Host's Tile opens the Host's sheet
 
-- **Cause:** while a Match runs, the Host's folded sheet is a small "Setup" pill 8 px in from the bottom-right corner of its screen, over its Tile (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`). A tap on it opens the sheet over the Game (`apps/pwa/src/hud.ts:191-197`); the Game never sees that tap. Peers have no pill.
+- **Cause:** while a Match runs, the Host's folded sheet is a small "Setup" pill 8 px in from the bottom-right corner of its screen, over its Tile (`apps/pwa/src/hud.ts:269-275`, `apps/pwa/index.html:42-44`). A tap on it opens the sheet over the Game (`apps/pwa/src/hud.ts:192-198`); the Game never sees that tap. Peers have no pill.
 - **Fix:** keep small targets and controls out of the Host Tile's bottom-right corner; tap "Hide" to fold the sheet back to the pill.

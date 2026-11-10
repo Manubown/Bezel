@@ -146,7 +146,7 @@ export interface ViewContext<S extends JsonValue, M extends JsonValue> {
 | `deviceId`, `role` | this Device and its role |
 | `tile`, `surface` | Tiles only: this Device's rectangle in world mm and its world ↔ px mapping (`surface.worldToPx` places DOM elements over world points) |
 | `screenMm` | this Device's own screen, mm; a Controller's input and `draw` use it (origin top-left) |
-| `pxPerMm` | CSS px per mm on this Device, for DOM sized in mm (CSS `mm` units are not physical on phones): the user-agent guess times the page's zoom (`apps/pwa/src/device.ts:73-83`, `115`) |
+| `pxPerMm` | CSS px per mm on this Device, for DOM sized in mm (CSS `mm` units are not physical on phones): the user-agent guess times the page's zoom (`apps/pwa/src/device.ts:73-83`, `141`) |
 | `dpr` | the device pixel ratio, read live |
 | `root` | an SDK-owned element (`position:absolute; inset:0`) the view may fill; `mount` gets the same element |
 | `now()` | shared clock, ms |
@@ -300,7 +300,7 @@ export class Surface {
 
 ## Platform-facing
 
-`apps/pwa` runs a Match with these (`apps/pwa/src/main.ts:166-210`). A Game does not import them; they are listed so the seam is complete.
+`apps/pwa` runs a Match with these (`apps/pwa/src/main.ts:182-226`). A Game does not import them; they are listed so the seam is complete.
 
 ### `runMatch`
 
