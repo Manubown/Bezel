@@ -102,6 +102,32 @@ export function pageZoom(win: Pick<Window, 'innerWidth' | 'innerHeight' | 'scree
   return ZOOM_STEPS.find((z) => Math.abs(ratio / z - 1) < 0.015) ?? 1;
 }
 
+/**
+ * Resolves once the viewport has stopped changing: `quietMs` without a `resize`, or `maxMs` at most.
+ * iOS Safari applies a site's Page Zoom some tens of ms after the page's scripts start (live run 5: 390 px
+ * across at load, 520 px 33 ms later), so a size taken at load can be the one before the zoom, and the
+ * Device's Tile then has the wrong size for its whole Session. Measure after this.
+ */
+export function viewportSettled(win: Pick<Window, 'addEventListener' | 'removeEventListener' | 'visualViewport'> = window, quietMs = 120, maxMs = 600): Promise<void> {
+  return new Promise((resolve) => {
+    let quiet = setTimeout(done, quietMs);
+    const limit = setTimeout(done, maxMs);
+    function changed(): void {
+      clearTimeout(quiet);
+      quiet = setTimeout(done, quietMs);
+    }
+    function done(): void {
+      clearTimeout(quiet);
+      clearTimeout(limit);
+      win.removeEventListener('resize', changed);
+      win.visualViewport?.removeEventListener('resize', changed);
+      resolve();
+    }
+    win.addEventListener('resize', changed);
+    win.visualViewport?.addEventListener('resize', changed);
+  });
+}
+
 /** Visible area in CSS px; `visualViewport` excludes browser toolbars where `innerHeight` may not. `pxPerMm` is corrected for the page's zoom. */
 export function deviceInfo(deviceId: DeviceId): DeviceInfo {
   const ua = navigator as Navigator & { userAgentData?: { platform?: string } };

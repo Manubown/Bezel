@@ -1,6 +1,6 @@
 import { TrysteroTransport, hostSession, joinSession, type DeviceId } from '@mgc/core';
 import { inProcessLink, runMatch, type MatchHandle, type MatchInfo, type MatchResult, type NetFrame } from '@mgc/sdk';
-import { claimDeviceId, claimPlayerId, deviceInfo, pageZoom } from './device';
+import { claimDeviceId, claimPlayerId, deviceInfo, pageZoom, viewportSettled } from './device';
 import { GAMES } from './games';
 import { LOG_LINES, logLineOf } from './gamelog';
 import { openHud, type Play } from './hud';
@@ -52,7 +52,8 @@ function hostRoomCode(): string {
  * back in the lobby. A Device that joins meanwhile waits there.
  */
 async function start(): Promise<void> {
-  const deviceId = await claimDeviceId();
+  // The size is taken once the viewport rests: Safari applies a site's Page Zoom just after the scripts start (`viewportSettled`).
+  const [deviceId] = await Promise.all([claimDeviceId(), viewportSettled()]);
   const self = deviceInfo(deviceId);
   const params = new URLSearchParams(location.search);
   const room = params.get('room')?.toUpperCase();
