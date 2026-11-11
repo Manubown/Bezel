@@ -27,6 +27,14 @@ const HOST_ROOM_KEY = 'mgc.hostRoom';
  * `SYNC_TIMEOUT_MS`, long enough for a direct path that works one time in five to get its chances.
  */
 const RELAY_AFTER = 3;
+/**
+ * A Host that saw one connection end without lasting stops signaling its own addresses to the connections that follow
+ * (`TrysteroOptions.withholdOwnAfter`). An iPhone that is the Personal Hotspot signals its cellular address, and a
+ * Peer's checks toward that address are what the dying attempts of live runs 5 and 6 have in common
+ * (`.scratch/live-test-1/findings.md` §1g). One failure, so the Peer's second and third attempts run without that
+ * address before `RELAY_AFTER` takes it to the relay.
+ */
+const WITHHOLD_AFTER = 1;
 
 const stage = document.getElementById('stage') as HTMLCanvasElement;
 /** A running Match's view: a positioned layer over the stage. */
@@ -89,6 +97,8 @@ async function start(): Promise<void> {
     appId: APP_ID,
     roomId: code,
     ...(turnServers.length > 0 && { turnConfig: turnServers, relayAfter: RELAY_AFTER, onRelayOnly: (relayOnly: boolean, failures: number) => rec.log('relay', { relayOnly, failures }) }),
+    // Host only: a connection whose two ends both withhold has no local path left.
+    ...(!room && { withholdOwnAfter: WITHHOLD_AFTER, onWithhold: (failures: number) => rec.log('withhold', { failures }) }),
   });
   const transport = rec.transport(trystero, () => trystero.connections());
   const session = room ? joinSession(transport, self) : hostSession(transport, self);

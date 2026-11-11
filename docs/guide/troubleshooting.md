@@ -1,6 +1,6 @@
 # Troubleshooting
 
-One entry per symptom: what you see, why, what to do. Where a Game says something, look in two places: the Host's sheet ("game log": faults, `ctx.log` lines, refusals and closes) and the browser console of the phone it happened on (`<Game>: fault in host.tick: …` with the stack, `<Game> host: …` for logs; `apps/pwa/src/main.ts:176-177`). In a test, the same lines are `t.events(deviceId)`.
+One entry per symptom: what you see, why, what to do. Where a Game says something, look in two places: the Host's sheet ("game log": faults, `ctx.log` lines, refusals and closes) and the browser console of the phone it happened on (`<Game>: fault in host.tick: …` with the stack, `<Game> host: …` for logs; `apps/pwa/src/main.ts:186-187`). In a test, the same lines are `t.events(deviceId)`.
 
 ## Setup
 
@@ -37,7 +37,7 @@ The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `game
 
 | Cause | Fix |
 |---|---|
-| a phone has no internet: signaling goes through public Nostr relays (`packages/core/src/trystero-transport.ts:138-140`) | give every phone internet; there is no offline mode yet (M5, `docs/PLAN.md:88`) |
+| a phone has no internet: signaling goes through public Nostr relays (`packages/core/src/trystero-transport.ts:159-161`) | give every phone internet; there is no offline mode yet (M5, `docs/PLAN.md:88`) |
 | the phones are on different networks | put them on one Wi-Fi or one phone's hotspot (README) |
 | the Host page was opened as `localhost`, so its QR code points at `localhost` (`apps/pwa/src/hud.ts:127-129`) | open the Host page at the `Network` address Vite prints |
 | the Peer opened the address without `?room=`, so it became a Host of its own table | type the Host's code into its "Code" field, or open `/?room=CODE` |
@@ -48,7 +48,7 @@ The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `game
 | Cause | Fix |
 |---|---|
 | it joined after Start: no joins mid-Match ("Match in progress · you join the next one") | wait for the next Match |
-| its build does not have that Game: the console says `This phone has no Game <id>: it sits Match <id> out` (`apps/pwa/src/main.ts:150-154`). A phone on the hosted build can join a dev-server table's code | open every phone on the same server |
+| its build does not have that Game: the console says `This phone has no Game <id>: it sits Match <id> out` (`apps/pwa/src/main.ts:160-164`). A phone on the hosted build can join a dev-server table's code | open every phone on the same server |
 
 ## Starting
 
@@ -85,7 +85,7 @@ Numbers in the table are examples; the message names the Game and the real count
 ### "Reconnecting to the host…" on a Peer
 
 - **What it means:** this phone had the Host and lost it: the connection closed, the Host was silent for 5 s (`LOST_MS`; the 1 Hz clock pings are the heartbeat), or a re-attach did not sync its clock within 4 s (`SYNC_TIMEOUT_MS`, `packages/core/src/session.ts`). The phone drops its connections and looks for the Host again by itself. In the lobby its strip says so; during a Match a card over the Game does: "Reconnecting to the host… · the match goes on when the connection is back".
-- **During a Match:** the phone keeps its part of the Match, its Game view and state, for 30 s (`REJOIN_GRACE_MS`, `apps/pwa/src/rejoin.ts:5-6`). Back with the same Host within that time, and the Host's lobby still names the Match, it says `hello` and the Host replays the current state and its pause to it: the Match goes on, no lobby, no result card (`apps/pwa/src/rejoin.ts:37-60`, `apps/pwa/src/main.ts:226-260`). Meanwhile the Host has lost the phone too: within 5 s it pauses the Match on every other phone ("Waiting for phone 2 · It lost its connection · the match goes on when it is back") and resumes once the phone is back and synced; the returning phone shows the same "Waiting for …" card until that resume. In the browser smoke a dropped connection was back and playing within 1.7 s.
+- **During a Match:** the phone keeps its part of the Match, its Game view and state, for 30 s (`REJOIN_GRACE_MS`, `apps/pwa/src/rejoin.ts:5-6`). Back with the same Host within that time, and the Host's lobby still names the Match, it says `hello` and the Host replays the current state and its pause to it: the Match goes on, no lobby, no result card (`apps/pwa/src/rejoin.ts:37-60`, `apps/pwa/src/main.ts:236-270`). Meanwhile the Host has lost the phone too: within 5 s it pauses the Match on every other phone ("Waiting for phone 2 · It lost its connection · the match goes on when it is back") and resumes once the phone is back and synced; the returning phone shows the same "Waiting for …" card until that resume. In the browser smoke a dropped connection was back and playing within 1.7 s.
 - **When it gives up:** after 30 s without the Host, the phone stops its part: "Connection lost", then the lobby. The Host keeps waiting until End match, and the phone rejoins the same Match by itself once its connection is back (its part starts afresh from the Host's state). If the Host is back without the Match, the card reads "Connection lost · The host phone restarted": its page reloaded ([the host phone reloaded](#the-host-phone-reloaded)), or it ended the Match while this phone was away, which a returning phone cannot tell apart. If the Host has started another Match meanwhile, the card reads "Connection lost".
 - **Fix:** keep every phone awake and on one network ([wake lock](running-on-phones.md#screen-wake-lock)). If it does not come back, reload the phone's page (its address keeps `?room=CODE`). Its log has the cause: a `peer-leave` (the connection closed) or `link` lines going `weak` before the `roster` line with `status: "reconnecting"` (silence).
 
@@ -177,7 +177,7 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 
 - **Symptom in its log:** `peer-join` → `roster` → one or two `clock` samples → `peer-leave` after ~11 s → `peer-join` again, for minutes. Since connectivity-1 the phone does not wait for the transport: it gives up after 4 s without a synced clock and reconnects itself, so the cycle is a `peer-leave` about 4 s after each `peer-join` and the strip alternates "Syncing clocks" and "Reconnecting to the host…".
 - **Cause:** the connection opens fine (ICE `connected`, a direct UDP pair with 4–50 ms rtt, the first clock replies arrive), then within 0.1–1.5 s the Host's packets stop reaching the Peer while the Peer's still reach the Host; ICE notices nothing for ~6 s. Seen between iPhones on a Personal Hotspot whose Host is the hotspot phone (its own address is only ever a peer-reflexive candidate), on ~90 % of attempts; the Android phones on the same table connected first time. The `ice` lines in the log (states, every candidate pair with STUN counters, the data channel's message counts, on join and whenever a link turns `weak`) are what settles the rest.
-- **Fix:** give the build a TURN relay (`pnpm setup-turn`; [connectivity flags](running-on-phones.md#connectivity-flags)). With one, a Peer that failed three times in a row joins through the relay only and its log gets a `relay` line; without one it keeps looping. The builds up to `02edc2e` named a public relay host that no longer exists, so they had none, whatever their `device` line said about `turn`. Also try hosting on a phone that is not the hotspot, or a normal Wi-Fi router. Export the logs either way.
+- **Fix:** give the build a TURN relay (`pnpm setup-turn`; [connectivity flags](running-on-phones.md#connectivity-flags)). With one, a Peer that failed three times in a row joins through the relay only and its log gets a `relay` line; without one it keeps looping. Before that, the Host tries a cheaper thing by itself: after the first failed connection it stops signaling its own addresses (its log gets a `withhold` line), so the Peer's second and third attempts run without the address suspected of causing the cut; if one of them holds, the Peer's `ice` line shows a `prflx` pair and no `relay` line follows. The builds up to `02edc2e` named a public relay host that no longer exists, so they had none, whatever their `device` line said about `turn`. Also try hosting on a phone that is not the hotspot, or a normal Wi-Fi router. Export the logs either way.
 
 ### The ball does not show on a phone it crosses, or jumps
 

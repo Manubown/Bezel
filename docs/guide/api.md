@@ -300,7 +300,7 @@ export class Surface {
 
 ## Platform-facing
 
-`apps/pwa` runs a Match with these (`apps/pwa/src/main.ts:167-211`). A Game does not import them; they are listed so the seam is complete.
+`apps/pwa` runs a Match with these (`apps/pwa/src/main.ts:177-221`). A Game does not import them; they are listed so the seam is complete.
 
 ### `runMatch`
 

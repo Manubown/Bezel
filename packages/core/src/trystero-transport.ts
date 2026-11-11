@@ -1,4 +1,5 @@
 import { joinRoom, selfId, type JsonValue, type MessageAction, type NostrRoomConfig, type Room } from 'trystero';
+import { OwnAddressWithholding, withholdingOwn } from './own-addresses';
 import { RelayEscalation } from './relay-escalation';
 import { Listeners, type PeerId, type Transport } from './transport';
 
@@ -22,11 +23,20 @@ export interface TrysteroOptions {
   relayAfter?: number;
   /** The transport switched between using every path and the relay only; `failures` is the streak that caused a switch to the relay. */
   onRelayOnly?(relayOnly: boolean, failures: number): void;
+  /**
+   * After this many connections in a row that ended within 15 s of coming up, connections made from then on do not
+   * signal this Device's own addresses (ICE `typ host` candidates); the other side learns the working one from this
+   * Device's connectivity checks. For a Host on a network where the address it would signal is not the one that
+   * works (an iPhone that is the Personal Hotspot). Only one end of a connection may do this. Omitted: never.
+   */
+  withholdOwnAfter?: number;
+  /** The transport began withholding its own addresses; `failures` is the streak that caused it. */
+  onWithhold?(failures: number): void;
 }
 
 /** A constructor for Trystero's `rtcPolyfill` that records every connection it makes in `made`, dropping closed ones as it goes. */
-function recording(made: Set<RTCPeerConnection>): typeof RTCPeerConnection {
-  return class extends RTCPeerConnection {
+function recording(Base: typeof RTCPeerConnection, made: Set<RTCPeerConnection>): typeof RTCPeerConnection {
+  return class extends Base {
     constructor(config?: RTCConfiguration) {
       super(config);
       for (const pc of made) if (pc.connectionState === 'closed') made.delete(pc);
@@ -49,6 +59,8 @@ export class TrysteroTransport implements Transport {
   private readonly roomId: string;
   private readonly relay: RelayEscalation | null = null;
   private readonly onRelayOnly: ((relayOnly: boolean, failures: number) => void) | undefined;
+  private readonly withhold: OwnAddressWithholding | null = null;
+  private readonly onWithhold: ((failures: number) => void) | undefined;
   /** With relay escalation: the connections Trystero made for this transport that may still be open, including ones `getPeers()` does not list yet. */
   private readonly made = new Set<RTCPeerConnection>();
   /** Fires at the relay probe deadline. */
@@ -62,11 +74,19 @@ export class TrysteroTransport implements Transport {
     if (opts.password !== undefined) this.config.password = opts.password;
     if (opts.rtcConfig !== undefined) this.config.rtcConfig = opts.rtcConfig;
     if (opts.turnConfig !== undefined) this.config.turnConfig = opts.turnConfig;
+    let Connection: typeof RTCPeerConnection | undefined;
     if (opts.turnConfig?.length && opts.relayAfter !== undefined) {
       this.relay = new RelayEscalation(opts.relayAfter);
-      this.config.rtcPolyfill = recording(this.made);
+      Connection = recording(RTCPeerConnection, this.made);
     }
+    if (opts.withholdOwnAfter !== undefined) {
+      const withhold = new OwnAddressWithholding(opts.withholdOwnAfter);
+      this.withhold = withhold;
+      Connection = withholdingOwn(Connection ?? RTCPeerConnection, () => withhold.active);
+    }
+    if (Connection) this.config.rtcPolyfill = Connection;
     this.onRelayOnly = opts.onRelayOnly;
+    this.onWithhold = opts.onWithhold;
     this.roomId = opts.roomId;
     this.join();
   }
@@ -127,6 +147,7 @@ export class TrysteroTransport implements Transport {
     old.onPeerLeave = null;
     this.action.onMessage = null;
     for (const pc of Object.values(old.getPeers())) pc.close();
+    this.withhold?.reset();
     if (switched) {
       for (const pc of this.made) pc.close();
       this.made.clear();
@@ -143,6 +164,7 @@ export class TrysteroTransport implements Transport {
       if (isEnvelope(env)) this.listeners.dispatch(env.c, env.d, peerId);
     };
     this.room.onPeerJoin = (id) => {
+      this.withhold?.joined(id, performance.now());
       if (this.relay) {
         this.relay.joined(id, performance.now());
         this.arm();
@@ -150,6 +172,7 @@ export class TrysteroTransport implements Transport {
       this.listeners.join.forEach((h) => h(id));
     };
     this.room.onPeerLeave = (id) => {
+      if (this.withhold?.left(id, performance.now())) this.onWithhold?.(this.withhold.failures);
       if (this.relay) {
         this.relay.left(id, performance.now());
         this.arm();
