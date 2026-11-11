@@ -71,6 +71,26 @@ export interface LineStore {
 }
 
 const DEFAULT_MAX_LINES = 20_000;
+/** A connection still there this long after its join gets a `settled` snapshot: a dying one is given up within 4–5 s, so only living ones have it. */
+const SETTLED_MS = 6000;
+
+/**
+ * What kind of network a candidate's address is on, without logging the address: `hotspot` (an iPhone Personal
+ * Hotspot's 172.20.10.0/28), `private`, `cgnat` (carrier NAT, 100.64.0.0/10), `link-local`, `mdns` (a `.local`
+ * name), `v6`, `public`, or `hidden` when the browser gives none. It tells a phone's hotspot-side address from its
+ * cellular one in an `ice` line.
+ */
+export function networkOf(address: string): string {
+  if (address === '') return 'hidden';
+  if (address.endsWith('.local')) return 'mdns';
+  if (address.includes(':')) return /^fe[89ab]/i.test(address) ? 'link-local' : 'v6';
+  const [a = NaN, b = NaN, c = NaN, d = NaN] = address.split('.').map(Number);
+  if (a === 172 && b === 20 && c === 10 && d < 16) return 'hotspot';
+  if (a === 10 || (a === 172 && b >= 16 && b < 32) || (a === 192 && b === 168) || (a === 192 && b === 0 && c === 0)) return 'private';
+  if (a === 100 && b >= 64 && b < 128) return 'cgnat';
+  if (a === 169 && b === 254) return 'link-local';
+  return 'public';
+}
 
 export function createRecorder(o: RecorderOptions): Recorder {
   const wall = o.wall ?? Date.now;
@@ -147,7 +167,7 @@ export function createRecorder(o: RecorderOptions): Recorder {
       const c = typeof id === 'string' ? byId.get(id) : undefined;
       if (!c) return undefined;
       const address = typeof c['address'] === 'string' ? c['address'] : '';
-      return { type: c['candidateType'], proto: c['protocol'], mdns: address.endsWith('.local'), v6: address.includes(':'), relayProto: c['relayProtocol'] };
+      return { type: c['candidateType'], proto: c['protocol'], net: networkOf(address), mdns: address.endsWith('.local'), v6: address.includes(':'), relayProto: c['relayProtocol'] };
     };
     // STUN checks still answered on a pair say that path is alive even when no data crosses it.
     const describe = (p: Record<string, unknown>): Record<string, unknown> => ({
@@ -187,6 +207,10 @@ export function createRecorder(o: RecorderOptions): Recorder {
         ice(id, 'join', pc);
         pc.addEventListener('connectionstatechange', () => ice(id, 'connection', pc));
         pc.addEventListener('iceconnectionstatechange', () => ice(id, 'ice', pc));
+        // What a connection that lives looks like: its pairs once every candidate has had time to arrive and be checked.
+        setTimeout(() => {
+          if (watched.get(id) === pc) ice(id, 'settled', pc);
+        }, SETTLED_MS);
       };
       inner.onPeerJoin((id) => {
         peers.set(id, wall());

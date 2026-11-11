@@ -1,6 +1,6 @@
 import { MemoryHub, CLOCK_CHANNEL, type RosterEntry } from '@mgc/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRecorder, memoryStore } from '../src/recorder';
+import { createRecorder, memoryStore, networkOf } from '../src/recorder';
 
 type Line = { t: number; w: number; k: string } & Record<string, unknown>;
 
@@ -199,5 +199,28 @@ describe('session recorder', () => {
       { n: 1, gap: 0, ageMin: 9, ageAvg: 9, ageMax: 9 },
       { n: 2, gap: 1200, ageMin: 4, ageAvg: 6.5, ageMax: 9 },
     ]);
+  });
+});
+
+describe('networkOf', () => {
+  it("tells an iPhone hotspot's own subnet, carrier NAT and public addresses from other private ones", () => {
+    expect(networkOf('172.20.10.1')).toBe('hotspot');
+    expect(networkOf('172.20.10.15')).toBe('hotspot');
+    expect(networkOf('172.20.10.16')).toBe('private'); // the hotspot is a /28
+    expect(networkOf('192.168.0.185')).toBe('private');
+    expect(networkOf('10.134.2.7')).toBe('private');
+    expect(networkOf('192.0.0.2')).toBe('private'); // an iPhone joined to an iPhone hotspot since iOS 18
+    expect(networkOf('100.64.0.1')).toBe('cgnat');
+    expect(networkOf('100.127.255.254')).toBe('cgnat');
+    expect(networkOf('100.128.0.1')).toBe('public');
+    expect(networkOf('84.17.3.9')).toBe('public');
+  });
+
+  it('names what is not an IPv4 address by its kind, and an address the browser withholds as hidden', () => {
+    expect(networkOf('')).toBe('hidden');
+    expect(networkOf('3f2a8c1e-0b7d-4c55-9d0e-1f2a3b4c5d6e.local')).toBe('mdns');
+    expect(networkOf('fe80::1c2d:3e4f:5a6b:7c8d')).toBe('link-local');
+    expect(networkOf('2a01:598:b1a2::17')).toBe('v6');
+    expect(networkOf('169.254.12.3')).toBe('link-local');
   });
 });
