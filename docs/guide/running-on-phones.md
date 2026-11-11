@@ -5,7 +5,7 @@
 `pnpm dev` starts Vite on port 5173 with `host: true` (reachable from the LAN) and a self-signed certificate from `@vitejs/plugin-basic-ssl` (`apps/pwa/vite.config.ts`). HTTPS is required on phones for the screen wake lock and a secure context for WebRTC.
 
 - Open the `Network` address Vite prints (`https://<your-LAN-ip>:5173/`) on the Host phone. Each phone's browser warns about the self-signed certificate once; accept it.
-- Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE`, plus `&noturn` or `&mic` when the Host has them (`apps/pwa/src/hud.ts:127-130`), so a `localhost` Host hands the other phones an address they cannot reach.
+- Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE`, plus `&noturn` when the Host has it (`apps/pwa/src/hud.ts:127-129`), so a `localhost` Host hands the other phones an address they cannot reach.
 - Another port: `pnpm --filter @mgc/pwa dev --port 5181`.
 - Without a laptop: every push to `master` publishes the PWA to https://manubown.github.io/Bezel/ (`.github/workflows/pages.yml`), with a real certificate but only the Games on `master`. `BASE_PATH=/Bezel/ pnpm build` builds the same into `apps/pwa/dist` (README).
 
@@ -17,11 +17,11 @@
 
 ## Join
 
-- A phone that opens the address **without** `?room=` becomes a Host with a new 4-letter code (letters and digits without 0, O, 1, I, L: `apps/pwa/src/main.ts:20-21`). A reloaded Host tab keeps its code, so its Peers find it again (`apps/pwa/src/main.ts:22-23`, `43-48`), and its lobby: arrangement, Tile order, Controllers, Game and bots come back as the phones do; the running Match does not ([the host phone reloaded](troubleshooting.md#the-host-phone-reloaded)).
+- A phone that opens the address **without** `?room=` becomes a Host with a new 4-letter code (letters and digits without 0, O, 1, I, L: `apps/pwa/src/main.ts:20-21`). A reloaded Host tab keeps its code, so its Peers find it again (`apps/pwa/src/main.ts:22-23`, `41-46`), and its lobby: arrangement, Tile order, Controllers, Game and bots come back as the phones do; the running Match does not ([the host phone reloaded](troubleshooting.md#the-host-phone-reloaded)).
 - **QR:** a Peer scans the Host's QR code and opens `…/?room=CODE`.
-- **Code:** a Peer opens the address (the Host's sheet shows it: "Scan to join, or open <address> and enter the code."), types the code into its own sheet's "Code" field and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:200-211`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:61`).
+- **Code:** a Peer opens the address (the Host's sheet shows it: "Scan to join, or open <address> and enter the code."), types the code into its own sheet's "Code" field and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:199-210`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:59`).
 
-A Peer's top strip says where it is (`apps/pwa/src/hud.ts:444-482`):
+A Peer's top strip says where it is (`apps/pwa/src/hud.ts:443-481`):
 
 | Strip | Meaning |
 |---|---|
@@ -35,16 +35,16 @@ A Peer's top strip says where it is (`apps/pwa/src/hud.ts:444-482`):
 
 ## The Host's sheet
 
-Top to bottom (`apps/pwa/src/hud.ts:137-176`):
+Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 
 | Control | What it does |
 |---|---|
-| bar: code · "N phones · Row" · Setup/Hide | folds the sheet. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:269-275`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused · N faults" with the newest game-log line under it |
+| bar: code · "N phones · Row" · Setup/Hide | folds the sheet. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused · N faults" with the newest game-log line under it |
 | QR code, address, "Code" field + Join | how Peers join; Join leaves this table for another one |
-| Game row | picks the Game "Start" starts; sorted by name; the Host's last pick is picked again, kept with the lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`, `lobby.picked`), else the first (`apps/pwa/src/hud.ts:212-214`). The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
+| Game row | picks the Game "Start" starts; sorted by name; the Host's last pick is picked again, kept with the lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`, `lobby.picked`), else the first (`apps/pwa/src/hud.ts:211-213`). The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
 | Arrangement: Row / Column / Grid | the template; the default is Row (`apps/pwa/src/lobby.ts:203`) |
-| Controllers, or "Players’ phones" when the Game has `seats: 'controllers'` (`apps/pwa/src/hud.ts:290-293`): one chip per phone | pressed = Controller (held in hand, out of the Layout and the Tile order); press again to make it a Tile. Under "Players’ phones" each pressed phone is one Player's |
-| Players: P1, P2 (`seats: 'ends'`), or one row per Controller phone (`seats: 'controllers'`) | each Player's name (editable, up to 24 characters), where it sits ("phone 1", or "Controller"), and, with `'ends'`, a **Bot** chip when the Game's manifest has `bots: true` (`apps/pwa/src/hud.ts:317-336`) |
+| Controllers, or "Players’ phones" when the Game has `seats: 'controllers'` (`apps/pwa/src/hud.ts:289-292`): one chip per phone | pressed = Controller (held in hand, out of the Layout and the Tile order); press again to make it a Tile. Under "Players’ phones" each pressed phone is one Player's |
+| Players: P1, P2 (`seats: 'ends'`), or one row per Controller phone (`seats: 'controllers'`) | each Player's name (editable, up to 24 characters), where it sits ("phone 1", or "Controller"), and, with `'ends'`, a **Bot** chip when the Game's manifest has `bots: true` (`apps/pwa/src/hud.ts:316-335`) |
 | Start <Game> / End match | Start freezes the Match; End match stops it on every phone ("Match stopped") |
 | reason line | why Start was refused ([messages](troubleshooting.md#start-is-refused)), else "Last match: …" |
 | game log | the running (or last) Match's faults, `ctx.log` lines and close, newest first; the last 50 (`apps/pwa/src/gamelog.ts:10`) |
@@ -84,13 +84,13 @@ A Tile's size in mm is its visible CSS size divided by this, so a 420 × 860 px 
 
 ## Screen size, rotation, iOS toolbars
 
-- Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:59`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:131-143`).
+- Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:57`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:131-143`).
 - Load the page with the phone sideways, or let iOS Safari show or hide its toolbars after that, and its Tile no longer matches its screen. Hold the phone upright, then reload it.
 - A phone added to the home screen opens without browser toolbars (`display: fullscreen` in `apps/pwa/public/manifest.webmanifest`).
 
 ## Screen wake lock
 
-Every phone asks for a screen wake lock on its first tap or key press on the page (the join field, the Host's sheet, the lobby, the Game), asks again when the page is visible again (the system drops the lock while it is hidden), and on the next tap if a request was refused; it holds the lock for as long as the page is open, lobby and Match alike (`apps/pwa/src/wake.ts:9-56`, `apps/pwa/src/main.ts:99-100`). The request needs that one tap: a phone nobody has touched since its page loaded follows its own auto-lock, and can sleep, drop out, and pause the Match. Tap every phone once after it joins. Browsers without the Screen Wake Lock API just keep their auto-lock. The `tick` log line says whether the lock is held (`wake`).
+Every phone asks for a screen wake lock on its first tap or key press on the page (the join field, the Host's sheet, the lobby, the Game), asks again when the page is visible again (the system drops the lock while it is hidden), and on the next tap if a request was refused; it holds the lock for as long as the page is open, lobby and Match alike (`apps/pwa/src/wake.ts:9-56`, `apps/pwa/src/main.ts:84-85`). The request needs that one tap: a phone nobody has touched since its page loaded follows its own auto-lock, and can sleep, drop out, and pause the Match. Tap every phone once after it joins. Browsers without the Screen Wake Lock API just keep their auto-lock. The `tick` log line says whether the lock is held (`wake`).
 
 ## Losing a phone
 
@@ -129,7 +129,7 @@ Every page keeps a log of what it saw (`apps/pwa/src/recorder.ts`), in IndexedDB
 | `match:<event>` | every `runMatch` event on this page: `started`, `paused`, `resumed`, `holders`, `ended`, `closed`, `view-closed`, `fault` (with the stack), `log` (every `ctx.log`, not just the last 50) | the event's fields and `matchId` |
 | `visibility` | the page went to the background or came back | `hidden` |
 | `error` | an uncaught error or rejection on the page | `message`, `stack` |
-| `ice` | a peer connection joined, changed connection/ICE state, or left | `peer`, `event`, `connection`, `ice`, `gathering`, `signaling`, `pair` (selected candidate pair: `local`/`remote` `type` host/srflx/prflx/relay, `proto`, `mdns`, `v6`; `rtt`, bytes) |
+| `ice` | a peer connection joined (`event: join`), changed connection/ICE state, left, is still there 6 s after its join (`settled`), or a link turned `weak`/`lost` | `peer`, `event`, `connection`, `ice`, `gathering`, `signaling`, `sdp` (which side offered), `pair` (the selected candidate pair: `local`/`remote` with `type` host/srflx/prflx/relay, `net` (the kind of network the address is on: `hotspot` for an iPhone hotspot's own subnet, `private`, `cgnat`, `public`, `mdns`, `v6`, `link-local`, `hidden`; never the address), `proto`, `mdns`, `v6`; `rtt`, bytes, STUN requests sent / answered / received), `others` (every other pair ICE holds), `dc` (the data channel's state and message counts) |
 | `relay` | this Peer's transport went relay-only, or back to every path | `relayOnly`, `failures` (connection attempts in a row that did not last, before it went relay-only) |
 
 Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Peer's sync; `select(.k=="tick") | .fps` the frame rate; `select(.k=="tick") | .peers` on a Peer shows whether it holds connections to other Peers besides the Host (the mesh); `select(.k=="link")` lists every `weak`/`lost` stretch; the gap between a `peer-leave` and the `device-lost` that follows is the leave-detection latency; `match:paused`/`match:resumed` and `match:fault` carry their reasons. `select(.k=="tick" and .state) | [.t, .state.n, .state.gap, .state.ageMax]` on a Peer shows how the Host's states arrived: at 60 states a second a `gap` near 17 ms is an even stream, a `gap` of hundreds of ms a delivery stall (the view had nothing new to draw for that long), and `ageMax` how stale the oldest one was; a pause shows as one large `gap` at the resume. Faults with stacks and every `ctx.log` line are in there even after the HUD's 50-line log has rolled over.
@@ -139,7 +139,6 @@ Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Pe
 - **The TURN relay.** A build carries the TURN servers of an account its maintainer owns, as the build-time setting `VITE_MGC_TURN_SERVERS` (a JSON array of ICE servers; `apps/pwa/src/turn.ts`). `pnpm setup-turn` (run it from Git Bash on Windows) walks you through a free Metered account, writes the setting to `apps/pwa/.env.local` for the dev server and local builds, and sets the repository secret `MGC_TURN_SERVERS` the hosted build reads (`.github/workflows/pages.yml`). The servers are readable in the published JavaScript; the wizard says how to revoke them. A build without the setting has no relay: phones connect directly or not at all, and the `device` log line says `turn: false` (with `turnProblem` when the setting is there and unusable).
 - **When a phone uses it.** ICE prefers a direct pair, so on a network that works the relay carries nothing. A Peer whose connection to the Host died three times in a row without lasting 15 s stops trying the direct path and joins through the relay only (`RELAY_AFTER` in `apps/pwa/src/main.ts`; the policy is `packages/core/src/relay-escalation.ts`); its log gets a `relay` line and its `ice` lines show a `relay` pair. If the relay does not connect within 20 s the phone goes back to trying every path. A relayed connection costs latency (the packets leave the table and come back) and counts against the account's quota.
 - `?noturn` on the Host's address leaves the relay out, for comparison runs; the QR carries the flag so every Peer does the same.
-- `?mic` on the Host's address is an experiment for iPhones on a Personal Hotspot (`.scratch/live-test-1/findings.md` §1f): every page asks for the microphone before it connects and holds the stream, unused, so that Safari offers WebRTC every network interface instead of its default route's only. The `device` log line records `mic`; the QR carries the flag.
 - Phones are measured upright: the manifest asks for portrait (locked when installed), and a browser tab turned sideways shows "Turn your phone upright" until turned back.
 - Safari Page Zoom is corrected for (`device.ts` `pageZoom`): 75 % zoom no longer makes a phone's Tile a third too large. Safari applies the zoom some tens of ms after the page starts, so the phone is measured once its viewport has been still for 120 ms (`viewportSettled`).
 

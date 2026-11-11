@@ -34,14 +34,14 @@ This is Vite (`pnpm --filter @mgc/pwa dev`) on port 5173, over HTTPS with a self
 
 1. On the phone that will be the **Host**, open the `Network` address. The browser warns about the certificate: accept it once. The Host's sheet shows a 4-letter code and a QR code.
 2. On every other phone (a **Peer**), either scan the QR code, or open the same address and type the code into the "Code" field of the sheet and press Join. Opening `https://<your-LAN-ip>:5173/?room=CODE` directly does the same. Each phone accepts the certificate once.
-3. Open the Host page by its LAN address, not `localhost`: the QR code encodes the Host page's own URL with `?room=CODE` (and `&noturn` or `&mic` when the Host's address has them; `apps/pwa/src/hud.ts:127-130`), and the other phones cannot reach `localhost`.
+3. Open the Host page by its LAN address, not `localhost`: the QR code encodes the Host page's own URL with `?room=CODE` (and `&noturn` when the Host's address has it; `apps/pwa/src/hud.ts:127-129`), and the other phones cannot reach `localhost`.
 
 A Peer's top strip goes "Looking for the host…" → "Syncing clocks" → "Phone 2 of 2". Details, every control of the Host's sheet, and what can go wrong: [Running on phones](running-on-phones.md).
 
 ## Start Pong
 
 1. Lay the phones side by side in a row, in the order the Host's roster lists them ("1 This phone", "2 …"). Change the order with ◀ ▶ on a roster row.
-2. In the sheet's Game row, tap **Pong**. The list is sorted by name; the Host's last pick is picked again, kept with its lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`), else the first (`apps/pwa/src/hud.ts:212-214`).
+2. In the sheet's Game row, tap **Pong**. The list is sorted by name; the Host's last pick is picked again, kept with its lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`), else the first (`apps/pwa/src/hud.ts:211-213`).
 3. Leave the arrangement on **Row** (Pong refuses any other: its manifest says `templates: ['row']`).
 4. Players: P1 sits at the first phone, P2 at the last. With a single phone, press P2's **Bot** chip.
 5. Press **Start Pong**. If the lobby refuses, the reason shows under the button ([the messages](troubleshooting.md#start-is-refused)).

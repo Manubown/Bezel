@@ -36,4 +36,4 @@ Full account: `.scratch/live-test-1/findings.md` §1f.
 - **Not done in this run:** three phones in a row (the middle-phone question), an Android Peer, a Wi-Fi router for comparison.
 - **Found besides:** Safari applied Page Zoom 33 ms after the page's scripts started on one load, so that Peer's Tile was measured before the zoom. Fixed (`viewportSettled`).
 
-**Status stays `ready-for-human`** for what is left: the three-phone table, and the `?mic` experiment of findings §1f.
+**Status stays `ready-for-human`** for what is left: the three-phone table, and the experiments of `docs/research/README.md` (every phone on its own connection; an Android phone or a travel router as the network).
