@@ -14,7 +14,7 @@
 
 ## Comments
 
-### 2026-11-12, Main (implementation)
+### 2026-11-11, Main (implementation)
 
 **Changed**
 - `packages/core/src/own-addresses.ts` (new, internal to core): `isOwnAddress`, `withoutOwnAddresses`, the policy `OwnAddressWithholding` (sticky once on; a connection that lived 15 s restarts the count), and `withholdingOwn(Base, withhold)`, an `RTCPeerConnection` subclass for Trystero's `rtcPolyfill`. Its `localDescription` reads without own addresses in every mode; own-address candidates are held until the remote description is set (the moment a connection Trystero made ahead of time gets its peer), then passed on or dropped.

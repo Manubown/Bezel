@@ -22,7 +22,9 @@ Open-source platform that syncs a group of phones placed together on a table int
 - ScreenWall (2025): closed, static widgets, not games.
 - Jackbox / AirConsole: phones as controllers, TV as screen — inverse model.
 
-Nobody has shipped "tiled phones as the game surface + open plugin platform".
+- BIGBOARD.GAMES (live since 2026-10-05, found 2026-11-11): free browser games, no install, two to four phones or tablets edge to edge as one board, iPhone and Android; closed source, its own server for signaling. The same product idea, shipped (`docs/strategy/competition-and-audience.md`).
+
+Until October 2026 nobody had shipped "tiled phones as the game surface"; nobody has shipped it as an open plugin platform.
 
 ## 3. Transport facts that shape the design
 
