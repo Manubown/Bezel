@@ -27,8 +27,6 @@ const HOST_ROOM_KEY = 'mgc.hostRoom';
  * `SYNC_TIMEOUT_MS`, long enough for a direct path that works one time in five to get its chances.
  */
 const RELAY_AFTER = 3;
-/** `?mic`: the capture stream, never played or sent, held so that Safari keeps offering ICE every interface for the page's life. */
-let heldCapture: MediaStream | undefined;
 
 const stage = document.getElementById('stage') as HTMLCanvasElement;
 /** A running Match's view: a positioned layer over the stage. */
@@ -64,18 +62,6 @@ async function start(): Promise<void> {
   // networks where the direct path dies. `?noturn` leaves it out, for comparison runs; the QR carries the flag to every Peer.
   const turnSetting = parseTurnServers(import.meta.env['VITE_MGC_TURN_SERVERS'] as string | undefined);
   const turnServers = params.has('noturn') ? [] : turnSetting.servers;
-  // Experiment (`?mic`, live-test-1 findings §1f): Safari offers ICE the address of its default route only, which on a
-  // Personal Hotspot's own phone is the cellular one, until the page may capture; then it offers every interface's.
-  // The QR carries the flag so every phone of the table does the same.
-  let mic: string | undefined;
-  if (params.has('mic')) {
-    try {
-      heldCapture = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mic = 'granted';
-    } catch (e) {
-      mic = `refused: ${e instanceof Error ? e.name : String(e)}`;
-    }
-  }
   // The session log: every event this page sees, kept across reloads, exported from the HUD.
   let sharedNow = (): number => performance.now();
   const rec = createRecorder({ now: () => sharedNow(), deviceId, role: room ? 'peer' : 'host', code, awake });
@@ -93,7 +79,6 @@ async function start(): Promise<void> {
     url: location.href,
     turn: turnServers.length > 0,
     ...(turnSetting.problem !== undefined && { turnProblem: turnSetting.problem }),
-    ...(mic !== undefined && { mic }),
   });
   rec.observe();
   // The screen stays on from the first tap on the page, lobby and Match alike, for the page's lifetime (D11).
