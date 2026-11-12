@@ -172,6 +172,18 @@
       .result .result-refusal { margin-top: 10px; color: var(--wait); }
       .result .result-refusal:empty { display: none; }
 
+      /* A Peer not in its table after 15 s: what to check, Try again, and its code to correct (join.ts). Inputs at 16 px: an iPhone does not zoom on focus. */
+      .help { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(88vw, 360px); display: grid; gap: 14px; padding: 20px; background: var(--raise); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); }
+      .help p, .help ul { margin: 0; }
+      .help .help-head { font-size: 20px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+      .help ul { padding-left: 1.2em; display: grid; gap: 8px; color: var(--fg-2); font-size: 16px; }
+      .help .help-retry { min-height: 44px; border-radius: 8px; font-weight: 600; background: var(--ok); color: var(--bg); }
+      .help form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+      .help input { font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; letter-spacing: 0.18em; text-transform: uppercase; }
+      .help form button { min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; font-weight: 600; }
+      /* The first phone: one phone keeps losing its connection, and what usually helps. It heads the sheet, above its bar, folded or open. */
+      .sheet .advice { flex: none; margin: 0; padding: 12px 16px; border-bottom: 2px solid var(--wait); }
+
       @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .card, .chip, .move { transition: none; } .splash-dot { animation: none; } }
       /* Phones are used upright: the Layout is measured in portrait. A touch screen turned sideways is asked back; a desktop window is left alone. */
       #rotate { display: none; position: fixed; inset: 0; z-index: 10; place-items: center; background: var(--bg); text-align: center; padding: 24px; }

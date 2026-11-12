@@ -13,7 +13,7 @@
 
 - Put every phone on the same Wi-Fi, or on one phone's hotspot. The Match itself runs phone-to-phone over WebRTC.
 - Every phone also needs **internet**: signaling (how phones find each other) goes through public Nostr relays via Trystero (`packages/core/src/trystero-transport.ts:159-161`). The offline fallback (SDP by QR code) is planned for M5 (`docs/PLAN.md:88`) and not built.
-- The Session is a star: Peers talk only to the Host (ADR-0002). If the Host's page goes away, the Session is gone until the Host is back under the same code; Peers show "Reconnecting to the host…" and look for it again by themselves.
+- The Session is a star: Peers talk only to the Host (ADR-0002). If the Host's page goes away, the Session is gone until the Host is back under the same code; Peers show "Lost the table. Reconnecting…" and look for it again by themselves.
 
 ## Join
 
@@ -25,15 +25,17 @@ A Peer's top strip says where it is (`apps/pwa/src/hud.ts:443-481`):
 
 | Strip | Meaning |
 |---|---|
-| Looking for the host… · keep the host screen open | no Host has answered since this page loaded |
-| Reconnecting to the host… · the connection dropped · trying again | it had the Host and lost it: the connection closed, the Host was silent for 5 s, or the clock did not sync within 4 s. It reconnects by itself ([reconnecting](troubleshooting.md#reconnecting-to-the-host-on-a-peer)) |
-| Syncing clocks · measuring the offset to the host | connected; the shared clock is being measured. Without [Maker mode](#connectivity-flags): "Connecting…" |
-| Synced · waiting for arrangement | synced; the Host's lobby state has not arrived yet. Without Maker mode: "Connected · waiting for arrangement" |
+| Finding table CODE… · keep the first phone’s screen on | no Host has answered since this page loaded |
+| Connecting… | a Host answered and the shared clock is being measured, or an attempt failed and the phone tries again; it has not been in yet |
+| Lost the table. Reconnecting… | it had been in and lost the Host: the connection closed, the Host was silent for 5 s, or the clock did not sync within 4 s. It reconnects by itself ([reconnecting](troubleshooting.md#lost-the-table-reconnecting-on-a-peer)) |
+| You’re in · waiting for the first phone | in; the Host's lobby state has not arrived yet |
 | Phone N of M · <where it goes> · <Player> | a Tile, its place in the Tile order, and who sits there |
 | Controller · hold this phone in hand | the Host marked it a Controller |
-| Match in progress · you join the next one | a Match started without this phone; no joins mid-Match |
+| A match is on · you join the next one | a Match started without this phone; no joins mid-Match |
 
-In [Maker mode](#connectivity-flags) every line after "Syncing clocks" ends in this phone's clock figures (`rtt · Δoffset`), and a **Log** button exports the session log; without it the strip shows neither.
+After 15 s without getting in (`HELP_AFTER_MS`, `apps/pwa/src/join.ts`), counted from the page's start or from the moment it lost the table, a card over the lobby names the code ("Table CODE not found yet", "Still connecting to table CODE", "Still reconnecting to table CODE"), says to check the code on the first phone and keep that phone's screen on, and that an iPhone hotspot often fails, so to use the same Wi-Fi or mobile data on every phone. **Try again** reloads the page for the same code; the code field opens the same address with another code, keeping its other flags. The card goes by itself once the phone is in. Over a running Match the reconnect notice speaks instead; the card shows in the lobby if the 30 s grace runs out.
+
+In [Maker mode](#connectivity-flags) the second line holds the makers' words ("looking for the host", "syncing clocks · measuring the offset to the host", "reconnecting to the host · the connection dropped", "synced · waiting for arrangement") and every line ends in this phone's clock figures (`rtt · Δoffset`, "—" before it has any), and a **Log** button exports the session log; without it the strip shows neither.
 
 ## The Host's sheet
 
@@ -41,6 +43,7 @@ Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 
 | Control | What it does |
 |---|---|
+| advice line (only when one phone keeps dropping) | above the bar, folded or open: "<phone> keeps losing its connection. An iPhone hotspot often fails: use the same Wi-Fi on every phone, or mobile data on every phone." once one phone's connection ended three times in a row within 15 s of coming in (the transport's measure of a connection that did not work, `RELAY_STABLE_MS`); it goes once that phone's connection lasts 15 s. Maker mode adds the count (`apps/pwa/src/hud/advice.ts`, `apps/pwa/src/join.ts`) |
 | bar: code · "N phones · in a row" · Setup/Hide | folds the sheet. It also folds by itself once, when the first other phone is ready in the lobby, so the Host's own placement cue shows; opened again, it stays open. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused", in Maker mode with "· N faults" and the newest game-log line under it. When the Match ends it stays folded: the result card offers what comes next |
 | QR code, address, "Code" field + Join | how Peers join; Join leaves this table for another one |
 | Game cards | one per Game: its name, how many play and how the phones lie ("2 players · phones in a row"); a tap picks the Game "Start" starts. Players see Pong, then Air Hockey; Maker mode every Game, sorted by name (`apps/pwa/src/gamelist.ts`). The Host's last pick is picked again, kept with the lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`, `lobby.picked`), when the list has it, else Pong. The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
@@ -99,13 +102,13 @@ Every phone asks for a screen wake lock on its first tap or key press on the pag
 
 ## Losing a phone
 
-The Host notices a silent phone after 2.5 s (its roster row reads "weak connection", `WEAK_MS`; no pause) and gives it up after 5 s of silence (`LOST_MS`, `packages/core/src/session.ts`), or at once when its connection closes; the 1 Hz clock pings are the heartbeat. Before connectivity-1 only the transport's own leave told it, 10–13 s after the phone went. The Match then pauses on every phone ("Waiting for <Player>", or "phone N" / "the controller") and resumes once the phone is back and has synced its clock (`apps/pwa/src/pause.ts:12-35`). The lost phone itself keeps its part of the Match for 30 s, showing "Reconnecting to the host…", while its connection is rebuilt; back within that, it plays on in the same Match ([reconnecting](troubleshooting.md#reconnecting-to-the-host-on-a-peer)). Reloading the lost phone's page (its address still holds `?room=CODE`) also brings it back, under the same Device id. A Game that must notice an absent Player sooner does it itself (Pong holds play until each human keeps touching: `PONG.presence`, `games/pong/src/index.ts:27-31`).
+The Host notices a silent phone after 2.5 s (its roster row reads "weak connection", `WEAK_MS`; no pause) and gives it up after 5 s of silence (`LOST_MS`, `packages/core/src/session.ts`), or at once when its connection closes; the 1 Hz clock pings are the heartbeat. Before connectivity-1 only the transport's own leave told it, 10–13 s after the phone went. The Match then pauses on every phone ("Waiting for <Player>", or "phone N" / "the controller") and resumes once the phone is back and has synced its clock (`apps/pwa/src/pause.ts:12-35`). The lost phone itself keeps its part of the Match for 30 s, showing "Lost the table. Reconnecting…", while its connection is rebuilt; back within that, it plays on in the same Match ([reconnecting](troubleshooting.md#lost-the-table-reconnecting-on-a-peer)). Reloading the lost phone's page (its address still holds `?room=CODE`) also brings it back, under the same Device id. A Game that must notice an absent Player sooner does it itself (Pong holds play until each human keeps touching: `PONG.presence`, `games/pong/src/index.ts:27-31`).
 
 ## What a Peer sees
 
 1. The lobby: the strip above and the placement preview.
-2. On Start: the strip folds away and the Game's view fills the screen. A Peer that is not in the Match stays in the lobby ("Match in progress").
-3. During a pause: a card "Waiting for …" over the frozen view. While this phone's own connection is down: "Reconnecting to the host… · the match goes on when the connection is back", for up to 30 s.
+2. On Start: the strip folds away and the Game's view fills the screen. A Peer that is not in the Match stays in the lobby ("A match is on · you join the next one").
+3. During a pause: a card "Waiting for …" over the frozen view. While this phone's own connection is down: "Lost the table. Reconnecting… · the match goes on when the connection is back", for up to 30 s; back before the Match resumes: "You’re back · the match goes on in a moment".
 4. When the Match closes: the result card on every phone that played (two sides in one line, "Ana wins 7–5" or "Draw, 3–3"; more sides "<name> wins" or "Draw" with everyone's points; without a result, why it closed: "Game ended on the first phone", "The game crashed", "Connection lost", "Connection lost · The host phone restarted", … from `apps/pwa/src/result.ts`), with "The first phone starts the next game", until tapped or the next Match starts, then the lobby.
 
 ## Installing as a PWA
@@ -146,7 +149,7 @@ Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Pe
 - **When a phone uses it.** ICE prefers a direct pair, so on a network that works the relay carries nothing. A Peer whose connection to the Host died three times in a row without lasting 15 s stops trying the direct path and joins through the relay only (`RELAY_AFTER` in `apps/pwa/src/main.ts`; the policy is `packages/core/src/relay-escalation.ts`); its log gets a `relay` line and its `ice` lines show a `relay` pair. If the relay does not connect within 20 s the phone goes back to trying every path. A relayed connection costs latency (the packets leave the table and come back) and counts against the account's quota.
 - **A Host that stops signaling its own addresses.** After one connection to a Peer ended within 15 s of coming up, the Host leaves its own addresses (ICE `typ host` candidates) out of what it signals for every connection that follows, until the page is reloaded (`WITHHOLD_AFTER` in `apps/pwa/src/main.ts`; `packages/core/src/own-addresses.ts`). A Peer still finds the Host: it sees where the Host's connectivity checks come from, and its `ice` lines then show the Host as `prflx`. It is there for an iPhone that is the Personal Hotspot: that phone signals its cellular address, and a Peer's checks toward it are what every dying attempt of live runs 5 and 6 had in common. Whether it makes the hotspot's direct path live is not yet shown on phones; the Host's log gets a `withhold` line, and a Peer that still fails goes to the relay as before. A Peer leaving within 15 s of joining on a healthy network switches it on too; there the connection forms the same way, checked between two Chrome tabs.
 - `?noturn` on the Host's address leaves the relay out, for comparison runs; the QR carries the flag so every Peer does the same.
-- `?maker` switches on **Maker mode**, the app as its makers see it (`apps/pwa/src/maker.ts`): the clock figures and words ("Syncing clocks", `rtt · Δoffset`), the counting beat on a phone's screen before it is in, the game log, and the session log's **Export log**, **Clear** and **Log**. The phone remembers it for later visits without the flag (`localStorage` `mgc.maker`); `?maker=no` switches it off again, and that is remembered too. The Host's QR code and its typed address ("open <address>/?maker") carry the flag, so one scan sets the whole table. The session log records the same lines with Maker mode on or off.
+- `?maker` switches on **Maker mode**, the app as its makers see it (`apps/pwa/src/maker.ts`): the clock figures and the makers' words beside the players' ("syncing clocks", `rtt · Δoffset`, the count on the first phone's advice line), the counting beat on a phone's screen before it is in, the game log, and the session log's **Export log**, **Clear** and **Log**. The phone remembers it for later visits without the flag (`localStorage` `mgc.maker`); `?maker=no` switches it off again, and that is remembered too. The Host's QR code and its typed address ("open <address>/?maker") carry the flag, so one scan sets the whole table. The session log records the same lines with Maker mode on or off.
 - Phones are measured upright: the manifest asks for portrait (locked when installed), and a browser tab turned sideways shows "Turn your phone upright" until turned back.
 - Safari Page Zoom is corrected for (`device.ts` `pageZoom`): 75 % zoom no longer makes a phone's Tile a third too large. Safari applies the zoom some tens of ms after the page starts, so the phone is measured once its viewport has been still for 120 ms (`viewportSettled`).
 
