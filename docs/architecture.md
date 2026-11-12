@@ -81,7 +81,7 @@ A `Layout` is a set of `Tile`s `{ x, y, w, h, rot, deviceId }` in millimetres; `
 | a new Game | `pnpm new-game <slug> "<Name>"`, then `games/<slug>/src/index.ts`; nothing to register (`apps/pwa/src/games.ts` globs `games/*/src/index.ts`) |
 | a new Game-facing capability | `packages/sdk/src/{types,game,wire,match,game-side}.ts`, the test harness, `docs/sdk-design.md`, `docs/guide/api.md` |
 | a lobby rule (who may start, seats, templates) | `apps/pwa/src/lobby.ts` (+ `apps/pwa/test/lobby.test.ts`), the refusal messages quoted in `docs/guide/troubleshooting.md` |
-| the Host sheet or Peer strip | `apps/pwa/src/hud.ts`, `apps/pwa/index.html` |
+| the Host sheet or Peer strip | `apps/pwa/src/hud/sheet.ts`, `apps/pwa/src/hud/strip.ts` (the result and pause cards: `hud/cards.ts`; `hud.ts` opens them), `apps/pwa/index.html` |
 | connectivity, clock, roster | `packages/core/src/{trystero-transport,session,clock}.ts` |
 | another template or the mm math | `packages/layout/src/{templates,surface}.ts` |
 | the hosted build | `.github/workflows/pages.yml`, `scripts/stable.mjs` |
