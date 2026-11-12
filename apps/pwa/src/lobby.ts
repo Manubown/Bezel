@@ -87,6 +87,12 @@ export interface Lobby {
    * is the reason when it cannot (on a Peer, always).
    */
   start(game: Manifest): MatchInfo;
+  /**
+   * Host only: Play again. Starts the last Match's Game through `start`, on the condition that the table is
+   * still the last Match's, so the new Match has the same Players, Layout and bots and differs only in its id
+   * and seed. Throws an Error whose message is the reason when it cannot (on a Peer, always).
+   */
+  startAgain(): MatchInfo;
   /** Host only: the Match is over. `match` clears on every Device and the lobby takes changes again. */
   close(): void;
 }
@@ -235,6 +241,8 @@ class HostLobby extends LobbyBase implements Lobby {
   private frozen: MatchInfo | undefined;
   /** The manifest id of the Game `frozen` runs. */
   private frozenGame: string | undefined;
+  /** The last Match `start` froze and the Game it runs, kept after `close` for `startAgain`. */
+  private last: { match: MatchInfo; game: Manifest } | undefined;
   /** `template|id:w×h,…` in Tile order that `layout` was built from: clock reports alone rebuild nothing. */
   private tilesKey = '';
   /** The last state sent to every Peer, as JSON. */
@@ -366,8 +374,32 @@ class HostLobby extends LobbyBase implements Lobby {
     });
     this.frozen = match;
     this.frozenGame = game.id;
+    this.last = { match, game };
     this.refresh();
     return match;
+  }
+
+  startAgain(): MatchInfo {
+    if (!this.last) throw new Error('No game to play again');
+    if (this.frozen) throw new Error('A Match is already running');
+    const { match, game } = this.last;
+    const present = this.session.roster().filter((e) => e.present);
+    const gone = match.devices.find((d) => !present.some((e) => e.info.deviceId === d.deviceId));
+    if (gone) {
+      const i = match.tiles.findIndex((t) => t.deviceId === gone.deviceId);
+      throw new Error(`${i >= 0 ? `Phone ${i + 1}` : gone.name} is no longer at the table`);
+    }
+    const joined = present.find((e) => !match.devices.some((d) => d.deviceId === e.info.deviceId));
+    if (joined) {
+      const i = this.layout?.devices.findIndex((d) => d.id === joined.info.deviceId) ?? -1;
+      throw new Error(`${i >= 0 ? `Phone ${i + 1}` : joined.info.name} joined the table after the last game`);
+    }
+    // The same Devices, but the Host decided otherwise since (an arrangement, an order, a bot, a name): that is Start.
+    const table = (players: readonly Player[], tiles: readonly Tile[]): string =>
+      JSON.stringify([players.map((p) => [p.playerId, p.name, p.deviceId, p.bot]), tiles.map((t) => [t.deviceId, t.x, t.y, t.w, t.h, t.rot])]);
+    const tiles = (this.layout?.devices ?? []).map((r): Tile => ({ deviceId: r.id, x: r.x, y: r.y, w: r.w, h: r.h, rot: r.rot }));
+    if (table(this.players, tiles) !== table(match.players, match.tiles)) throw new Error('The table changed since the last game');
+    return this.start(game);
   }
 
   close(): void {
@@ -532,6 +564,9 @@ class PeerLobby extends LobbyBase implements Lobby {
   setBot(): void {}
   setPlayers(): void {}
   start(): MatchInfo {
+    throw new Error('Only the Host starts a Match');
+  }
+  startAgain(): MatchInfo {
     throw new Error('Only the Host starts a Match');
   }
   close(): void {}

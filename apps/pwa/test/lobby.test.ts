@@ -193,6 +193,69 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect([lobby('d1').layout?.template, lobby('d1').match]).toEqual(['column', match]);
   });
 
+  it('plays the last Match again: the same Game, Players, Layout and bots through the ordinary start; only its identity differs', () => {
+    const { hub, host, lobby, join } = table(['d1', 'd2']);
+    const peer = lobby('d1');
+    const BOTS: Manifest = { ...DUEL, id: 'test.bots', bots: true };
+    expect(() => host.startAgain()).toThrow('No game to play again');
+    expect(() => peer.startAgain()).toThrow('Only the Host starts a Match');
+    host.setGame(BOTS);
+    host.setTemplate('column');
+    host.setBot(1, true);
+    host.setPlayers(host.players.map((p, i) => ({ ...p, name: ['Ann', 'Robo'][i]! })));
+    const first = host.start(BOTS);
+    expect(host.layout?.template).toBe('column');
+    expect(() => host.startAgain()).toThrow('A Match is already running');
+    // d2 drops during the Match and is back before it ends: the lobby built its Layout and Players afresh meanwhile.
+    hub.disconnect('peer-of-d2');
+    vi.advanceTimersByTime(100);
+    join('d2', joinSession, 'peer-of-d2-again');
+    vi.advanceTimersByTime(3000);
+    host.close();
+    vi.advanceTimersByTime(100);
+
+    const second = host.startAgain();
+    const { matchId, seed, ...rest } = second;
+    const { matchId: firstId, seed: firstSeed, ...firstRest } = first;
+    expect(matchId).not.toBe(firstId);
+    expect(rest).toStrictEqual(firstRest);
+    expect(second.players.map((p) => [p.name, p.deviceId ?? 'bot'])).toEqual([
+      ['Ann', 'd0'],
+      ['Robo', 'bot'],
+    ]);
+    expect(host.match).toBe(second);
+    expect(host.game).toBe('test.bots');
+    vi.advanceTimersByTime(100);
+    expect(peer.match).toEqual(second);
+    expect(peer.game).toBe('test.bots');
+  });
+
+  it('refuses Play again, in words, while a phone of the last Match is not at the table, or once the table changed since', () => {
+    const { hub, host, lobby, join } = table(['d1', 'd2']);
+    host.start(DUEL);
+    host.close();
+    hub.disconnect('peer-of-d1');
+    vi.advanceTimersByTime(100);
+    expect(() => host.startAgain()).toThrow('Phone 2 is no longer at the table');
+    expect(host.match).toBeUndefined();
+    join('d1', joinSession, 'peer-of-d1-again');
+    vi.advanceTimersByTime(3000);
+
+    // A phone that joined after it would change the Layout: it is placed from the sheet.
+    join('d3');
+    vi.advanceTimersByTime(3000);
+    expect(() => host.startAgain()).toThrow('Phone 4 joined the table after the last game');
+    hub.disconnect('peer-of-d3');
+    vi.advanceTimersByTime(100);
+    expect(host.startAgain().players).toEqual(host.players);
+    host.close();
+
+    // The Host changed the arrangement since: that is Start, not Play again.
+    host.setTemplate('column');
+    expect(() => host.startAgain()).toThrow('The table changed since the last game');
+    expect(lobby('d2').match).toBeUndefined();
+  });
+
   it('takes a Device marked Controller out of the Layout and the Match’s Tiles, keeps it in the Match’s Devices with that role, and counts it as a Controller', () => {
     const { host, lobby } = table(['d1', 'd2']);
     const peer = lobby('d2');

@@ -31,11 +31,11 @@
 - The fold is a native `<details>`/`<summary>`: folded with no script, keyboard-operable, and the marker shows it opens. It sits below Export log, so it is the last thing on the sheet in both modes.
 - The pure function also normalises (case, stray characters), so the refusal does not depend on the field's live capitalising.
 - A Peer that opened the bare address is itself a first phone, and "Join a different table" on its sheet is how it joins by code. That is what the hint's "join table <CODE>" points at.
-- The reason line's "Last match: Match stopped · Ended from the host phone" comes from `result.ts`. Ticket 06 rewrites it as "Game ended on the first phone"; it was staged in its worktree when this was written. Nothing else on the sheet says host, session or room. The remaining hits are URL parameters, the input's `name` and comments.
+- The reason line's "Last match: Match stopped · Ended from the host phone" came from `result.ts`. Ticket 06, merged in here, reads it as "Game ended on the first phone". Nothing else on the sheet says host, session or room. The remaining hits are URL parameters, the input's `name` and comments.
 
 **Verified**
 - Red then green for each slice: `pnpm vitest run apps/pwa/test/othertable.test.ts`. The red runs failed on: the missing module, the lower-case own code (undefined), another code (undefined) and the empty input (`{ code: '' }`). Final run: 4 passed.
-- `pnpm typecheck && pnpm test`: typecheck clean; 34 test files, 254 tests passed. After merging `outside-view` (ticket 04) and moving the code field onto `tableCode`: typecheck exit 0; 35 test files, 267 tests passed.
+- `pnpm typecheck && pnpm test`: typecheck clean; 34 test files, 254 tests passed. After merging `outside-view` (ticket 04) and moving the code field onto `tableCode`: typecheck exit 0; 35 test files, 267 tests passed. After merging `outside-view` again (ticket 06): typecheck exit 0; 35 test files, 271 tests passed.
 - Headless Chrome, one profile per tab, dev server on 5203:
   - First phone at 360×780: bar "Bezel N77G 1 phone · in a row · Hide", QR with the new hint beside it, "Lay the phones like this" with "1 This phone · on the left · Player 1", the two Game cards, P1/P2, Start Pong at 665–708 px with nothing scrolled, and "▸ Join a different table" folded at the bottom (form not shown).
   - A second tab at `?room=N77G` (390×844) joined; the sheet folded itself (ticket 05). Opened again: two roster rows, P1/P2 "phone 1"/"phone 2", Start Pong still at 665–708 px of 780.
@@ -43,6 +43,7 @@
   - Typed `kmpq` (the sentence cleared, the field showed `KMPQ`) and pressed Join: the page went to `https://localhost:5203/?room=KMPQ`. The fold was opened by setting `details.open` from the test script for this step; the first opening above was a tap on the summary.
   - A long address measured by setting the hint's address text to `manubown.github.io/Bezel/play` in the page: it wrapped inside its 130 px column, and the sheet body's scroll width stayed 360. The page was reloaded after.
   - New table at `/?maker` (360×780) with a second tab joined, Air Hockey picked. The visible blocks, in order: join, lay, cards games, seg arrangement, players, go, diag, other-table. With seven cards and the picker, Start sits at 899–942 px and is reached by scrolling. The same tab reloaded at `/?maker=no` (players' sheet, same two phones, Air Hockey with "End to end | In a row" shown): Start Air Hockey at 709–752 px of 780 with nothing scrolled.
+  - After the merge with ticket 06, a new pair of tabs (first phone at 360×780, code H2SG). The visible blocks were join, lay, cards games, players, go, other-table. Typed `h2sg` under "Join a different table": the URL stayed `/`, the sentence showed, both roster rows stayed, and the second tab still read "Phone 2 of 2" at `?room=H2SG`. Start Pong, then End match from the open sheet. The reason line read "Last match: Game ended on the first phone", and the sheet's whole text had no "host", "session" or "room".
 
 **Not verified**
 - Real phones; a screen reader announcing the refusal (`role="status"`).

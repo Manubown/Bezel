@@ -139,6 +139,8 @@
       .go .end { border: 1px solid var(--line); }
       .reason { margin: 0; color: var(--wait); min-height: 1.4em; }
       .reason:empty { display: none; }
+      /* The last Match is news, not a warning. */
+      .reason.last { color: var(--fg-2); }
       /* The session log: export (share sheet on phones, download elsewhere) and clear. */
       .diag { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; padding-top: 4px; border-top: 1px solid var(--line); }
       .diag button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg-2); }
@@ -160,14 +162,21 @@
       .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .strip .export { grid-row: 1 / span 2; grid-column: 3; align-self: start; pointer-events: auto; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg-2); font-size: 12px; }
 
-      /* How the last Match closed (its result, or why it stopped), over the lobby on every phone until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */
+      /* How the last Match closed (its result, or why it stopped), over the lobby on every phone that ran it: the first phone's with Play again and Change game, the others' until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */
       .result, .pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(84vw, 340px); padding: 22px 20px 16px; background: var(--raise); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); text-align: center; }
-      .result { cursor: pointer; }
+      .result.closes { cursor: pointer; }
       .pause { padding-bottom: 20px; pointer-events: none; }
       .result p, .pause p { margin: 0; }
       .result .result-head, .pause .pause-head { font-size: 26px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
       .result .result-detail, .pause .pause-detail { margin-top: 8px; color: var(--fg-2); font-size: 16px; }
       .result .result-hint { margin-top: 14px; color: var(--fg-2); font-size: 12px; }
+      .result .result-next { margin-top: 14px; font-size: 16px; }
+      .result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+      .result-actions button { min-height: 44px; border-radius: 8px; font-weight: 600; }
+      .result-actions .again { background: var(--ok); color: var(--bg); }
+      .result-actions .change { border: 1px solid var(--line); }
+      .result .result-refusal { margin-top: 10px; color: var(--wait); }
+      .result .result-refusal:empty { display: none; }
 
       /* A Peer not in its table after 15 s: what to check, Try again, and its code to correct (join.ts). Inputs at 16 px: an iPhone does not zoom on focus. */
       .help { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(88vw, 360px); display: grid; gap: 14px; padding: 20px; background: var(--raise); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); }

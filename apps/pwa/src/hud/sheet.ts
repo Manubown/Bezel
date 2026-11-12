@@ -4,7 +4,7 @@ import type { Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
 import brand from '../../../../brand.json';
 import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
-import type { Hud, HudOptions, Play } from '../hud';
+import type { HudOptions, Play, Sheet } from '../hud';
 import { arrangements } from '../lobby';
 import { MAKER_FLAG } from '../maker';
 import { otherTable, tableCode } from '../othertable';
@@ -15,9 +15,9 @@ import { describeLast, esc, statusDot, syncStats } from './shared';
  * The Host's bottom sheet, top to bottom the steps of getting a table going (spec D4): the QR with a sentence for the
  * other phones, the phones in the order they lie (roster, ◀ ▶), a card per Game, the arrangement when the Game names
  * more than one, Controllers when it takes them, Player slots, Start; then the game log, Export log (Maker mode) and
- * "Join a different table", folded.
+ * "Join a different table", folded. `onToggle`: the Host folded or unfolded it (the bar, `unfold`).
  */
-export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
+export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () => void): Promise<Sheet> {
   const { session, lobby, code, games, play, maker } = o;
   /** The Games this phone offers (`gamelist.ts`): Pong and Air Hockey, in Maker mode every Game. */
   const shown = gameList(games, maker);
@@ -98,7 +98,10 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     bar.setAttribute('aria-expanded', String(open));
     barAction.textContent = open ? 'Hide' : 'Setup';
   };
-  bar.addEventListener('click', () => setOpen(!('open' in root.dataset)));
+  bar.addEventListener('click', () => {
+    setOpen(!('open' in root.dataset));
+    onToggle();
+  });
   // The session log records in both modes; its export and clear are a maker's.
   if (maker) wireDiagnostics(root, o.log);
   // Joining a different table means leaving this one: the page reopens as a Peer of that Session. This table's own
@@ -182,13 +185,14 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
 
   const render = () => {
     const { layout, match } = lobby;
-    // The sheet folds away while the Host's Tile shows the Game and comes back after.
+    // The sheet folds away while the Host's Tile shows the Game and stays folded after: the result card offers what comes next.
     if (play.running !== wasRunning) {
       wasRunning = play.running;
-      setOpen(!play.running);
       // Folded during a Match the bar is a corner pill (index.html `.sheet[data-playing]`).
-      if (play.running) root.dataset['playing'] = '';
-      else delete root.dataset['playing'];
+      if (play.running) {
+        setOpen(false);
+        root.dataset['playing'] = '';
+      } else delete root.dataset['playing'];
     }
     // The first other phone to become ready in the lobby folds the sheet to its bar, so this phone's own number shows
     // too; only once, so a person who opens the sheet again keeps it open.
@@ -231,6 +235,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     const described = play.last && describeLast(play.last);
     const lastLine = described && [described.headline, described.detail].filter(Boolean).join(' · ');
     reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
+    // A refusal is a warning; the last Match is news.
+    reason.classList.toggle('last', !refusal);
 
     // The game log, in Maker mode: its newest line on the folded bar while a Match runs, every line in the sheet.
     const newest = play.log.at(-1);
@@ -374,7 +380,16 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
       syncs[i]!.innerHTML = r.sync;
     });
   };
-  return { render };
+  return {
+    render,
+    get open() {
+      return 'open' in root.dataset;
+    },
+    unfold() {
+      setOpen(true);
+      onToggle();
+    },
+  };
 }
 
 /** The ◀ (towards the first Tile) or ▶ (towards the last) of a move button. */
