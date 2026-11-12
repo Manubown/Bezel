@@ -41,17 +41,19 @@ Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 
 | Control | What it does |
 |---|---|
-| bar: code · "N phones · in a row" · Setup/Hide | folds the sheet. It also folds by itself once, when the first other phone is ready in the lobby, so the Host's own placement cue shows; opened again, it stays open. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused", in Maker mode with "· N faults" and the newest game-log line under it |
+| bar: code · "N phones · in a row" · Setup/Hide | folds the sheet. It also folds by itself once, when the first other phone is ready in the lobby, so the Host's own placement cue shows; opened again, it stays open. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused", in Maker mode with "· N faults" and the newest game-log line under it. When the Match ends it stays folded: the result card offers what comes next |
 | QR code, address, "Code" field + Join | how Peers join; Join leaves this table for another one |
 | Game cards | one per Game: its name, how many play and how the phones lie ("2 players · phones in a row"); a tap picks the Game "Start" starts. Players see Pong, then Air Hockey; Maker mode every Game, sorted by name (`apps/pwa/src/gamelist.ts`). The Host's last pick is picked again, kept with the lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`, `lobby.picked`), when the list has it, else Pong. The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
 | Arrangement: In a row / End to end / In a grid | the template; picking a Game selects the first its manifest's `templates` names (any, when it names none). Shown only when the Game names more than one, offering only those (Air Hockey: end to end, in a row) |
 | Controllers, or "Players’ phones" when the Game has `seats: 'controllers'` (`apps/pwa/src/hud.ts:289-292`): one chip per phone; shown only when the Game takes Controllers, and picking one that takes none puts every phone back on the table | pressed = Controller (held in hand, out of the Layout and the Tile order); press again to make it a Tile. Under "Players’ phones" each pressed phone is one Player's |
 | Players: P1, P2 (`seats: 'ends'`), or one row per Controller phone (`seats: 'controllers'`) | each Player's name (editable, up to 24 characters), where it sits ("phone 1", or "Controller"), and, with `'ends'`, a **Bot** chip when the Game's manifest has `bots: true` (`apps/pwa/src/hud.ts:316-335`) |
-| Start <Game> / End match | Start freezes the Match; End match stops it on every phone ("Match stopped") |
-| reason line | why Start was refused ([messages](troubleshooting.md#start-is-refused)), else "Last match: …" |
+| Start <Game> / End match | Start freezes the Match; End match stops it on every phone ("Game ended on the first phone") |
+| reason line | why Start was refused ([messages](troubleshooting.md#start-is-refused)), in amber; else "Last match: …", in grey |
 | game log (Maker mode only) | the running (or last) Match's faults, `ctx.log` lines and close, newest first; the last 50 (`apps/pwa/src/gamelog.ts:10`) |
 | roster | every phone in Tile order with where it goes, its Player and a dot for its connection (green once its clock is synced; "connecting" before; in Maker mode the clock figures `rtt · Δoffset` or "syncing"); ◀ ▶ move a Tile; Controllers listed as "C"; a phone not heard for 2.5 s reads "weak connection" instead ([weak connection](troubleshooting.md#the-hosts-roster-says-weak-connection-for-a-phone)), a lost one "disconnected" |
 | Export log · Clear · "N lines" (Maker mode only) | the session log ([below](#the-session-log-what-each-phone-records-and-how-to-get-it-off-the-phone)) |
+
+When a Match ends with the sheet folded, the Host's result card ("Ana wins 7–5") offers **Play again**, the same Game with the same Players, arrangement and bots (`apps/pwa/src/lobby.ts` `startAgain`), and **Change game**, which opens the sheet. Play again is refused in words when a phone of that Match is no longer at the table ("Phone 2 is no longer at the table"), when a phone joined since (it has to be placed: use Change game), or when the Host changed the table since. A Match that ends while the sheet is open shows no card on the Host, only the "Last match" line.
 
 ### Templates
 
@@ -104,7 +106,7 @@ The Host notices a silent phone after 2.5 s (its roster row reads "weak connecti
 1. The lobby: the strip above and the placement preview.
 2. On Start: the strip folds away and the Game's view fills the screen. A Peer that is not in the Match stays in the lobby ("Match in progress").
 3. During a pause: a card "Waiting for …" over the frozen view. While this phone's own connection is down: "Reconnecting to the host… · the match goes on when the connection is back", for up to 30 s.
-4. When the Match closes: the result card on every phone ("<name> wins", the scores, or "Draw"; without a result, why it closed: "Match stopped", "The game crashed", "Connection lost", "Connection lost · The host phone restarted", … from `apps/pwa/src/result.ts`), until tapped, then the lobby.
+4. When the Match closes: the result card on every phone that played (two sides in one line, "Ana wins 7–5" or "Draw, 3–3"; more sides "<name> wins" or "Draw" with everyone's points; without a result, why it closed: "Game ended on the first phone", "The game crashed", "Connection lost", "Connection lost · The host phone restarted", … from `apps/pwa/src/result.ts`), with "The first phone starts the next game", until tapped or the next Match starts, then the lobby.
 
 ## Installing as a PWA
 

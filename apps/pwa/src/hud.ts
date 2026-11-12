@@ -54,18 +54,27 @@ export interface Hud {
   render(): void;
 }
 
+/** The first phone's sheet: folded or not, and unfolded by the result card's Change game. */
+export interface Sheet extends Hud {
+  readonly open: boolean;
+  unfold(): void;
+}
+
 /**
  * The platform overlay, rendered from the lobby, the Session, and `play`: the
  * Host's bottom sheet (join code, Game, arrangement, Controllers, Player slots
  * with names and bots, Start, game log, and the roster in Tile order with its
  * move buttons) or a Peer's top strip, plus the last Match's close (its result,
- * or why it stopped) and a paused Match's notice on every Device. They step
- * aside while this Device runs a Match. One module per surface: `hud/sheet.ts`,
- * `hud/strip.ts`, `hud/cards.ts`; what they share is `hud/shared.ts`.
+ * or why it stopped; on the Host with Play again and Change game) and a paused
+ * Match's notice on every Device. They step aside while this Device runs a
+ * Match. One module per surface: `hud/sheet.ts`, `hud/strip.ts`,
+ * `hud/cards.ts`; what they share is `hud/shared.ts`.
  */
 export async function openHud(root: HTMLElement, o: HudOptions): Promise<Hud> {
-  const panel = o.session.role === 'host' ? await hostSheet(root, o) : peerStrip(root, o);
-  const closeCard = lastCard(o.play);
+  // Folding or unfolding the sheet by hand renders the card, which steps aside for an unfolded sheet.
+  const sheet = o.session.role === 'host' ? await hostSheet(root, o, () => hud.render()) : undefined;
+  const panel = sheet ?? peerStrip(root, o);
+  const closeCard = lastCard(o, sheet);
   const pause = pauseCard(o.play);
   const hud: Hud = {
     render() {

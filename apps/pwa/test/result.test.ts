@@ -6,15 +6,25 @@ const PLAYERS = [
   { playerId: 'p-ann', name: 'Ann' },
   { playerId: 'p-bo', name: 'Bo' },
 ];
+const TRIO = [...PLAYERS, { playerId: 'p-cy', name: 'Cy' }];
 
 describe('the result overlay text', () => {
-  it('names the winner by Player name, then everyone’s points in ranking order', () => {
-    expect(describeResult(PLAYERS, { scores: { 'p-ann': 4, 'p-bo': 7 }, ranking: ['p-bo', 'p-ann'] })).toEqual({ headline: 'Bo wins', detail: 'Bo 7 · Ann 4' });
+  it('reads a two-sided result as the winner’s name and both scores in one line, the winner’s first', () => {
+    expect(describeResult(PLAYERS, { scores: { 'p-ann': 4, 'p-bo': 7 }, ranking: ['p-bo', 'p-ann'] })).toEqual({ headline: 'Bo wins 7–4', detail: '' });
+    expect(describeResult(PLAYERS, { scores: { 'p-ann': 7, 'p-bo': 2 } })).toEqual({ headline: 'Ann wins 7–2', detail: '' });
   });
 
-  it('ranks by the scores when the Game gave no ranking, and calls equal top scores a draw', () => {
-    expect(describeResult(PLAYERS, { scores: { 'p-ann': 7, 'p-bo': 2 } })).toEqual({ headline: 'Ann wins', detail: 'Ann 7 · Bo 2' });
-    expect(describeResult(PLAYERS, { scores: { 'p-ann': 3, 'p-bo': 3 } }).headline).toBe('Draw');
+  it('calls equal top scores a draw, with the score when there are two sides', () => {
+    expect(describeResult(PLAYERS, { scores: { 'p-ann': 3, 'p-bo': 3 } })).toEqual({ headline: 'Draw, 3–3', detail: '' });
+    expect(describeResult(TRIO, { scores: { 'p-ann': 5, 'p-bo': 2, 'p-cy': 5 } })).toEqual({ headline: 'Draw', detail: 'Ann 5 · Cy 5 · Bo 2' });
+  });
+
+  it('names the winner of more than two sides, then everyone’s points in ranking order', () => {
+    expect(describeResult(TRIO, { scores: { 'p-ann': 4, 'p-bo': 7, 'p-cy': 1 }, ranking: ['p-bo', 'p-ann', 'p-cy'] })).toEqual({ headline: 'Bo wins', detail: 'Bo 7 · Ann 4 · Cy 1' });
+  });
+
+  it('reads a result without scores by its ranking alone, and one without either as the Match being over', () => {
+    expect(describeResult(PLAYERS, { ranking: ['p-bo', 'p-ann'] })).toEqual({ headline: 'Bo wins', detail: '' });
     expect(describeResult(PLAYERS, {})).toEqual({ headline: 'Match over', detail: '' });
   });
 });
@@ -25,7 +35,7 @@ describe('the close overlay text and the Host’s game log', () => {
     expect(describeClose('version', 'host link: the game speaks wire v2, the platform v1').headline).toBe('Game version mismatch');
     expect(describeClose('protocol', 'view link: unexpected ready').headline).toBe('The game broke the protocol');
     expect(describeClose('link-lost', 'view link: no ready within 5 s')).toEqual({ headline: 'Connection lost', detail: 'view link: no ready within 5 s' });
-    expect(describeClose('aborted', 'stopped by the platform')).toEqual({ headline: 'Match stopped', detail: 'Ended from the host phone' });
+    expect(describeClose('aborted', 'stopped by the platform')).toEqual({ headline: 'Game ended on the first phone', detail: '' });
   });
 
   it('turns faults, logs and closes into log lines, and nothing else', () => {
