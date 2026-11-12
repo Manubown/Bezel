@@ -69,3 +69,17 @@ _Avoid_: Owner, assignee, current user
 **Input**:
 One touch or pointer event from a Device, expressed in world coordinates with a shared timestamp.
 _Avoid_: Event, touch, gesture
+
+### Words players read
+
+**Table**:
+What the app and the site call a Session when they speak to players: the phones playing together. Code and developer docs say Session.
+_Avoid_: Room, lobby, party
+
+**First phone**:
+What the app and the site call the Host when they speak to players: the phone that opened the table.
+_Avoid_: Host phone, main phone, server
+
+**Maker mode**:
+The app as its makers see it: every Game, the clock figures, the session log and its export. Off for players.
+_Avoid_: Debug mode, dev mode, developer console
