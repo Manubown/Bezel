@@ -4,6 +4,7 @@ import { claimDeviceId, claimPlayerId, deviceInfo, pageZoom, viewportSettled } f
 import { GAMES } from './games';
 import { LOG_LINES, logLineOf } from './gamelog';
 import { openHud, type Play } from './hud';
+import { watchInstall } from './installer';
 import { openLobby, sessionLobbyStore } from './lobby';
 import { describePause, pauseOnDeviceLoss, type PauseNotice } from './pause';
 import { claimMakerMode } from './maker';
@@ -61,6 +62,8 @@ function hostRoomCode(): string {
  * back in the lobby. A Device that joins meanwhile waits there.
  */
 async function start(): Promise<void> {
+  // Before the first await: Chrome offers its install as an event early in the page's life (`installer.ts`).
+  const install = watchInstall();
   // The size is taken once the viewport rests: Safari applies a site's Page Zoom just after the scripts start (`viewportSettled`).
   const [deviceId] = await Promise.all([claimDeviceId(), viewportSettled()]);
   const self = deviceInfo(deviceId);
@@ -149,7 +152,7 @@ async function start(): Promise<void> {
     grace = undefined;
     graceExpired = false;
   };
-  const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted'), log: rec, maker });
+  const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted'), log: rec, maker, install });
   /** At most one HUD render per animation frame for the game log: a game may log on every frame. */
   let logRender = 0;
   const renderLog = (): void => {
@@ -217,6 +220,8 @@ async function start(): Promise<void> {
         matchPause = undefined;
         play.stopped = undefined;
         play.last = { reason: e.reason, detail: said ?? e.detail, players: match.players, ...(result && { result }) };
+        // Finished: its Game ended it. The Device's first one brings the install offer (`installOffer`).
+        if (e.reason === 'ended') install.finished();
         gameLayer.hidden = true;
         lobby.close(); // the Host's reopens the lobby on every Device; on a Peer, a no-op
         hud.render();

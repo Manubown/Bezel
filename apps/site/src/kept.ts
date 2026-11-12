@@ -11,7 +11,7 @@ export interface Kept {
   sources: string[];
 }
 
-/** Read off the code: `device.ts`, `maker.ts`, `main.ts`, `lobby.ts`, `recorder.ts`. */
+/** Read off the code: `device.ts`, `maker.ts`, `installer.ts`, `main.ts`, `lobby.ts`, `recorder.ts`. */
 export const KEPT: Kept[] = [
   {
     what: 'A Device id',
@@ -28,6 +28,12 @@ export const KEPT: Kept[] = [
     what: 'Maker mode, on or off',
     detail: 'Only if the app was ever opened with ?maker in its address, as the makers do when they test. It stays until you delete it.',
     sources: ['maker.ts'],
+  },
+  {
+    what: 'The offer to add the app to your home screen',
+    detail:
+      'How many games this phone has finished, and whether you closed a result card that carried the offer, so that the offer comes after your first finished game and does not keep coming back on the cards. It stays until you delete it.',
+    sources: ['installer.ts'],
   },
   {
     what: 'The table you opened',
