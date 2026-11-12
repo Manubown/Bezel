@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { groundOf } from '@mgc/look';
 import type { Plugin } from 'vite';
+
+/** The look's tokens: the page's ground colour is set there, once, for the page, the manifest and the browser bar. */
+const TOKENS = createRequire(import.meta.url).resolve('@mgc/look/tokens.css');
 
 /** The public face of the product: `brand.json` at the workspace root, read by the app's build (and the site's). */
 export interface Brand {
@@ -14,19 +18,19 @@ export interface Brand {
 
 /**
  * The build's reading of `brand.json`: fills in `index.html` (`brandPage`) and serves (dev) or writes (build)
- * `manifest.webmanifest` (`webManifest`). The app's own code imports `brand.json` for the sheet and the strip.
+ * `manifest.webmanifest` (`webManifest`), both coloured with the look's ground (`@mgc/look/tokens.css`, read afresh
+ * each time, so the dev server follows an edit). The app's own code imports `brand.json` for the sheet and the strip.
  */
 export function brandPlugin(brand: Brand): Plugin {
   let base = '/';
-  let page = '';
-  const manifest = (): string => `${JSON.stringify(webManifest(brand, readFileSync(page, 'utf8')), null, 2)}\n`;
+  const ground = (): string => groundOf(readFileSync(TOKENS, 'utf8'));
+  const manifest = (): string => `${JSON.stringify(webManifest(brand, ground()), null, 2)}\n`;
   return {
     name: 'mgc-brand',
     configResolved(config) {
       base = config.base;
-      page = resolve(config.root, 'index.html');
     },
-    transformIndexHtml: { order: 'pre', handler: (html) => brandPage(html, brand, base) },
+    transformIndexHtml: { order: 'pre', handler: (html) => brandPage(html, brand, base, ground()) },
     configureServer(server) {
       server.middlewares.use(`${base}manifest.webmanifest`, (_req, res) => {
         res.setHeader('Content-Type', 'application/manifest+json');
@@ -44,12 +48,12 @@ export function brandPlugin(brand: Brand): Plugin {
  * `%BRAND_URL%`, this build's own public address (the address's origin with the build's `base`), so a build at
  * `play/` previews as `play/`; and `%GROUND%`, the page's ground colour. Values are text, never markup.
  */
-export function brandPage(html: string, brand: Brand, base: string): string {
+export function brandPage(html: string, brand: Brand, base: string, ground: string): string {
   const values: Record<string, string> = {
     BRAND_NAME: brand.name,
     BRAND_PITCH: brand.pitch,
     BRAND_URL: new URL(base, brand.address).href,
-    GROUND: groundOf(html),
+    GROUND: ground,
   };
   return html.replace(/%(BRAND_[A-Z]+|GROUND)%/g, (placeholder, key: string) => {
     const value = values[key];
@@ -63,8 +67,7 @@ export function brandPage(html: string, brand: Brand, base: string): string {
  * the icons are the ones Chrome needs to offer install without a service worker (192 and 512 px), plus one a launcher
  * may mask. Icon paths are relative to the manifest, which sits at the build's root.
  */
-export function webManifest(brand: Brand, html: string) {
-  const ground = groundOf(html);
+export function webManifest(brand: Brand, ground: string) {
   return {
     name: brand.name,
     short_name: brand.name,
@@ -81,13 +84,6 @@ export function webManifest(brand: Brand, html: string) {
       { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   };
-}
-
-/** The page's ground colour: its `--bg` token, the one place it is set. */
-function groundOf(html: string): string {
-  const ground = /--bg:\s*(#[0-9a-fA-F]{3,8})\s*;/.exec(html)?.[1];
-  if (!ground) throw new Error('index.html: no `--bg: #rrggbb;` colour token');
-  return ground;
 }
 
 function escapeHtml(s: string): string {

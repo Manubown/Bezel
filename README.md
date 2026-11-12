@@ -35,7 +35,7 @@
 2. **The other phones join.** Scan the first phone's QR code with the camera. Or open the same address and type the code under "Join a different table" at the bottom.
 3. **Lay the phones as the first phone shows, pick a game, press Start.** Every phone shows where it goes ("Lay me first, on the left"). Pong wants the phones in a row; Air Hockey puts two end to end.
 
-Every phone needs the internet for the first seconds, so the phones can find each other. Then the game runs from phone to phone, or through a Relay server when no direct path works. On an iPhone, **Share → Add to Home Screen** gives a full-screen icon.
+Every phone needs the internet for the first seconds, so the phones can find each other. Then the game runs from phone to phone, or through a Relay server when no direct path works. After the first finished game the app offers to go on the home screen, where it opens full screen; on an iPhone: **Share → Add to Home Screen**.
 
 ## Works on
 
@@ -118,6 +118,7 @@ apps/pwa/          the app: lobby, sheet and strip, session log; runs the picked
 apps/site/         the site in front of it (Astro); scripts/pages.mjs builds both for GitHub Pages
 packages/core/     transport (WebRTC via Trystero, in-memory for tests), clock sync, Session
 packages/layout/   templates (row, column, grid), Surface (world mm ↔ screen px)
+packages/look/     the night-table look: colour and type tokens and the display face, for the app and the site
 packages/sdk/      the Game API (defineGame, runMatch), wire types, test harness (@mgc/sdk/test)
 games/             one package per Game; games/_template is the starter
 docs/              developer guide, architecture, design docs, ADRs, research, phone session logs
@@ -142,7 +143,7 @@ docs/              developer guide, architecture, design docs, ADRs, research, p
 
 ## Privacy
 
-There are no accounts, no cookies and no analytics, and the app loads nothing from other sites. GitHub Pages, which serves the app, sees your phone's IP address. To find each other, the phones talk to public signaling relays (Nostr relays from Trystero's built-in list), which see the IP address, a scrambled form of the table's code, and the offers to connect, locked with a key made from that code; and to public STUN servers (Google's and Cloudflare's), which tell a phone its own public address. When no direct path works, the phones connect through a Relay if their build has one (the hosted builds of this code use Metered's); it sees the IP address and carries the encrypted traffic. The other phones of the table see your IP address, as in any direct connection, and the kind of phone, its screen size, its Device and Player ids and the names typed in. The app keeps those ids, the Maker mode setting and a session log on your phone; the log leaves it only if you export it. In full: the site's [privacy page](https://manubown.github.io/Bezel/privacy/).
+There are no accounts, no cookies, no analytics and no ads; the app loads nothing from other sites, and nothing goes to the makers. GitHub Pages, which serves the site and the app, sees your phone's IP address. To find each other, the phones of a table talk to five public Nostr relays, which see the IP address, a scrambled form of the table's name and each phone's offer to connect, locked with a key made from the table's code; and to Google's and Cloudflare's STUN servers, which tell a phone its own public address. In a build with a Relay (the hosted builds of this code use Metered's), each phone asks the Relay for a way through whenever it sets up a connection, so Metered sees its IP address; the encrypted game passes through the Relay only when no direct path works. The other phones of the table see your IP address, as in any direct connection, and the kind of phone, its screen size, its Device and Player ids and the names typed in. Your phone keeps those ids, a few settings (Maker mode, how many games it finished and whether the install offer was closed), on the first phone its table until the tab closes, and a session log, all in its browser; the log leaves the phone only if someone exports it. In full, with how to delete it: the site's [privacy page](https://manubown.github.io/Bezel/privacy/).
 
 ## Licence
 

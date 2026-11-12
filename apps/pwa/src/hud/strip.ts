@@ -43,7 +43,8 @@ export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
     const { layout, match } = lobby;
     const index = layout?.devices.findIndex((d) => d.id === me) ?? -1;
     if (joining) {
-      state.innerHTML = `${statusDot(session.status === 'searching' ? 'off' : 'wait')} ${esc(joining.line)}`;
+      // Lost the table is a warning (amber); finding it and connecting are on their way.
+      state.innerHTML = `${statusDot(wasIn ? 'warn' : session.status === 'searching' ? 'off' : 'wait')} ${esc(joining.line)}`;
       meta.textContent = (maker ? [joining.makers, clock] : [joining.detail]).filter(Boolean).join(' · ');
     } else if (match && !match.devices.some((d) => d.deviceId === me)) {
       state.innerHTML = `${statusDot('wait')} A match is on`;

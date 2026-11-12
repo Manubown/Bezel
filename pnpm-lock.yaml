@@ -23,6 +23,9 @@ importers:
       '@mgc/layout':
         specifier: workspace:*
         version: link:../../packages/layout
+      '@mgc/look':
+        specifier: workspace:*
+        version: link:../../packages/look
       '@mgc/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -140,6 +143,8 @@ importers:
         version: 0.26.0
 
   packages/layout: {}
+
+  packages/look: {}
 
   packages/sdk:
     dependencies:

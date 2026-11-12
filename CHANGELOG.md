@@ -4,7 +4,7 @@ What changed for the people at the table, newest first, in the format of [Keep a
 
 The app for everyone ([`play/`](https://manubown.github.io/Bezel/play/)) is the build the `stable` tag points at; the makers move the tag after a good run on phones. Everything above the `stable` entry is in the latest build ([`next/`](https://manubown.github.io/Bezel/next/)) once it is on `master`, and reaches `play/` when the tag moves.
 
-## This round: what a stranger meets (2026-11-12)
+## This round: what a stranger meets (2026-11-12 to 2026-11-13)
 
 ### Added
 
@@ -13,9 +13,12 @@ The app for everyone ([`play/`](https://manubown.github.io/Bezel/play/)) is the 
 - Every phone shows its place on the table: its number, a sentence such as "Lay me first, on the left", and a small drawing of how the phones lie.
 - A phone that is joining says what it is doing ("Connecting…", "Lost the table. Reconnecting…"). After 15 seconds without getting in, it shows a card with what to check.
 - At the end of a game every phone shows who won ("Ana wins 7–5", "Draw, 3–3"). The first phone can play again or change the game; the other phones say that the first phone starts the next one.
+- After the first finished game, the result card offers to put the app on the home screen, where it opens full screen with no browser bars: an Install button on Android, the steps on an iPhone. Inside another app's browser, a banner says to open the page in Safari or Chrome.
+- A privacy page and an imprint on the site; the first phone's sheet links the privacy page.
 
 ### Changed
 
+- The night-table look: a near-black table, ivory text, coral and teal for the first two players, and a display face of its own, served with the app, for the name, game titles and scores. Every control on the first phone's sheet is at least 44 px high, and typing a code no longer makes an iPhone zoom in.
 - The first phone offers two games, Pong and Air Hockey, as cards that say how many play and how the phones lie; picking one lays the phones the way it needs. The other five games, the clock figures and the log export are in Maker mode (add `?maker` to the address).
 - The first phone's sheet reads as steps: the QR code ("Other phones: open the camera and scan this"), how to lay the phones, the game, the players, Start. "Join a different table" is folded at the bottom and refuses the table's own code, so the first phone cannot end its own table by mistake.
 

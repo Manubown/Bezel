@@ -4,12 +4,12 @@
 
 **Blocked by:** 02, 12
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] README, in this order: name, pitch and a picture; try it now with a QR code to the app for everyone and three steps; works on; known limits (iPhone hotspot, no offline play, screen sizes are estimated, early project); what you can play (Pong and Air Hockey, then the five as SDK examples in one table); how it works in three plain sentences with a link to the architecture document; build a Game; develop locally; contribute; status in five lines with a link to the plan; privacy in one paragraph; licence
 - [x] The picture is the drawn one (ticket 07) until the makers' clip exists; the QR code is generated with the QR package the app already uses and committed as an image
 - [x] The mermaid diagram lives in the architecture document and the milestone table in the plan; nothing in them is lost
-- [ ] Every command in the README was run and every link resolves
+- [x] Every command in the README was run and every link resolves
 - [x] Added: a code of conduct (Contributor Covenant 3.0 with a contact), a security policy (private reports; what is known and by design: the Relay credential in the public app, four-letter codes), an issue form for a problem at the table (phones and browsers, network, Game and arrangement, what happened, logs), an issue form for a Game idea, blank issues off, a pull-request checklist with the three rules of the contributing guide
 - [x] Added: a changelog written for players, newest first, with an entry for this round
 - [x] Added: one paragraph each for the tracker folder ("the makers' design notes and work logs; bugs and ideas from outside go to GitHub Issues") and the log folder; one README line says what `AGENTS.md` and the agents' docs are
@@ -65,3 +65,19 @@
 - `docs/README.md`'s row for `liveLogs/` says "live test 1 (2026-11-07)"; the folder holds runs 1–6.
 - Spec D18 keeps the site unlinked from public places until the imprint's blanks are filled; the README links `play/` and `privacy/`, so the README reaches `master` with the go-public step (ticket 17).
 - When `stable` moves, `CHANGELOG.md` gets a dated heading over what moved.
+
+### 2026-11-13, Ticket15Readme (after tickets 08, 11 and 14 landed)
+
+**Changed**
+- Merged `outside-view` at `8391f47`. One conflict, the README's repository tree: kept this ticket's lines and added ticket 08's `packages/look/` line.
+- README privacy paragraph now says what the site's privacy page (`apps/site/src/pages/privacy.astro`, `src/kept.ts`) says. It names five relays, "a scrambled form of the table's name" and the offer locked with a key made from the code. Metered sees a phone's IP address at every connection set-up, while the game passes through the Relay only when no direct path works. The phone keeps a few settings (Maker mode, the install offer's count and dismissal) and, on the first phone, its table until the tab closes. "No ads" is added, and the link reads "with how to delete it".
+- README "Try it now": the app offers the home screen after the first finished game (ticket 11, `apps/pwa/src/install.ts`).
+- `CHANGELOG.md` this round: the install offer and the in-app-browser banner (11), the privacy page and imprint (14), the night-table look (08: `packages/look/tokens.css`: `--bg` near-black, `--fg` ivory, `--player-1`/`--player-2` coral and teal, Unbounded served with the app, `--tap: 44px`, `--text-m: 16px` for every text field).
+
+**Verified**
+- `pnpm install --frozen-lockfile`: "Done in 1.7s".
+- `pnpm typecheck` exit 0; `pnpm test`: 41 files, 333 tests passed.
+- `pnpm pages --here` (Node 22.23.5): "0 errors", ticket 14's blanks warning for the imprint, then "pages: apps/site/dist holds the site, play/ (this checkout) and next/; every link resolves, every forward keeps its query", exit 0. `apps/site/dist` has `play/`, `next/`, `privacy/` and `imprint/` `index.html`: the README's `privacy/` link resolves in the build.
+- The built `privacy/index.html` contains "Five public signaling relays", "scrambled", `stun.l.google.com`, `stun.cloudflare.com`, "Metered", "No cookies", "no ads", "How many games this phone has finished", "Maker mode, on or off", "The table you opened".
+- The throwaway link checker again: "69 links in 13 files, 0 broken relative". The README's preview picture is unchanged by ticket 08, so the alt text still fits.
+- Ticket 14's last box (the README and the page say the same) is its owner's to tick.

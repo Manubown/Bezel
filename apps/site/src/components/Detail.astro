@@ -1,0 +1,19 @@
+---
+// One of the makers' details (`src/makers.ts`), or its blank, marked, while the makers have not filled it in.
+import { BLANK_LABELS, makers, type Makers } from '../makers';
+
+interface Props {
+  of: keyof Makers;
+}
+
+const { of } = Astro.props;
+const value = makers[of];
+---
+
+{value === null ? <mark class="blank">[{BLANK_LABELS[of]}: for the makers to fill in]</mark> : <span class="detail">{value}</span>}
+
+<style>
+  .detail {
+    white-space: pre-line;
+  }
+</style>

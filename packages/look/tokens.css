@@ -1,0 +1,61 @@
+/*
+ * The night table: the one look of the app and the site (spec outside-view D15, docs/strategy/app-design-audit.md §3 A).
+ * Dark screens make the phones' bezels disappear, so a row of phones reads as one surface; colour comes from the
+ * Players. Only tokens and the display face live here: each build styles its own elements with them.
+ *
+ * The contrast of every pair the screens use is checked by packages/look/test/look.test.ts (WCAG 2.2). The ground
+ * (`--bg`) is also the web manifest's colour and the browser bar's, and the icons and the preview picture in
+ * apps/pwa/public/ are drawn on it: a new ground means drawing them again.
+ */
+
+/* The display face, for the name, Game titles and scores: Unbounded (SIL OFL 1.1, fonts/OFL.txt), its Latin subset at
+   weight 600 as Google Fonts serves it (21 kB), served from the page's own origin. One weight: every display use is
+   600. `optional`: a phone that does not have the file within the first ~100 ms keeps the system face for the whole
+   visit instead of swapping it in, so nothing moves; a page preloads it to make that rare, and a second visit has it. */
+@font-face {
+  font-family: 'Unbounded';
+  src: url('./fonts/unbounded-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: optional;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Ground and text. */
+  --bg: #0b0b0c; /* the table: near-black, so the bezels vanish */
+  --raise: #17171a; /* one step up: the sheet, the cards */
+  --fg: #f2f0ea; /* ivory: text, the ball, the one fill a main action gets */
+  --fg-2: #a8a59c; /* secondary text, placeholders */
+  --line: #6e6e72; /* a control's border: 3:1 on the ground and the raise */
+  --rule: #2a2a2e; /* dividers and the lobby's grid: decoration, never the only cue */
+  --off: #737377; /* a phone that is not connected; a control that cannot be used */
+  --warn: #e0b94a; /* amber, for warnings only: a refused start, a weak or lost connection */
+
+  /* The Players, by their position in a Match's Player list: coral and teal, then violet and lime. */
+  --player-1: #ff6b4a;
+  --player-2: #2ec4b6;
+  --player-3: #a98bff;
+  --player-4: #c2e05a;
+
+  --shadow-sheet: 0 -8px 24px rgb(0 0 0 / 0.5);
+  --shadow-card: 0 12px 40px rgb(0 0 0 / 0.6);
+
+  /* Type: one display face for the name, Game titles and scores; the phone's own face for everything else. */
+  --font-display: 'Unbounded', system-ui, sans-serif;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-xs: 13px; /* a maker's log */
+  --text-s: 14px; /* meta lines */
+  --text-m: 16px; /* body text and every text field: an iPhone zooms into a field below 16 px */
+  --text-l: 20px;
+  --text-xl: 26px;
+  --text-xxl: 44px;
+
+  /* Touch: every control at least this high; the main action of a screen taller. */
+  --tap: 44px;
+  --tap-main: 56px;
+  --radius: 10px;
+  --radius-card: 16px;
+}

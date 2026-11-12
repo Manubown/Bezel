@@ -6,16 +6,23 @@ import brand from '../../../../brand.json';
 import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
 import type { HudOptions, Play, Sheet } from '../hud';
 import { arrangements } from '../lobby';
+import { look } from '../look';
 import { MAKER_FLAG } from '../maker';
 import { otherTable, tableCode } from '../othertable';
 import { placementHint } from '../placement';
+import { fadeCorner } from './corner';
+import { offerHtml, wireOffer } from './install';
 import { describeLast, esc, statusDot, syncStats } from './shared';
+
+/** The site's privacy page (spec D18), beside the app at the public address; `scripts/pages.mjs` checks it is published. */
+const PRIVACY = new URL('privacy/', brand.address).href;
 
 /**
  * The Host's bottom sheet, top to bottom the steps of getting a table going (spec D4): the QR with a sentence for the
  * other phones, the phones in the order they lie (roster, ◀ ▶), a card per Game, the arrangement when the Game names
- * more than one, Controllers when it takes them, Player slots, Start; then the game log, Export log (Maker mode) and
- * "Join a different table", folded. `onToggle`: the Host folded or unfolded it (the bar, `unfold`).
+ * more than one, Controllers when it takes them, Player slots, Start; then the game log, the install offer's row,
+ * Export log (Maker mode), "Join a different table", folded, and the link to the privacy page (in a new tab: this page
+ * holds the table). `onToggle`: the Host folded or unfolded it (the bar, `unfold`).
  */
 export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () => void): Promise<Sheet> {
   const { session, lobby, code, games, play, maker } = o;
@@ -27,7 +34,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
   /** The address to type: host plus the app's path, without the trailing slash (`manubown.github.io/Bezel`); in Maker mode with its flag (`manubown.github.io/Bezel/?maker`). */
   const address = (joinUrl.host + joinUrl.pathname).replace(/\/$/, '') + (maker ? `/?${MAKER_FLAG}` : '');
   const qr = document.createElement('canvas');
-  await QRCode.toCanvas(qr, joinUrl.toString(), { width: 168, margin: 0, color: { dark: '#121212', light: '#f2f0ea' } });
+  await QRCode.toCanvas(qr, joinUrl.toString(), { width: 168, margin: 0, color: { dark: look().bg, light: look().fg } });
 
   root.className = 'sheet';
   root.innerHTML = `
@@ -62,6 +69,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
         <p class="reason" role="status"></p>
       </div>
       <ol class="log" aria-label="Game log, newest first" hidden></ol>
+      <div class="install-row" hidden></div>
       <div class="diag"${maker ? '' : ' hidden'}>
         <button type="button" class="export">Export log</button>
         <button type="button" class="clear-log">Clear</button>
@@ -75,8 +83,10 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
         </form>
         <p class="other-refusal" role="status"></p>
       </details>
+      <a class="privacy" href="${esc(PRIVACY)}" target="_blank" rel="noopener">Privacy</a>
     </div>`;
   root.querySelector('.qr')!.append(qr);
+  fadeCorner(root);
   const bar = root.querySelector<HTMLButtonElement>('.bar')!;
   const barMeta = root.querySelector('.bar-meta')!;
   const barAction = root.querySelector('.bar-action')!;
@@ -91,6 +101,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
   const barLog = root.querySelector<HTMLElement>('.bar-log')!;
   const log = root.querySelector<HTMLOListElement>('.log')!;
   const roster = root.querySelector<HTMLOListElement>('.roster')!;
+  const installRow = root.querySelector<HTMLElement>('.install-row')!;
+  wireOffer(installRow, o.install);
 
   const setOpen = (open: boolean) => {
     if (open) root.dataset['open'] = '';
@@ -237,6 +249,10 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
     // A refusal is a warning; the last Match is news.
     reason.classList.toggle('last', !refusal);
+    // The install offer's row (`installOffer`): for good after this Device's first finished Match, unless installed.
+    const pitch = o.install.offer().row;
+    installRow.hidden = !pitch;
+    if (pitch && !installRow.hasChildNodes()) installRow.innerHTML = offerHtml(pitch);
 
     // The game log, in Maker mode: its newest line on the folded bar while a Match runs, every line in the sheet.
     const newest = play.log.at(-1);
@@ -323,7 +339,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     const syncOf = (e: RosterEntry | undefined, self: boolean): string => {
       if (self) return '';
       // Two missed heartbeats (`WEAK_MS`): still there and still in the Match, not paused for.
-      if (e?.link === 'weak') return `${statusDot('wait')} weak connection`;
+      if (e?.link === 'weak') return `${statusDot('warn')} weak connection`;
       const synced = e?.sync.synced === true;
       // Players see the dot, and "connecting" until the phone's clock is in; a maker sees the clock figures.
       if (!maker) return `${statusDot(synced ? 'ok' : 'wait')}${synced ? '' : ' connecting'}`;
