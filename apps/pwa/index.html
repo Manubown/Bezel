@@ -75,14 +75,17 @@
       .qr { background: var(--fg); padding: 8px; border-radius: var(--radius); line-height: 0; }
       .qr canvas { display: block; }
       .hint { margin: 0; color: var(--fg-2); max-width: 28ch; }
-      .hint b { color: var(--fg); font-weight: 600; }
-      /* Enter a code to join another table from this phone: the page reopens as a Peer. */
-      .enter { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+      .hint b { color: var(--fg); font-weight: 600; overflow-wrap: anywhere; }
+      /* Join a different table, folded at the bottom of the first phone's sheet: the page reopens as a Peer; this table's own code is refused in words. */
+      .other-table summary { width: fit-content; min-height: var(--tap); padding: 10px 0; color: var(--fg-2); cursor: pointer; }
+      .enter { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
       .enter input { min-height: var(--tap); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 12px; min-width: 0; letter-spacing: 0.18em; text-transform: uppercase; }
       .enter input::placeholder { color: var(--fg-2); letter-spacing: normal; text-transform: none; }
       .enter button { min-height: var(--tap); padding: 0 18px; border: 1px solid var(--line); border-radius: var(--radius); font-weight: 600; transition: background 120ms; }
       .enter button:active { background: var(--rule); }
       @media (hover: hover) { .enter button:hover { background: var(--rule); } }
+      .other-refusal { margin: 8px 0 0; color: var(--warn); }
+      .other-refusal:empty { display: none; }
       .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
       .seg button { min-height: var(--tap); padding: 0; color: var(--fg-2); transition: background 120ms, color 120ms; }
       .seg button + button { border-left: 1px solid var(--line); }
@@ -94,6 +97,9 @@
       .card .card-line { color: var(--fg-2); font-size: var(--text-s); line-height: 1.3; }
       .card[aria-checked="true"] { border-color: var(--fg); background: var(--bg); box-shadow: inset 0 0 0 1px var(--fg); }
       .card:disabled { opacity: 0.45; cursor: default; }
+      /* How to lay the phones: the roster under its label, phones in Tile order. */
+      .lay { display: grid; gap: 6px; }
+      .lay-label { margin: 0; }
       .roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
       .roster li { display: grid; grid-template-columns: 28px 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 0; border-top: 1px solid var(--rule); }
       .roster li:first-child { border-top: 0; }
@@ -156,9 +162,9 @@
       .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); font-size: var(--text-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .strip .export { grid-row: 1 / span 2; grid-column: 3; align-self: center; pointer-events: auto; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg-2); font-size: var(--text-s); }
 
-      /* How the last Match closed (its result, or why it stopped), over the lobby on every phone until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */
+      /* How the last Match closed (its result, or why it stopped), over the lobby on every phone that ran it: the first phone's with Play again and Change game, the others' until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */
       .result, .pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(86vw, 340px); padding: 24px 20px 18px; background: var(--raise); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-card); text-align: center; }
-      .result { cursor: pointer; }
+      .result.closes { cursor: pointer; }
       .pause { padding-bottom: 22px; pointer-events: none; }
       .result p, .pause p { margin: 0; }
       .result .result-head, .pause .pause-head { font-size: 24px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; text-wrap: balance; }
@@ -166,6 +172,26 @@
       .result .result-head { font-family: var(--font-display); }
       .result .result-detail, .pause .pause-detail { margin-top: 8px; color: var(--fg-2); }
       .result .result-hint { margin-top: 16px; color: var(--fg-2); font-size: var(--text-s); }
+      .result .result-next { margin-top: 14px; }
+      .result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+      .result-actions button { min-height: var(--tap); border-radius: var(--radius); font-weight: 600; }
+      /* The card's main action: the ivory fill. */
+      .result-actions .again { background: var(--fg); color: var(--bg); }
+      .result-actions .change { border: 1px solid var(--line); }
+      .result .result-refusal { margin-top: 10px; color: var(--warn); }
+      .result .result-refusal:empty { display: none; }
+
+      /* A Peer not in its table after 15 s: what to check, Try again, and its code to correct (join.ts). Inputs at 16 px: an iPhone does not zoom on focus. */
+      .help { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(88vw, 360px); display: grid; gap: 14px; padding: 20px; background: var(--raise); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+      .help p, .help ul { margin: 0; }
+      .help .help-head { font-size: var(--text-l); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+      .help ul { padding-left: 1.2em; display: grid; gap: 8px; color: var(--fg-2); }
+      .help .help-retry { min-height: var(--tap); border-radius: var(--radius); font-weight: 600; background: var(--fg); color: var(--bg); }
+      .help form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+      .help input { min-height: var(--tap); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 12px; min-width: 0; letter-spacing: 0.18em; text-transform: uppercase; }
+      .help form button { min-height: var(--tap); padding: 0 18px; border: 1px solid var(--line); border-radius: var(--radius); font-weight: 600; }
+      /* The first phone: one phone keeps losing its connection, and what usually helps. It heads the sheet, above its bar, folded or open; the amber rule marks it a warning. */
+      .sheet .advice { flex: none; margin: 0; padding: 12px 16px; border-bottom: 2px solid var(--warn); }
 
       @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .card, .chip, .move { transition: none; } .splash-dot, .dot-wait { animation: none; } }
       /* Phones are used upright: the Layout is measured in portrait. A touch screen turned sideways is asked back; a desktop window is left alone. */

@@ -24,7 +24,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const HOST_ROOM_KEY = 'mgc.hostRoom';
 /**
  * A Peer whose connection to the Host died this many times in a row without ever lasting goes through the build's
- * TURN relay only from then on (connectivity-2 D2): about 13 s of "Reconnecting to the host…" at one attempt per
+ * TURN relay only from then on (connectivity-2 D2): about 13 s of "Connecting…" (or "Lost the table. Reconnecting…") at one attempt per
  * `SYNC_TIMEOUT_MS`, long enough for a direct path that works one time in five to get its chances.
  */
 const RELAY_AFTER = 3;
@@ -196,7 +196,7 @@ async function start(): Promise<void> {
         if (line) play.log = [...play.log, line].slice(-LOG_LINES);
         if (e.t === 'ended') result = e.result;
         if (e.t === 'paused' || e.t === 'resumed') {
-          matchPause = e.t === 'paused' ? describePause(match, e.reason, seated) : undefined;
+          matchPause = e.t === 'paused' ? describePause(match, e.reason, seated, deviceId) : undefined;
           // While reconnecting, `RECONNECTING` stays up until the `hello` (`follow`).
           if (!rejoining) play.paused = matchPause;
           hud.render();

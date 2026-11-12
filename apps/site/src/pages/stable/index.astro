@@ -1,0 +1,23 @@
+---
+import brand from '../../../../../brand.json';
+
+// The `stable` tag's build lived here before the app moved below the site: old links, QR codes and installed icons
+// go to the app for everyone, with their query.
+const play = `${import.meta.env.BASE_URL}play/`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <script is:inline define:vars={{ play }}>
+      location.replace(play + location.search);
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>{brand.name}</title>
+  </head>
+  <body>
+    <p>{brand.name} has moved: <a href={play}>open it here</a>.</p>
+  </body>
+</html>

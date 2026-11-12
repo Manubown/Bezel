@@ -12,7 +12,7 @@ export interface Brand {
   name: string;
   /** One sentence that says what it is: under the name on the splash, and a link preview's description. */
   pitch: string;
-  /** The public address, absolute (`https://manubown.github.io/Bezel/`); its origin is where a published build lives. */
+  /** The public address, absolute (`https://manubown.github.io/Bezel/`): the site's root (`apps/site`); the app's builds live below it, and each build's own address is this origin with the build's base (`play/`, `next/`). */
   address: string;
 }
 

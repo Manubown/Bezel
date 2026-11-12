@@ -1,6 +1,7 @@
 import type { Session } from '@mgc/core';
 import type { CloseReason, Manifest, MatchResult, Player } from '@mgc/sdk';
 import type { LogLine } from './gamelog';
+import { dropoutAdvice } from './hud/advice';
 import { lastCard, pauseCard } from './hud/cards';
 import { hostSheet } from './hud/sheet';
 import { peerStrip } from './hud/strip';
@@ -54,24 +55,35 @@ export interface Hud {
   render(): void;
 }
 
+/** The first phone's sheet: folded or not, and unfolded by the result card's Change game. */
+export interface Sheet extends Hud {
+  readonly open: boolean;
+  unfold(): void;
+}
+
 /**
  * The platform overlay, rendered from the lobby, the Session, and `play`: the
  * Host's bottom sheet (join code, Game, arrangement, Controllers, Player slots
  * with names and bots, Start, game log, and the roster in Tile order with its
- * move buttons) or a Peer's top strip, plus the last Match's close (its result,
- * or why it stopped) and a paused Match's notice on every Device. They step
- * aside while this Device runs a Match. One module per surface: `hud/sheet.ts`,
- * `hud/strip.ts`, `hud/cards.ts`; what they share is `hud/shared.ts`.
+ * move buttons) or a Peer's top strip with its help card, plus the last Match's close (its result,
+ * or why it stopped; on the Host with Play again and Change game) and a paused Match's notice on
+ * every Device, and on the Host the advice line when one phone keeps dropping. They step aside while
+ * this Device runs a Match. One module per surface: `hud/sheet.ts`, `hud/strip.ts`, `hud/cards.ts`,
+ * `hud/advice.ts`; what they share is `hud/shared.ts`.
  */
 export async function openHud(root: HTMLElement, o: HudOptions): Promise<Hud> {
-  const panel = o.session.role === 'host' ? await hostSheet(root, o) : peerStrip(root, o);
-  const closeCard = lastCard(o.play);
+  // Folding or unfolding the sheet by hand renders the card, which steps aside for an unfolded sheet.
+  const sheet = o.session.role === 'host' ? await hostSheet(root, o, () => hud.render()) : undefined;
+  const panel = sheet ?? peerStrip(root, o);
+  const closeCard = lastCard(o, sheet);
   const pause = pauseCard(o.play);
+  const advice = o.session.role === 'host' ? dropoutAdvice(root, o) : undefined;
   const hud: Hud = {
     render() {
       panel.render();
       closeCard();
       pause();
+      advice?.();
     },
   };
   o.session.onChange(hud.render);

@@ -1,6 +1,7 @@
 export type { PeerId, Transport, MessageHandler } from './transport';
 export { MemoryHub, MemoryTransport, type LatencyModel } from './memory-transport';
 export { TrysteroTransport, type TrysteroOptions } from './trystero-transport';
+export { RELAY_STABLE_MS } from './relay-escalation';
 export {
   ClockEstimator,
   ClockSync,

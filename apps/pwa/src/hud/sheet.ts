@@ -4,19 +4,22 @@ import type { Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
 import brand from '../../../../brand.json';
 import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
-import type { Hud, HudOptions, Play } from '../hud';
+import type { HudOptions, Play, Sheet } from '../hud';
 import { arrangements } from '../lobby';
 import { look } from '../look';
 import { MAKER_FLAG } from '../maker';
+import { otherTable, tableCode } from '../othertable';
 import { placementHint } from '../placement';
 import { fadeCorner } from './corner';
 import { describeLast, esc, statusDot, syncStats } from './shared';
 
 /**
- * The Host's bottom sheet: join code, a card per Game, the arrangement when the Game names more than one, Controllers
- * when it takes them, Player slots, Start, game log, roster, session log.
+ * The Host's bottom sheet, top to bottom the steps of getting a table going (spec D4): the QR with a sentence for the
+ * other phones, the phones in the order they lie (roster, ◀ ▶), a card per Game, the arrangement when the Game names
+ * more than one, Controllers when it takes them, Player slots, Start; then the game log, Export log (Maker mode) and
+ * "Join a different table", folded. `onToggle`: the Host folded or unfolded it (the bar, `unfold`).
  */
-export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
+export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () => void): Promise<Sheet> {
   const { session, lobby, code, games, play, maker } = o;
   /** The Games this phone offers (`gamelist.ts`): Pong and Air Hockey, in Maker mode every Game. */
   const shown = gameList(games, maker);
@@ -40,11 +43,11 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     <div class="body">
       <div class="join">
         <div class="qr"></div>
-        <p class="hint">Scan to join, or open <b>${esc(address)}</b> and enter the code.</p>
-        <form class="enter" aria-label="Join another table">
-          <input name="room" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="4" placeholder="Code" aria-label="Table code" />
-          <button type="submit">Join</button>
-        </form>
+        <p class="hint">Other phones: open the camera and scan this, or open <b>${esc(address)}</b> and join table <b>${esc(code)}</b>.</p>
+      </div>
+      <div class="lay">
+        <p class="lay-label">Lay the phones like this</p>
+        <ol class="roster" aria-label="Phones in the order they lie"></ol>
       </div>
       <div class="cards games" role="radiogroup" aria-label="Game">
         ${shown.map((g) => `<button type="button" role="radio" class="card" data-g="${esc(g.id)}"><span class="card-name">${esc(g.name)}</span><span class="card-line">${esc(cardLine(g))}</span></button>`).join('')}
@@ -61,12 +64,19 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
         <p class="reason" role="status"></p>
       </div>
       <ol class="log" aria-label="Game log, newest first" hidden></ol>
-      <ol class="roster"></ol>
       <div class="diag"${maker ? '' : ' hidden'}>
         <button type="button" class="export">Export log</button>
         <button type="button" class="clear-log">Clear</button>
         <span class="diag-meta"></span>
       </div>
+      <details class="other-table">
+        <summary>Join a different table</summary>
+        <form class="enter" aria-label="Join a different table">
+          <input name="room" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="4" placeholder="Code" aria-label="Table code" />
+          <button type="submit">Join</button>
+        </form>
+        <p class="other-refusal" role="status"></p>
+      </details>
     </div>`;
   root.querySelector('.qr')!.append(qr);
   fadeCorner(root);
@@ -91,20 +101,31 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     bar.setAttribute('aria-expanded', String(open));
     barAction.textContent = open ? 'Hide' : 'Setup';
   };
-  bar.addEventListener('click', () => setOpen(!('open' in root.dataset)));
+  bar.addEventListener('click', () => {
+    setOpen(!('open' in root.dataset));
+    onToggle();
+  });
   // The session log records in both modes; its export and clear are a maker's.
   if (maker) wireDiagnostics(root, o.log);
-  // Joining a table means leaving this one: the page reopens as a Peer of that room.
+  // Joining a different table means leaving this one: the page reopens as a Peer of that Session. This table's own
+  // code is refused in words (`otherTable`): the page stays, and so does every phone joined to it.
+  const other = root.querySelector<HTMLDetailsElement>('.other-table')!;
   const enter = root.querySelector<HTMLFormElement>('.enter')!;
   const roomInput = enter.elements.namedItem('room') as HTMLInputElement;
+  const otherRefusal = root.querySelector<HTMLElement>('.other-refusal')!;
+  other.addEventListener('toggle', () => {
+    if (other.open) roomInput.focus();
+  });
   roomInput.addEventListener('input', () => {
-    roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    roomInput.value = tableCode(roomInput.value);
+    otherRefusal.textContent = '';
   });
   enter.addEventListener('submit', (e) => {
     e.preventDefault();
-    const room = roomInput.value;
-    if (room.length === 0) return;
-    location.assign(`?room=${room}`);
+    const to = otherTable(roomInput.value, code);
+    if (to === undefined) return;
+    if ('refusal' in to) otherRefusal.textContent = to.refusal;
+    else location.assign(`?room=${to.code}`);
   });
   /** The Game Start starts: the lobby's pick, saved across a reload of the Host's page, if this phone offers it, else Pong (`firstPick`). */
   let game = firstPick(shown, lobby.picked)!;
@@ -167,13 +188,14 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
 
   const render = () => {
     const { layout, match } = lobby;
-    // The sheet folds away while the Host's Tile shows the Game and comes back after.
+    // The sheet folds away while the Host's Tile shows the Game and stays folded after: the result card offers what comes next.
     if (play.running !== wasRunning) {
       wasRunning = play.running;
-      setOpen(!play.running);
       // Folded during a Match the bar is a corner pill (index.html `.sheet[data-playing]`).
-      if (play.running) root.dataset['playing'] = '';
-      else delete root.dataset['playing'];
+      if (play.running) {
+        setOpen(false);
+        root.dataset['playing'] = '';
+      } else delete root.dataset['playing'];
     }
     // The first other phone to become ready in the lobby folds the sheet to its bar, so this phone's own number shows
     // too; only once, so a person who opens the sheet again keeps it open.
@@ -216,6 +238,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     const described = play.last && describeLast(play.last);
     const lastLine = described && [described.headline, described.detail].filter(Boolean).join(' · ');
     reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
+    // A refusal is a warning; the last Match is news.
     reason.classList.toggle('last', !refusal);
 
     // The game log, in Maker mode: its newest line on the folded bar while a Match runs, every line in the sheet.
@@ -360,7 +383,16 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
       syncs[i]!.innerHTML = r.sync;
     });
   };
-  return { render };
+  return {
+    render,
+    get open() {
+      return 'open' in root.dataset;
+    },
+    unfold() {
+      setOpen(true);
+      onToggle();
+    },
+  };
 }
 
 /** The ◀ (towards the first Tile) or ▶ (towards the last) of a move button. */
