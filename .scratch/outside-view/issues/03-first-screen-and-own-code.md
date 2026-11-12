@@ -20,7 +20,7 @@
 ### 2026-11-12, Ticket03FirstScreen (implementation)
 
 **Changed**
-- `apps/pwa/src/othertable.ts` (new): `otherTable(typed, own)` returns the table a code typed on the first phone opens (`{ code }`, in capitals, letters and digits only), or `{ refusal }` for this table's own code in any letter case: "REZV is this table’s code: scan the QR above with the other phones." It returns undefined when nothing is left of what was typed. `apps/pwa/test/othertable.test.ts`: 4 tests.
+- `apps/pwa/src/othertable.ts` (new): `tableCode(typed)` reads a typed code the way an address carries it (in capitals, letters and digits only); the sheet's code field uses it as you type. `otherTable(typed, own)` returns the table a code typed on the first phone opens (`{ code }`), or `{ refusal }` for this table's own code in any letter case: "REZV is this table’s code: scan the QR above with the other phones." It returns undefined when nothing is left of what was typed. `apps/pwa/test/othertable.test.ts`: 4 tests. Ticket 04's `joinAddress` (`join.ts`, landed while this was built) still reads the code with its own copy of the same expression; that file is 04's.
 - `apps/pwa/src/hud/sheet.ts`: the body now reads top to bottom as the QR with its hint, then "Lay the phones like this" over the roster (moved up from below Start, ◀ ▶ included), then the Game cards, arrangement, Controllers, Players, Start / End match and the reason line. After those come the game log and Export log (Maker mode) and, last, `<details class="other-table">` "Join a different table", folded. It holds the `.enter` form and a `.other-refusal` status line. Submit goes through `otherTable`: the own code shows the sentence and nothing else happens; another code reloads as `?room=CODE` as before, without flags. Opening the fold focuses the code field, and typing clears the sentence.
 - Hint: "Other phones: open the camera and scan this, or open **<address>** and join table **<CODE>**." The typed address stays, because D3 and ticket 01 carry the Maker flag on it.
 - `apps/pwa/index.html`: `.other-table summary`, `.other-refusal`, `.lay`, `.lay-label` (layout only, existing tokens). `.enter` loses its `grid-column`, now that it is no longer in the `.join` grid. `.hint b` wraps anywhere, so a long address (`manubown.github.io/Bezel/play`) cannot widen the sheet at 360 px.
@@ -35,7 +35,7 @@
 
 **Verified**
 - Red then green for each slice: `pnpm vitest run apps/pwa/test/othertable.test.ts`. The red runs failed on: the missing module, the lower-case own code (undefined), another code (undefined) and the empty input (`{ code: '' }`). Final run: 4 passed.
-- `pnpm typecheck && pnpm test`: typecheck clean; 34 test files, 254 tests passed.
+- `pnpm typecheck && pnpm test`: typecheck clean; 34 test files, 254 tests passed. After merging `outside-view` (ticket 04) and moving the code field onto `tableCode`: typecheck exit 0; 35 test files, 267 tests passed.
 - Headless Chrome, one profile per tab, dev server on 5203:
   - First phone at 360×780: bar "Bezel N77G 1 phone · in a row · Hide", QR with the new hint beside it, "Lay the phones like this" with "1 This phone · on the left · Player 1", the two Game cards, P1/P2, Start Pong at 665–708 px with nothing scrolled, and "▸ Join a different table" folded at the bottom (form not shown).
   - A second tab at `?room=N77G` (390×844) joined; the sheet folded itself (ticket 05). Opened again: two roster rows, P1/P2 "phone 1"/"phone 2", Start Pong still at 665–708 px of 780.

@@ -7,7 +7,7 @@ import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
 import type { Hud, HudOptions, Play } from '../hud';
 import { arrangements } from '../lobby';
 import { MAKER_FLAG } from '../maker';
-import { otherTable } from '../othertable';
+import { otherTable, tableCode } from '../othertable';
 import { placementHint } from '../placement';
 import { describeLast, esc, statusDot, syncStats } from './shared';
 
@@ -111,7 +111,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     if (other.open) roomInput.focus();
   });
   roomInput.addEventListener('input', () => {
-    roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    roomInput.value = tableCode(roomInput.value);
     otherRefusal.textContent = '';
   });
   enter.addEventListener('submit', (e) => {
