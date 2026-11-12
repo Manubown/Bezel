@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/Manubown/Bezel/actions/workflows/pages.yml"><img alt="pages" src="https://github.com/Manubown/Bezel/actions/workflows/pages.yml/badge.svg"></a>
-  <a href="https://manubown.github.io/Bezel/"><img alt="play" src="https://img.shields.io/badge/play-manubown.github.io%2FBezel-2ea44f"></a>
+  <a href="https://manubown.github.io/Bezel/play/"><img alt="play" src="https://img.shields.io/badge/play-manubown.github.io%2FBezel%2Fplay-2ea44f"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6">
   <img alt="pnpm" src="https://img.shields.io/badge/pnpm-10-f69220">
@@ -17,7 +17,7 @@
 
 ## Try it in two minutes
 
-1. Open **<https://manubown.github.io/Bezel/>** on one phone. It becomes the **Host** and shows a QR code.
+1. Open **<https://manubown.github.io/Bezel/play/>** on one phone. It becomes the **Host** and shows a QR code.
 2. Scan the QR with the other phones (or open the same address and type the 4-letter code).
 3. Lay the phones in a row, pick a Game in the Host's sheet, press **Start**.
 
@@ -137,7 +137,7 @@ docs/              developer guide, architecture, design docs, ADRs, phone sessi
 | M4 Cross-bezel swipe alignment | planned |
 | M5 Offline fallback (QR SDP), star-only transport | planned |
 
-Two hosted builds exist: **/Bezel/** is `master`; **/Bezel/stable/** is the commit the `stable` git tag points at, a known-good build to fall back on (`pnpm stable <ref>` moves it). Every phone keeps a session log; in Maker mode (`?maker`), **Export log** on the Host's sheet shares it as NDJSON.
+Two hosted builds exist, below the site at **/Bezel/**: **/Bezel/play/** is the commit the `stable` git tag points at, a known-good build for everyone (`pnpm stable <ref>` moves it); **/Bezel/next/** is `master`. The old **/Bezel/stable/** forwards to /Bezel/play/. Every phone keeps a session log; in Maker mode (`?maker`), **Export log** on the Host's sheet shares it as NDJSON.
 
 ## Contributing
 

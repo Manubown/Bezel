@@ -7,7 +7,7 @@ One entry per symptom: what you see, why, what to do. Where a Game says somethin
 ### The browser says the connection is not private
 
 - **Cause:** the dev server's certificate is self-signed (`@vitejs/plugin-basic-ssl`, `apps/pwa/vite.config.ts`). HTTPS is required for the wake lock and WebRTC on phones.
-- **Fix:** accept the warning once on each phone and browser. To avoid it, use the hosted build (https://manubown.github.io/Bezel/), which has only the Games on `master`.
+- **Fix:** accept the warning once on each phone and browser. To avoid it, use the hosted build of `master` (https://manubown.github.io/Bezel/next/), which has only the Games on `master`.
 
 ### `pnpm install` refuses the lockfile after `pnpm new-game`
 

@@ -7,7 +7,7 @@
 - Open the `Network` address Vite prints (`https://<your-LAN-ip>:5173/`) on the Host phone. Each phone's browser warns about the self-signed certificate once; accept it.
 - Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE`, plus `&noturn` when the Host has it and `&maker` in [Maker mode](#connectivity-flags) (`apps/pwa/src/hud.ts:127-129`), so a `localhost` Host hands the other phones an address they cannot reach.
 - Another port: `pnpm --filter @mgc/pwa dev --port 5181`.
-- Without a laptop: every push to `master` publishes the PWA to https://manubown.github.io/Bezel/ (`.github/workflows/pages.yml`), with a real certificate but only the Games on `master`. `BASE_PATH=/Bezel/ pnpm build` builds the same into `apps/pwa/dist` (README).
+- Without a laptop: every push to `master` publishes the PWA to https://manubown.github.io/Bezel/next/ (`.github/workflows/pages.yml`), with a real certificate but only the Games on `master`. `BASE_PATH=/Bezel/next/ pnpm build` builds the same into `apps/pwa/dist`; `pnpm pages` builds the whole published site ([two hosted builds](#two-hosted-builds-the-latest-and-a-known-good-one)).
 
 ## Network
 
@@ -150,11 +150,13 @@ Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Pe
 
 ## Two hosted builds: the latest and a known-good one
 
-Every push to `master` publishes the PWA to **https://manubown.github.io/Bezel/**. The same site also serves **https://manubown.github.io/Bezel/stable/**: the commit the git tag `stable` points at, built from its own tree (`.github/workflows/pages.yml`). So a change that misbehaves on phones is tested against the known-good build by opening the other address: no rollback, no redeploy, both are live at once.
+Every push to `master` publishes the PWA to **https://manubown.github.io/Bezel/next/**. The same site also serves **https://manubown.github.io/Bezel/play/**, the app for everyone: the commit the git tag `stable` points at, built from its own tree. Both sit below the site at **https://manubown.github.io/Bezel/** (`apps/site`), and one workflow publishes all three (`.github/workflows/pages.yml`, `scripts/pages.mjs`). So a change that misbehaves on phones is tested against the known-good build by opening the other address: no rollback, no redeploy, both are live at once.
 
-- `pnpm stable` prints where `stable` points; `pnpm stable <ref>` moves the tag to a commit, tag or branch, pushes it, and Pages rebuilds both channels (`scripts/stable.mjs`). `/stable/COMMIT` names the commit the channel was built from.
-- Put every phone on the **same** address: a Host on `/stable/` and a Peer on `/` are different builds, and the QR code only guarantees that by encoding the Host page's own URL.
-- Both channels share the origin, so a phone keeps its Device id and its session logs across them.
+- `pnpm stable` prints where `stable` points; `pnpm stable <ref>` moves the tag to a commit, tag or branch, pushes it, and Pages rebuilds the site and both builds (`scripts/stable.mjs`). `/play/COMMIT` and `/next/COMMIT` name the commit each build was made from.
+- Put every phone on the **same** address: a Host on `/play/` and a Peer on `/next/` are different builds, and the QR code only guarantees that by encoding the Host page's own URL.
+- The old addresses forward, each with its query: `/Bezel/stable/` to `/Bezel/play/`; `/Bezel/?room=CODE`, the QR of a first phone still on a build from before the move, to `/Bezel/next/?room=CODE`; `/Bezel/` opened from an icon installed from it to `/Bezel/play/`.
+- Both builds share the origin, so a phone keeps its Device id and its session logs across them.
+- `pnpm pages` builds what Pages publishes into `apps/site/dist` and checks that every link resolves and every forward keeps its query; `pnpm --filter @mgc/site preview` serves it under `/Bezel/` (Node 22.23.4 or newer, for Astro).
 
 ## Several tabs on one computer
 

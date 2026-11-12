@@ -1,0 +1,30 @@
+---
+import brand from '../../../../brand.json';
+
+// Before the page renders, the root forwards with its query: a join link (`?room=`) to the latest build, since the
+// first phone that showed it ran a build from when the app lived here; a launch from an icon installed from here to
+// the app for everyone.
+const play = `${import.meta.env.BASE_URL}play/`;
+const next = `${import.meta.env.BASE_URL}next/`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <script is:inline define:vars={{ play, next }}>
+      if (new URLSearchParams(location.search).has('room')) location.replace(next + location.search);
+      else if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) location.replace(play + location.search);
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{brand.name}</title>
+    <meta name="description" content={brand.pitch} />
+  </head>
+  <body>
+    <main>
+      <h1>{brand.name}</h1>
+      <p>{brand.pitch}</p>
+      <p><a href={play}>Start a table</a></p>
+    </main>
+  </body>
+</html>
