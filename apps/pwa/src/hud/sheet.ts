@@ -1,16 +1,21 @@
 import type { RosterEntry } from '@mgc/core';
-import { TEMPLATE_IDS, type TemplateId } from '@mgc/layout';
+import type { TemplateId } from '@mgc/layout';
 import type { Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
+import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
 import type { Hud, HudOptions, Play } from '../hud';
+import { arrangements } from '../lobby';
 import { MAKER_FLAG } from '../maker';
 import { describeLast, esc, placementHint, statusDot, syncStats } from './shared';
 
-const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column', grid: 'Grid' };
-
-/** The Host's bottom sheet: join code, Game, arrangement, Controllers, Player slots, Start, game log, roster, session log. */
+/**
+ * The Host's bottom sheet: join code, a card per Game, the arrangement when the Game names more than one, Controllers
+ * when it takes them, Player slots, Start, game log, roster, session log.
+ */
 export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
   const { session, lobby, code, games, play, maker } = o;
+  /** The Games this phone offers (`gamelist.ts`): Pong and Air Hockey, in Maker mode every Game. */
+  const shown = gameList(games, maker);
   const joinUrl = new URL(location.href);
   // Peers join the same room with the same connectivity flags (`noturn`), so a Match never mixes paths, and in Maker mode with its flag, so one scan sets the whole table.
   joinUrl.search = `?room=${code}${new URLSearchParams(location.search).has('noturn') ? '&noturn' : ''}${maker ? `&${MAKER_FLAG}` : ''}`;
@@ -36,12 +41,10 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
           <button type="submit">Join</button>
         </form>
       </div>
-      <div class="seg games" role="radiogroup" aria-label="Game">
-        ${games.map((g, i) => `<button type="button" role="radio" data-g="${i}">${esc(g.name)}</button>`).join('')}
+      <div class="cards games" role="radiogroup" aria-label="Game">
+        ${shown.map((g) => `<button type="button" role="radio" class="card" data-g="${esc(g.id)}"><span class="card-name">${esc(g.name)}</span><span class="card-line">${esc(cardLine(g))}</span></button>`).join('')}
       </div>
-      <div class="seg arrangement" role="radiogroup" aria-label="Arrangement">
-        ${TEMPLATE_IDS.map((t) => `<button type="button" role="radio" data-t="${t}">${TEMPLATE_LABEL[t]}</button>`).join('')}
-      </div>
+      <div class="seg arrangement" role="radiogroup" aria-label="How the phones lie" hidden></div>
       <div class="roles">
         <p class="roles-label"></p>
         <div class="chips" role="group" aria-label="Controllers"></div>
@@ -67,6 +70,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
   const gameSeg = root.querySelector<HTMLElement>('.games')!;
   const seg = root.querySelector<HTMLElement>('.arrangement')!;
   const chips = root.querySelector<HTMLElement>('.chips')!;
+  const roles = root.querySelector<HTMLElement>('.roles')!;
   const players = root.querySelector<HTMLOListElement>('.players')!;
   const start = root.querySelector<HTMLButtonElement>('.start')!;
   const end = root.querySelector<HTMLButtonElement>('.end')!;
@@ -96,13 +100,13 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     if (room.length === 0) return;
     location.assign(`?room=${room}`);
   });
-  /** The Game Start starts: the lobby's pick, saved across a reload of the Host's page, else the first by name. */
-  let game = games.find((g) => g.id === lobby.picked) ?? games[0]!;
+  /** The Game Start starts: the lobby's pick, saved across a reload of the Host's page, if this phone offers it, else Pong (`firstPick`). */
+  let game = firstPick(shown, lobby.picked)!;
   lobby.setGame(game);
   gameSeg.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-g]');
     if (!btn) return;
-    game = games[Number(btn.dataset['g'])] ?? game;
+    game = shown.find((g) => g.id === btn.dataset['g']) ?? game;
     lobby.setGame(game);
     refusal = '';
     render();
@@ -147,6 +151,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
   let rosterHtml = '';
   let rosterSync: string[] = [];
   let wasRunning = false;
+  /** The Game whose arrangements the picker offers. */
+  let segGame = '';
   let shownLog: Play['log'] | undefined;
   setOpen(true);
 
@@ -165,15 +171,24 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     const running = games.find((g) => g.id === lobby.game) ?? game;
     barMeta.textContent = play.running
       ? `${running.name} · ${play.paused ? 'paused' : 'playing'}${faults ? ` · ${faults} fault${faults === 1 ? '' : 's'}` : ''}`
-      : `${placed} phone${placed === 1 ? '' : 's'}${layout ? ` · ${TEMPLATE_LABEL[layout.template]}` : ''}`;
+      : `${placed} phone${placed === 1 ? '' : 's'}${layout ? ` · ${ARRANGEMENT[layout.template]}` : ''}`;
     gameSeg.querySelectorAll<HTMLButtonElement>('button[data-g]').forEach((b) => {
-      b.setAttribute('aria-checked', String(games[Number(b.dataset['g'])] === (match ? running : game)));
+      b.setAttribute('aria-checked', String(b.dataset['g'] === (match ? running : game).id));
       b.disabled = match !== undefined;
     });
+    // The arrangements the Game names (the lobby lays the phones in the first), offered only when there is a choice.
+    const offered = arrangements(game);
+    if (game.id !== segGame) {
+      segGame = game.id;
+      seg.innerHTML = offered.map((t) => `<button type="button" role="radio" data-t="${t}">${ARRANGEMENT[t][0]!.toUpperCase()}${ARRANGEMENT[t].slice(1)}</button>`).join('');
+    }
+    seg.hidden = offered.length < 2;
     seg.querySelectorAll<HTMLButtonElement>('button[data-t]').forEach((b) => {
       b.setAttribute('aria-checked', String(b.dataset['t'] === layout?.template));
       b.disabled = match !== undefined;
     });
+    // Phones in hand only for a Game that takes them.
+    roles.hidden = game.controllers.max === 0;
     root.querySelector('.roles-label')!.innerHTML =
       lobby.seats === 'controllers'
         ? 'Players’ phones <span>each phone pressed here is held by one Player; the board stays on the table</span>'

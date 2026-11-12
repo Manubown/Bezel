@@ -17,10 +17,11 @@ One entry per symptom: what you see, why, what to do. Where a Game says somethin
 
 ### My Game is not in the Host's Game row
 
-The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `games/_template`, sorted by `manifest.name` (`apps/pwa/src/games.ts:8-15`).
+In Maker mode the PWA lists exactly the default exports of `games/*/src/index.ts`, minus `games/_template`, sorted by `manifest.name` (`apps/pwa/src/games.ts:8-15`). Without it, players see Pong and Air Hockey only (`apps/pwa/src/gamelist.ts`).
 
 | Cause | Fix |
 |---|---|
+| the Host is not in Maker mode | open the Host's address with `?maker` (remembered on that phone; `?maker=no` switches it off) |
 | the entry is not at `games/<slug>/src/index.ts` | move it there; that path is the glob |
 | the folder is `games/_template` | `pnpm new-game <slug> "<Name>"` copies it under a new name |
 | it is there, but further down: the list is alphabetical | look for its `manifest.name` |
@@ -54,14 +55,13 @@ The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `game
 
 ### Start is refused
 
-The reason shows under the Start button. The lobby checks in this order (`apps/pwa/src/lobby.ts:455-479`):
+The reason shows under the Start button. Never the arrangement: Start picks the Game, and picking a Game lays the phones in an arrangement it names. The lobby checks in this order (`apps/pwa/src/lobby.ts:455-479`):
 
 | Message | Cause | Fix |
 |---|---|---|
 | `<Game> does not support bots` | a Bot chip is pressed and the manifest has no `bots: true` | release the Bot chip, or add `bots: true` and play the bots in the host |
-| `<Game> needs the row arrangement, not grid` | the manifest's `templates` does not include the chosen arrangement | pick one it lists |
 | `<Game> needs 1–4 Tiles; 5 present` | `manifest.tiles` (Controllers are not Tiles) | add or remove phones, or mark some as Controllers |
-| `<Game> needs 1 Controller; 0 present` / `needs no Controllers; 1 present` | `manifest.controllers` | press or release Controller chips |
+| `<Game> needs 1 Controller; 0 present` / `needs 1 Controller; 2 present` | `manifest.controllers`; a Game that takes no Controllers puts every phone on the table when it is picked | press or release Controller chips |
 | `Phone 2 is 61.3 × 120 mm; <Game> needs Tiles of at least 65 × 120 mm` | `manifest.minTileMm`; sizes come from the `pxPerMm` guess | use a bigger phone, or lower `minTileMm` |
 | `Phone 2 is still joining` | a phone has not synced its clock or said who sits there yet | wait for its sync dot in the roster |
 | `Two Players have the same id` | two phones reported one Player id; each phone's Player id is stored in its browser (`apps/pwa/src/device.ts:59-71`) | clear the site data on one of them, so it gets new ids |

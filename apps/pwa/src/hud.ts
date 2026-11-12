@@ -36,7 +36,7 @@ export interface HudOptions {
   lobby: Lobby;
   /** The room code Peers join with. */
   code: string;
-  /** What the Host's Start can start; the first is picked until the Host picks another. */
+  /** Every discovered Game. The Host's sheet offers players the featured ones and a maker all of them (`gamelist.ts`). */
   games: readonly Manifest[];
   play: Readonly<Play>;
   /** Host: ends the running Match. */
@@ -44,8 +44,8 @@ export interface HudOptions {
   /** The session log this page keeps; the HUD offers its export in Maker mode. */
   log: Pick<Recorder, 'export' | 'clear' | 'count'>;
   /**
-   * Maker mode (`maker.ts`): what players never see is shown (the clock figures and words, the game log, the session
-   * log's export and clear), and the Host's join address carries the flag. Off, the HUD speaks to players.
+   * Maker mode (`maker.ts`): what players never see is shown (every Game, the clock figures and words, the game log,
+   * the session log's export and clear), and the Host's join address carries the flag. Off, the HUD speaks to players.
    */
   maker: boolean;
 }

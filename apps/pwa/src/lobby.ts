@@ -56,10 +56,18 @@ export interface Lobby {
   onChange(handler: () => void): () => void;
 
   // Host only: no-ops on a Peer, and ignored while `match` is set.
-  /** The Game the Host is about to start: its manifest decides the seats (`Manifest.seats`). */
+  /**
+   * The Game the Host is about to start: its manifest decides the seats (`Manifest.seats`) and the arrangement.
+   * Picked anew, it lays the phones in the first arrangement it names (`arrangements`); picked again, in the one
+   * the Host chose for it. A Game that takes no Controllers puts every phone on the table.
+   */
   setGame(game: Manifest): void;
+  /** An arrangement the picked Game does not name is ignored. */
   setTemplate(template: TemplateId): void;
-  /** A Controller is not part of the Layout, nor of the Tile order. Devices not in the roster are ignored. */
+  /**
+   * A Controller is not part of the Layout, nor of the Tile order. Devices not in the roster are ignored, and
+   * Controllers while the picked Game takes none.
+   */
   setRole(deviceId: DeviceId, role: Role): void;
   /**
    * The Tile order, first Tile first. Tile Devices it leaves out follow in roster order; a Device
@@ -74,8 +82,9 @@ export interface Lobby {
   /** Replaces the default Players until the Tiles or a bot change; a name stays with its Player id. */
   setPlayers(players: readonly Player[]): void;
   /**
-   * Host only: checks the present Devices against `game`, then freezes the Match and sends it to
-   * every Device. Throws an Error whose message is the reason when it cannot (on a Peer, always).
+   * Host only: picks `game` (`setGame`), so it is never refused for the arrangement, checks the present
+   * Devices against it, then freezes the Match and sends it to every Device. Throws an Error whose message
+   * is the reason when it cannot (on a Peer, always).
    */
   start(game: Manifest): MatchInfo;
   /** Host only: the Match is over. `match` clears on every Device and the lobby takes changes again. */
@@ -91,6 +100,11 @@ export interface Lobby {
  */
 export function openLobby(session: Session, pxPerMm: number, playerId: PlayerId, store?: LobbyStore): Lobby {
   return session.role === 'host' ? new HostLobby(session, pxPerMm, playerId, store) : new PeerLobby(session, pxPerMm, playerId);
+}
+
+/** The arrangements `game` can be played in, the one picking it selects first (spec D6): its Manifest's `templates`, else every template. */
+export function arrangements(game: Manifest): readonly TemplateId[] {
+  return game.templates?.length ? game.templates : TEMPLATE_IDS;
 }
 
 /** The Host's lobby decisions, saved across a reload of its page: nothing derived from them, never a Match. */
@@ -201,6 +215,10 @@ abstract class LobbyBase {
 /** Builds the Layout from the present Tile Devices in Tile order and decides everything a Peer shows. */
 class HostLobby extends LobbyBase implements Lobby {
   private template: TemplateId = 'row';
+  /** The arrangements the picked Game names (`arrangements`); every one until a Game is picked. */
+  private allowed: readonly TemplateId[] = TEMPLATE_IDS;
+  /** Whether the picked Game takes Controllers; until a Game is picked, any phone can be one. */
+  private inHand = true;
   private readonly roles = new Map<DeviceId, Role>();
   /** The Tile order, `setOrder`'s or the saved one: Devices in the Tile role only, present or not. */
   private order: DeviceId[] = [];
@@ -255,22 +273,31 @@ class HostLobby extends LobbyBase implements Lobby {
   }
 
   setGame(game: Manifest): void {
+    if (this.frozen) return;
     const seats = game.seats ?? 'ends';
-    if (this.frozen || (game.id === this.picked && seats === this.seats)) return;
+    this.allowed = arrangements(game);
+    this.inHand = game.controllers.max > 0;
+    // Picked anew, a Game lays the phones in the first arrangement it names; picked again, in the one the Host chose for it.
+    const template = game.id === this.picked && this.allowed.includes(this.template) ? this.template : this.allowed[0]!;
+    // A Game that takes no Controllers has every phone on the table.
+    const held = !this.inHand && this.roles.size > 0;
+    if (game.id === this.picked && seats === this.seats && template === this.template && !held) return;
     this.picked = game.id;
     if (seats !== this.seats) this.chosen = undefined;
     this.seats = seats;
+    this.template = template;
+    if (held) this.roles.clear();
     this.refresh();
   }
 
   setTemplate(template: TemplateId): void {
-    if (this.frozen || template === this.template) return;
+    if (this.frozen || template === this.template || !this.allowed.includes(template)) return;
     this.template = template;
     this.refresh();
   }
 
   setRole(deviceId: DeviceId, role: Role): void {
-    if (this.frozen || this.assigned(deviceId) === role || !this.session.roster().some((e) => e.info.deviceId === deviceId)) return;
+    if (this.frozen || (role === 'controller' && !this.inHand) || this.assigned(deviceId) === role || !this.session.roster().some((e) => e.info.deviceId === deviceId)) return;
     this.roles.set(deviceId, role);
     if (role === 'controller') this.order = this.order.filter((id) => id !== deviceId);
     this.refresh();
@@ -316,6 +343,8 @@ class HostLobby extends LobbyBase implements Lobby {
 
   start(game: Manifest): MatchInfo {
     if (this.frozen) throw new Error('A Match is already running');
+    // Starting a Game picks it: the phones lie in an arrangement it names before anything is checked.
+    this.setGame(game);
     const present = this.session.roster().filter((e) => e.present);
     const tiles = this.layout?.devices ?? [];
     const refusal = this.refusal(game, present, tiles);
@@ -453,11 +482,7 @@ class HostLobby extends LobbyBase implements Lobby {
 
   /** Why `game` cannot start on the present Devices, or undefined if it can. */
   private refusal(game: Manifest, present: readonly RosterEntry[], tiles: readonly DeviceRect[]): string | undefined {
-    const { layout } = this;
     if (!game.bots && this.players.some((p) => p.bot)) return `${game.name} does not support bots`;
-    if (game.templates && layout && !game.templates.includes(layout.template)) {
-      return `${game.name} needs the ${game.templates.join(' or ')} arrangement, not ${layout.template}`;
-    }
     const controllers = present.filter((e) => this.assigned(e.info.deviceId) === 'controller').length;
     const count = outside(game.tiles, tiles.length, 'Tile', 'present') ?? outside(game.controllers, controllers, 'Controller', 'present');
     if (count !== undefined) return `${game.name} needs ${count}`;

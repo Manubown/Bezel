@@ -198,7 +198,7 @@ export default defineGame<AirHockeyState, AirHockeyMessage>({
     tiles: { min: 1, max: 2 },
     controllers: { min: 0, max: 0 },
     players: { min: 2, max: 2 },
-    templates: ['row', 'column'],
+    templates: ['column', 'row'], // end to end first: the lobby lays the phones in the first arrangement a Game names
     bots: true,
     tickHz: 60,
     host: './index.js',

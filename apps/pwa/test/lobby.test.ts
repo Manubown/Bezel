@@ -74,7 +74,6 @@ describe('Lobby over a Session on MemoryHub', () => {
 
     expect(() => host.start({ ...DUEL, tiles: { min: 3, max: 4 } })).toThrow('Duel needs 3–4 Tiles; 2 present');
     expect(() => host.start({ ...DUEL, minTileMm: { w: 70, h: 100 } })).toThrow('Phone 1 is 65 × 140 mm; Duel needs Tiles of at least 70 × 100 mm');
-    expect(() => host.start({ ...DUEL, templates: ['column'] })).toThrow('Duel needs the column arrangement, not row');
     // A third phone that has not finished syncing cannot be put in a Match yet.
     join('d2');
     vi.advanceTimersByTime(50);
@@ -153,6 +152,47 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect(host.start(DUEL).matchId).not.toBe(undefined);
   });
 
+  it('picking a Game lays the phones in the first arrangement its Manifest names, on every Device, and offers only those it names', () => {
+    const { host, lobby } = table(['d1']);
+    const peer = lobby('d1');
+    const templates = () => {
+      vi.advanceTimersByTime(100);
+      return [host.layout?.template, peer.layout?.template];
+    };
+    const HOCKEY: Manifest = { ...DUEL, id: 'test.hockey', name: 'Hockey', templates: ['column', 'row'] };
+
+    host.setGame(HOCKEY);
+    expect(templates()).toEqual(['column', 'column']);
+    host.setTemplate('grid'); // Hockey does not name it
+    expect(templates()).toEqual(['column', 'column']);
+    host.setTemplate('row');
+    expect(templates()).toEqual(['row', 'row']);
+    // Picked again, a Game keeps the arrangement the Host chose for it.
+    host.setGame(HOCKEY);
+    expect(templates()).toEqual(['row', 'row']);
+    // A Game that names none can be played in any, the first by default.
+    host.setGame(DUEL);
+    expect(templates()).toEqual(['row', 'row']);
+    host.setTemplate('grid');
+    expect(templates()).toEqual(['grid', 'grid']);
+    host.setGame({ ...DUEL, id: 'test.pong', name: 'Pong', templates: ['row'] });
+    expect(templates()).toEqual(['row', 'row']);
+  });
+
+  it('is never refused for the arrangement: a Game starts in the first it names when the phones lay in another', () => {
+    const { host, lobby } = table(['d1']);
+    host.setTemplate('grid');
+    const match = host.start({ ...DUEL, templates: ['column'] });
+    expect([host.picked, host.layout?.template]).toEqual(['test.duel', 'column']);
+    // End to end: the second phone 4 mm below the first.
+    expect(match.tiles.map((t) => [t.deviceId, t.x, t.y])).toEqual([
+      ['d0', 0, 0],
+      ['d1', 0, 144],
+    ]);
+    vi.advanceTimersByTime(100);
+    expect([lobby('d1').layout?.template, lobby('d1').match]).toEqual(['column', match]);
+  });
+
   it('takes a Device marked Controller out of the Layout and the Match’s Tiles, keeps it in the Match’s Devices with that role, and counts it as a Controller', () => {
     const { host, lobby } = table(['d1', 'd2']);
     const peer = lobby('d2');
@@ -165,7 +205,6 @@ describe('Lobby over a Session on MemoryHub', () => {
     // The default Players sit at the outer Tiles, which are now d0 and d1.
     expect(host.players.map((p) => p.playerId)).toEqual([seat('d0'), seat('d1')]);
 
-    expect(() => host.start(DUEL)).toThrow('Duel needs no Controllers; 1 present');
     expect(() => host.start({ ...DUEL, controllers: { min: 2, max: 2 } })).toThrow('Duel needs 2 Controllers; 1 present');
     const match = host.start({ ...DUEL, id: 'test.pass', controllers: { min: 1, max: 1 } });
     expect(match.tiles.map((t) => t.deviceId)).toEqual(['d0', 'd1']);
@@ -189,6 +228,23 @@ describe('Lobby over a Session on MemoryHub', () => {
     vi.advanceTimersByTime(100);
     expect(host.layout?.devices.map((d) => d.id)).toEqual(['d0', 'd1', 'd2']);
     expect([peer.roleOf('d2'), peer.game]).toEqual(['tile', undefined]);
+  });
+
+  it('picking a Game that takes no Controllers puts every phone on the table, and none can be made a Controller while it is picked', () => {
+    const { host, lobby } = table(['d1', 'd2']);
+    const peer = lobby('d1');
+    const PASS: Manifest = { ...DUEL, id: 'test.pass', name: 'Pass', tiles: { min: 1, max: 4 }, controllers: { min: 1, max: 1 } };
+    host.setGame(PASS);
+    host.setRole('d2', 'controller');
+    vi.advanceTimersByTime(100);
+    expect([order(host), peer.roleOf('d2')]).toEqual([['d0', 'd1'], 'controller']);
+
+    host.setGame(DUEL);
+    vi.advanceTimersByTime(100);
+    expect([order(host), order(peer), host.roleOf('d2'), peer.roleOf('d2')]).toEqual([['d0', 'd1', 'd2'], ['d0', 'd1', 'd2'], 'tile', 'tile']);
+    host.setRole('d1', 'controller');
+    expect(host.roleOf('d1')).toBe('tile');
+    expect(host.start(DUEL).tiles.map((t) => t.deviceId)).toEqual(['d0', 'd1', 'd2']);
   });
 
   it('seats: controllers — a Player per Controller phone, named in the HUD, none from the Tiles; Peers see the same; the Match refuses without Controllers', () => {
@@ -226,11 +282,10 @@ describe('Lobby over a Session on MemoryHub', () => {
     vi.advanceTimersByTime(100);
     expect(peer.match).toEqual(match);
     host.close();
-    // Back to a Game seated at the ends: the outer Tiles' Players again.
-    host.setRole('d1', 'tile');
+    // Back to a Game seated at the ends, which takes no Controllers: every phone on the table, the outer Tiles' Players again.
     host.setGame(DUEL);
     vi.advanceTimersByTime(100);
-    expect(host.players.map((p) => p.playerId)).toEqual([seat('d0'), seat('d1')]);
+    expect(host.players.map((p) => p.playerId)).toEqual([seat('d0'), seat('d3')]);
   });
 
   it('seats: tiles — a Player at every Tile in Tile order, bots appended on top; Peers see the same', () => {
@@ -420,9 +475,9 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect([host.roleOf('d2'), lobby('d3').roleOf('d2')]).toEqual(['controller', 'controller']);
     expect(host.players).toEqual([{ playerId: seat('d2'), name: 'Player 1', deviceId: 'd2' }]);
     expect(JSON.parse(tab.get('mgc.lobby.ROOM')!)).toEqual(saved);
-    // The bot kept its slot: under a Game seated at the ends it is Player 1.
+    // The bot kept its slot: under a Game seated at the ends it is Player 1; that Game takes no Controllers, so d2 lies last.
     host.setGame({ ...DUEL, bots: true });
-    expect(host.players.map((p) => p.playerId)).toEqual(['bot:0', seat('d1')]);
+    expect(host.players.map((p) => p.playerId)).toEqual(['bot:0', seat('d2')]);
   });
 
   it('a Device the saved Tile order does not name joins at the end; a saved one back later still takes its place before it', () => {

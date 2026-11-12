@@ -165,13 +165,13 @@ const speed = (s: AirHockeyState): number => Math.hypot(s.puck.vx, s.puck.vy);
 const near = (s: AirHockeyState, side: 0 | 1): boolean => Math.hypot(s.puck.x - s.pads[side].x, s.puck.y - s.pads[side].y) <= REACH + 1e-6;
 
 describe('Air Hockey', () => {
-  it('declares 1–2 Tiles, no Controllers, 2 Players, bots, the row and column templates, 60 Hz, and imports nothing but the SDK', () => {
+  it('declares 1–2 Tiles, no Controllers, 2 Players, bots, the column then the row template, 60 Hz, and imports nothing but the SDK', () => {
     const { tiles, controllers, players, templates, bots, tickHz } = airHockey.manifest;
     expect({ tiles, controllers, players, templates, bots, tickHz }).toEqual({
       tiles: { min: 1, max: 2 },
       controllers: { min: 0, max: 0 },
       players: { min: 2, max: 2 },
-      templates: ['row', 'column'],
+      templates: ['column', 'row'],
       bots: true,
       tickHz: 60,
     });
