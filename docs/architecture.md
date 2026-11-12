@@ -82,6 +82,7 @@ A `Layout` is a set of `Tile`s `{ x, y, w, h, rot, deviceId }` in millimetres; `
 | a new Game-facing capability | `packages/sdk/src/{types,game,wire,match,game-side}.ts`, the test harness, `docs/sdk-design.md`, `docs/guide/api.md` |
 | a lobby rule (who may start, seats, templates) | `apps/pwa/src/lobby.ts` (+ `apps/pwa/test/lobby.test.ts`), the refusal messages quoted in `docs/guide/troubleshooting.md` |
 | the Host sheet or Peer strip | `apps/pwa/src/hud.ts`, `apps/pwa/index.html` |
+| the public name, pitch or address | `brand.json` at the workspace root, nothing else: the build fills in `apps/pwa/index.html` and writes the web manifest from it (`apps/pwa/brand.ts`), the HUD imports it. The icons and the link-preview picture are SVG sources and PNGs in `apps/pwa/public/` |
 | connectivity, clock, roster | `packages/core/src/{trystero-transport,session,clock}.ts` |
 | another template or the mm math | `packages/layout/src/{templates,surface}.ts` |
 | the hosted build | `.github/workflows/pages.yml`, `scripts/stable.mjs` |

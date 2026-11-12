@@ -86,7 +86,7 @@ A Tile's size in mm is its visible CSS size divided by this, so a 420 × 860 px 
 
 - Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:65`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:131-143`).
 - Load the page with the phone sideways, or let iOS Safari show or hide its toolbars after that, and its Tile no longer matches its screen. Hold the phone upright, then reload it.
-- A phone added to the home screen opens without browser toolbars (`display: fullscreen` in `apps/pwa/public/manifest.webmanifest`).
+- A phone added to the home screen opens without browser toolbars (`display: fullscreen` in the web manifest, which the build writes: `apps/pwa/brand.ts`).
 
 ## Screen wake lock
 

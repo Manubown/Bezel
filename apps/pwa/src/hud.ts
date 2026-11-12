@@ -2,6 +2,7 @@ import type { RosterEntry, Session } from '@mgc/core';
 import { TEMPLATE_IDS, type Layout, type TemplateId } from '@mgc/layout';
 import type { CloseReason, Manifest, MatchResult, Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
+import brand from '../../../brand.json';
 import type { LogLine } from './gamelog';
 import type { Lobby } from './lobby';
 import type { PauseNotice } from './pause';
@@ -135,6 +136,7 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
   root.className = 'sheet';
   root.innerHTML = `
     <button class="bar" type="button">
+      <span class="brand">${esc(brand.name)}</span>
       <span class="code">${esc(code)}</span>
       <span class="bar-meta"></span>
       <span class="bar-action"></span>
@@ -443,7 +445,7 @@ async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
 function peerStrip(root: HTMLElement, o: HudOptions): Hud {
   const { session, lobby, code, play } = o;
   root.className = 'strip';
-  root.innerHTML = `<span class="code">${esc(code)}</span><span class="state"></span><span class="meta"></span><button type="button" class="export" aria-label="Export the session log">Log</button>`;
+  root.innerHTML = `<span class="brand">${esc(brand.name)}</span><span class="code">${esc(code)}</span><span class="state"></span><span class="meta"></span><button type="button" class="export" aria-label="Export the session log">Log</button>`;
   root.querySelector<HTMLButtonElement>('.export')!.addEventListener('click', () => void o.log.export());
   const state = root.querySelector('.state')!;
   const meta = root.querySelector('.meta')!;
