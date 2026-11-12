@@ -21,152 +21,156 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Three phones lie in a row on a dark table; a ball crosses the gap between two of them." />
     <meta name="twitter:card" content="summary_large_image" />
+    <!-- The display face (@mgc/look), fetched at once so it is there for the first paint; the build turns the path into the hashed file it serves from this origin. -->
+    <link rel="preload" href="../../packages/look/fonts/unbounded-600.woff2" as="font" type="font/woff2" crossorigin />
     <style>
-      :root {
-        --bg: #121212;
-        --fg: #f2f0ea;
-        --fg-2: #a8a59c;
-        --line: #2a2a2a;
-        --raise: #1b1b1b;
-        --ok: #5bc46a;
-        --wait: #e0b94a;
-        --off: #5a5a5a;
-        color-scheme: dark;
-      }
+      @import '@mgc/look/tokens.css';
+      /* The night table (@mgc/look/tokens.css): every colour, face and size below is one of its tokens. */
       * { box-sizing: border-box; }
       /* No scrolling, rubber-banding or pull-to-refresh on the page itself: a drag is always the Game's (or the sheet's, which re-enables panning below). */
-      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; overflow: hidden; overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
-      input, textarea { -webkit-user-select: text; user-select: text; }
-      ::selection { background: var(--ok); color: var(--bg); }
-      :focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: var(--text-m)/1.45 var(--font-ui); overflow: hidden; overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+      /* 16 px in every field: an iPhone zooms into a smaller one when it gets focus. */
+      input, textarea { font: inherit; font-size: var(--text-m); color: var(--fg); caret-color: var(--fg); -webkit-user-select: text; user-select: text; }
+      ::selection { background: var(--fg); color: var(--bg); }
+      :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
       [hidden] { display: none !important; }
       #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
       /* A running Match: the SDK fills it; opaque so the lobby preview never shows through. */
       #game { position: fixed; inset: 0; background: var(--bg); }
       button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-      .code { font-weight: 600; font-size: 20px; letter-spacing: 0.18em; }
-      /* The public name (brand.json): first on the first phone's bar and on a joined phone's strip. */
-      .brand { font-weight: 700; font-size: 17px; letter-spacing: 0.02em; }
-      .dot { vertical-align: 0; margin-right: 2px; }
-      .dot-ok { fill: var(--ok); }
-      .dot-wait { fill: var(--wait); }
+      .code { font-weight: 600; font-size: var(--text-l); letter-spacing: 0.18em; }
+      /* The public name (brand.json), in the display face: first on the first phone's bar and on a joined phone's strip. */
+      .brand { font-family: var(--font-display); font-weight: 600; font-size: 18px; line-height: 1.2; }
+      .dot { vertical-align: 0; margin-right: 4px; }
+      .dot-ok { fill: var(--fg); }
+      /* On its way (connecting, a Match in progress): neutral, and alive. */
+      .dot-wait { fill: var(--fg-2); animation: alive 900ms ease-in-out infinite alternate; }
+      /* Amber is for warnings only: a weak or a lost connection. */
+      .dot-warn { fill: var(--warn); }
       .dot-off { fill: var(--off); }
 
       /* Before the script opens the HUD: the name, the pitch and a sign of life, so the page is never black. */
-      .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; background: var(--bg); text-align: center; }
-      .splash-name { margin: 0; font-size: 44px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.1; }
-      .splash-pitch { margin: 0; max-width: 24ch; color: var(--fg-2); font-size: 17px; text-wrap: balance; }
+      .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 24px; background: var(--bg); text-align: center; }
+      .splash-name { margin: 0; font-family: var(--font-display); font-size: var(--text-xxl); font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; }
+      .splash-pitch { margin: 0; max-width: 24ch; color: var(--fg-2); font-size: 18px; text-wrap: balance; }
       .splash-dot { width: 12px; height: 12px; margin-top: 22px; border-radius: 50%; background: var(--fg); animation: alive 900ms ease-in-out infinite alternate; }
       @keyframes alive { from { opacity: 0.2; transform: scale(0.7); } }
 
-      /* Host: bottom sheet. Collapsed it is one bar so the tile stays visible. */
-      .sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 100dvh; display: flex; flex-direction: column; background: var(--raise); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45); padding-bottom: env(safe-area-inset-bottom, 0); transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1); }
-      .sheet .bar { display: grid; grid-template-columns: auto auto 1fr auto; gap: 12px; align-items: baseline; width: 100%; padding: 14px 16px; text-align: left; flex: none; }
-      /* While the Host's Tile shows a Game the folded bar is a small pill in a corner, so the Tile stays the Game's. */
-      .sheet[data-playing]:not([data-open]) { left: auto; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0)); border: 1px solid var(--line); border-radius: 999px; box-shadow: none; padding-bottom: 0; opacity: 0.7; }
-      .sheet[data-playing]:not([data-open]) .bar { display: flex; gap: 6px; padding: 5px 10px; font-size: 12px; }
+      /* Host: bottom sheet. Collapsed it is one bar so the tile stays visible. Never taller than the screen below its top safe area (the status bar, a notch). */
+      .sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: calc(100dvh - env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; background: var(--raise); border-top: 1px solid var(--rule); box-shadow: var(--shadow-sheet); padding-bottom: env(safe-area-inset-bottom, 0px); transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 500ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+      .sheet .bar { display: grid; grid-template-columns: auto auto 1fr auto; gap: 12px; align-items: baseline; width: 100%; min-height: var(--tap); padding: 14px 16px; text-align: left; flex: none; }
+      /* While the Host's Tile shows a Game the folded bar is a pill in a corner, so the Tile stays the Game's. It fades
+         3 s after play starts and comes back while a touch lands near it (hud/corner.ts); kept back, it is inactive. */
+      .sheet[data-playing]:not([data-open]) { left: auto; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); border: 1px solid var(--line); border-radius: 999px; box-shadow: none; padding-bottom: 0; }
+      .sheet[data-playing]:not([data-open]):not([data-awake]):not(:focus-within) { opacity: 0.2; }
+      .sheet[data-playing]:not([data-open]) .bar { display: flex; align-items: center; gap: 6px; padding: 0 18px; font-size: var(--text-s); }
       .sheet[data-playing]:not([data-open]) .brand, .sheet[data-playing]:not([data-open]) .code, .sheet[data-playing]:not([data-open]) .bar-meta, .sheet[data-playing]:not([data-open]) .bar-log { display: none; }
-      .sheet .bar-meta { color: var(--fg-2); }
-      .sheet .bar-action { color: var(--ok); font-weight: 500; }
+      .sheet .bar-meta { color: var(--fg-2); font-size: var(--text-s); }
+      .sheet .bar-action { font-weight: 600; }
       /* The sheet's body scrolls on its own when the phone is shorter than the sheet (QR, Games, roster). */
-      .sheet .body { display: none; padding: 0 16px 16px; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; min-height: 0; }
+      .sheet .body { display: none; padding: 0 16px 16px; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; min-height: 0; scrollbar-color: var(--line) transparent; }
       /* `max-content` rows: a body shorter than its content (it scrolls) must not shrink the Game and arrangement rows (overflow items have a 0 minimum). */
-      .sheet[data-open] .body { display: grid; grid-auto-rows: max-content; gap: 16px; align-content: start; }
+      .sheet[data-open] .body { display: grid; grid-auto-rows: max-content; gap: 18px; align-content: start; }
       .join { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
-      .qr { background: var(--fg); padding: 8px; border-radius: 6px; line-height: 0; }
+      .qr { background: var(--fg); padding: 8px; border-radius: var(--radius); line-height: 0; }
       .qr canvas { display: block; }
       .hint { margin: 0; color: var(--fg-2); max-width: 28ch; }
-      .hint b { color: var(--fg); font-weight: 500; }
+      .hint b { color: var(--fg); font-weight: 600; }
       /* Enter a code to join another table from this phone: the page reopens as a Peer. */
       .enter { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-      .enter input { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; min-width: 0; letter-spacing: 0.18em; text-transform: uppercase; }
+      .enter input { min-height: var(--tap); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 12px; min-width: 0; letter-spacing: 0.18em; text-transform: uppercase; }
       .enter input::placeholder { color: var(--fg-2); letter-spacing: normal; text-transform: none; }
-      .enter button { padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; font-weight: 600; transition: background 120ms; }
-      .enter button:active { background: var(--line); }
-      @media (hover: hover) { .enter button:hover { background: var(--line); } }
-      .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-      .seg button { padding: 10px 0; color: var(--fg-2); transition: background 120ms, color 120ms; }
+      .enter button { min-height: var(--tap); padding: 0 18px; border: 1px solid var(--line); border-radius: var(--radius); font-weight: 600; transition: background 120ms; }
+      .enter button:active { background: var(--rule); }
+      @media (hover: hover) { .enter button:hover { background: var(--rule); } }
+      .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+      .seg button { min-height: var(--tap); padding: 0; color: var(--fg-2); transition: background 120ms, color 120ms; }
       .seg button + button { border-left: 1px solid var(--line); }
-      .seg button[aria-checked="true"] { background: var(--fg); color: var(--bg); font-weight: 500; }
-      /* A card per Game: its name, how many play and how the phones lie. Two side by side; in Maker mode, every Game in rows of two. */
+      .seg button[aria-checked="true"] { background: var(--fg); color: var(--bg); font-weight: 600; }
+      /* A card per Game: its name in the display face, how many play and how the phones lie. Two side by side; in Maker mode, every Game in rows of two. */
       .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-      .card { display: grid; gap: 2px; align-content: start; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; text-align: left; transition: border-color 120ms, background 120ms; }
-      .card .card-name { font-weight: 600; }
-      .card .card-line { color: var(--fg-2); font-size: 12px; }
+      .card { display: grid; gap: 4px; align-content: start; min-height: var(--tap); padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); text-align: left; transition: border-color 120ms, background 120ms; }
+      .card .card-name { font-family: var(--font-display); font-size: 15px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+      .card .card-line { color: var(--fg-2); font-size: var(--text-s); line-height: 1.3; }
       .card[aria-checked="true"] { border-color: var(--fg); background: var(--bg); box-shadow: inset 0 0 0 1px var(--fg); }
       .card:disabled { opacity: 0.45; cursor: default; }
       .roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-      .roster li { display: grid; grid-template-columns: 28px 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+      .roster li { display: grid; grid-template-columns: 28px 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 0; border-top: 1px solid var(--rule); }
       .roster li:first-child { border-top: 0; }
-      .roster .n { grid-row: 1 / span 2; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: var(--line); font-weight: 600; }
-      .roster .who { font-weight: 500; }
-      .roster .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); }
-      .roster .sync { grid-row: 2; grid-column: 3; justify-self: end; color: var(--fg-2); }
+      .roster .n { grid-row: 1 / span 2; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: var(--rule); font-weight: 600; }
+      .roster .who { font-weight: 600; }
+      .roster .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); font-size: var(--text-s); }
+      .roster .sync { grid-row: 2; grid-column: 3; justify-self: end; color: var(--fg-2); font-size: var(--text-s); }
       /* The Tile order: ◀ towards the first phone, ▶ towards the last. */
       .roster .order { grid-row: 1; grid-column: 3; justify-self: end; display: flex; gap: 6px; }
-      .move { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); transition: background 120ms; }
+      .move { width: var(--tap); height: var(--tap); display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg); transition: background 120ms; }
       .move svg { fill: currentColor; }
-      .move:not(:disabled):active { background: var(--line); }
-      @media (hover: hover) { .move:not(:disabled):hover { background: var(--line); } }
-      .move:disabled { color: var(--off); cursor: default; }
+      .move:not(:disabled):active { background: var(--rule); }
+      @media (hover: hover) { .move:not(:disabled):hover { background: var(--rule); } }
+      .move:disabled { color: var(--off); border-color: var(--rule); cursor: default; }
       .roster .pending { color: var(--fg-2); }
       .seg button:disabled { opacity: 0.45; cursor: default; }
       /* Controllers: one chip per phone; a pressed chip is held in hand, out of the Layout. */
-      .roles { display: grid; gap: 6px; }
+      .roles { display: grid; gap: 8px; }
       .roles-label { margin: 0; }
-      .roles-label span { color: var(--fg-2); font-size: 12px; margin-left: 4px; }
-      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-      .chip { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--fg-2); transition: background 120ms, color 120ms; }
-      .chip[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); font-weight: 500; }
+      .roles-label span { color: var(--fg-2); font-size: var(--text-s); margin-left: 4px; }
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+      .chip { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; color: var(--fg-2); transition: background 120ms, color 120ms; }
+      .chip[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); font-weight: 600; }
       .chip:disabled { opacity: 0.45; cursor: default; }
       .players { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 28px 1fr auto auto; gap: 8px 10px; }
       /* One shared set of columns, so name fields line up whichever rows carry a seat or a Bot chip. */
       .players li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; }
-      .players .n { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: var(--line); font-weight: 600; font-size: 12px; }
-      .players input { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; min-width: 0; }
-      .players input:disabled { color: var(--fg-2); }
-      .players .meta { color: var(--fg-2); }
-      .players .empty { color: var(--fg-2); padding: 7px 0; }
-      .go { display: grid; gap: 6px; }
-      .go .start, .go .end { padding: 12px 0; border-radius: 8px; font-weight: 600; }
-      .go .start { background: var(--ok); color: var(--bg); }
+      .players .n { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: var(--rule); font-weight: 600; font-size: var(--text-s); }
+      .players input { min-height: var(--tap); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 12px; min-width: 0; }
+      .players input:disabled { color: var(--fg-2); border-color: var(--rule); }
+      .players .meta { color: var(--fg-2); font-size: var(--text-s); }
+      .players .empty { color: var(--fg-2); }
+      .go { display: grid; gap: 8px; }
+      .go .start, .go .end { min-height: var(--tap); border-radius: var(--radius); font-weight: 600; }
+      /* The one main action of the sheet: the only ivory fill, and taller than every other control. */
+      .go .start { min-height: var(--tap-main); background: var(--fg); color: var(--bg); font-size: 18px; }
       .go .end { border: 1px solid var(--line); }
-      .reason { margin: 0; color: var(--wait); min-height: 1.4em; }
+      .reason { margin: 0; color: var(--warn); min-height: 1.4em; }
       .reason:empty { display: none; }
+      /* The last Match is news, not a warning. */
+      .reason.last { color: var(--fg-2); }
       /* The session log: export (share sheet on phones, download elsewhere) and clear. */
-      .diag { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; padding-top: 4px; border-top: 1px solid var(--line); }
-      .diag button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg-2); }
-      .diag-meta { color: var(--fg-2); font-size: 12px; text-align: right; }
+      .diag { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; padding-top: 8px; border-top: 1px solid var(--rule); }
+      .diag button { min-height: var(--tap); padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg-2); }
+      .diag-meta { color: var(--fg-2); font-size: var(--text-xs); text-align: right; }
       /* The game log: faults, ctx.log lines and closes. The newest rides on the folded bar while a Match runs. */
-      .sheet .bar-log, .log { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .sheet .bar-log, .log { font: var(--text-xs)/1.45 var(--font-mono); }
       .sheet .bar-log { grid-column: 1 / -1; margin-top: -6px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .log { list-style: none; margin: 0; padding: 8px 10px; display: grid; gap: 4px; max-height: 10.5em; overflow-y: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+      .log { list-style: none; margin: 0; padding: 8px 10px; display: grid; gap: 4px; max-height: 10.5em; overflow-y: auto; background: var(--bg); border: 1px solid var(--rule); border-radius: var(--radius); scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
       .log li { display: grid; grid-template-columns: 6ch 1fr; gap: 8px; }
       .log .log-kind { color: var(--fg-2); }
       .log .log-text { overflow-wrap: anywhere; }
-      .log .log-fault .log-kind, .sheet .bar-log.log-fault { color: var(--wait); }
+      .log .log-fault .log-kind, .sheet .bar-log.log-fault { color: var(--warn); }
 
-      /* Peer: one slim strip at the top. */
-      .strip { position: fixed; top: 0; left: 0; right: 0; display: grid; grid-template-columns: auto 1fr auto; column-gap: 12px; align-items: baseline; padding: calc(10px + env(safe-area-inset-top, 0)) 14px 14px; background: linear-gradient(var(--bg) 55%, transparent); pointer-events: none; }
+      /* Peer: one slim strip at the top, below the status bar. */
+      .strip { position: fixed; top: 0; left: 0; right: 0; display: grid; grid-template-columns: auto 1fr auto; column-gap: 14px; row-gap: 2px; align-items: baseline; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 16px; background: linear-gradient(var(--bg) 60%, transparent); pointer-events: none; }
       .strip .brand { grid-row: 1; grid-column: 1; }
-      .strip .code { grid-row: 2; grid-column: 1; font-size: 13px; color: var(--fg-2); }
+      .strip .code { grid-row: 2; grid-column: 1; font-size: var(--text-s); color: var(--fg-2); }
       .strip .state { grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .strip .export { grid-row: 1 / span 2; grid-column: 3; align-self: start; pointer-events: auto; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg-2); font-size: 12px; }
+      .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); font-size: var(--text-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .strip .export { grid-row: 1 / span 2; grid-column: 3; align-self: center; pointer-events: auto; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg-2); font-size: var(--text-s); }
 
       /* How the last Match closed (its result, or why it stopped), over the lobby on every phone until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */
-      .result, .pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(84vw, 340px); padding: 22px 20px 16px; background: var(--raise); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); text-align: center; }
+      .result, .pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(86vw, 340px); padding: 24px 20px 18px; background: var(--raise); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-card); text-align: center; }
       .result { cursor: pointer; }
-      .pause { padding-bottom: 20px; pointer-events: none; }
+      .pause { padding-bottom: 22px; pointer-events: none; }
       .result p, .pause p { margin: 0; }
-      .result .result-head, .pause .pause-head { font-size: 26px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
-      .result .result-detail, .pause .pause-detail { margin-top: 8px; color: var(--fg-2); font-size: 16px; }
-      .result .result-hint { margin-top: 14px; color: var(--fg-2); font-size: 12px; }
+      .result .result-head, .pause .pause-head { font-size: 24px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; text-wrap: balance; }
+      /* The winner and the score: the display face. */
+      .result .result-head { font-family: var(--font-display); }
+      .result .result-detail, .pause .pause-detail { margin-top: 8px; color: var(--fg-2); }
+      .result .result-hint { margin-top: 16px; color: var(--fg-2); font-size: var(--text-s); }
 
-      @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .card, .chip, .move { transition: none; } .splash-dot { animation: none; } }
+      @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .card, .chip, .move { transition: none; } .splash-dot, .dot-wait { animation: none; } }
       /* Phones are used upright: the Layout is measured in portrait. A touch screen turned sideways is asked back; a desktop window is left alone. */
       #rotate { display: none; position: fixed; inset: 0; z-index: 10; place-items: center; background: var(--bg); text-align: center; padding: 24px; }
-      #rotate p { margin: 0; font-size: 20px; color: var(--fg-2); }
+      #rotate p { margin: 0; font-size: var(--text-l); color: var(--fg-2); }
       @media (pointer: coarse) and (orientation: landscape) { #rotate { display: grid; } }
     </style>
   </head>

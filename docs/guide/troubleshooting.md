@@ -91,7 +91,7 @@ Numbers in the table are examples; the message names the Game and the real count
 
 ### The Host's roster says "weak connection" for a phone
 
-- **What it means:** the Host has not heard that phone for 2.5 s, two missed clock heartbeats (`WEAK_MS`, `packages/core/src/session.ts`); the row shows its green dot again (in Maker mode its clock numbers) as soon as the phone is heard (`apps/pwa/src/hud.ts:382-388`). Not a pause: the Match goes on. After 5 s of silence (`LOST_MS`) the phone counts as lost: its row reads "disconnected", and a Match it is in pauses.
+- **What it means:** the Host has not heard that phone for 2.5 s, two missed clock heartbeats (`WEAK_MS`, `packages/core/src/session.ts`); the row shows its ivory dot again (in Maker mode its clock numbers) as soon as the phone is heard (`apps/pwa/src/hud.ts:382-388`). Not a pause: the Match goes on. After 5 s of silence (`LOST_MS`) the phone counts as lost: its row reads "disconnected", and a Match it is in pauses.
 - **Fix:** usually nothing; it was a blip. Often or for long: the phone's screen is turning off (tap it once), it is far from the Wi-Fi, or the network drops packets (live test 1's hotspot). The `link` lines in the Host's log list every `weak` and `lost` stretch per phone.
 
 ### "The game crashed" on every phone, or "The game stopped on this phone"
@@ -283,5 +283,5 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 
 ### A tap in the bottom-right corner of the Host's Tile opens the Host's sheet
 
-- **Cause:** while a Match runs, the Host's folded sheet is a small "Setup" pill 8 px in from the bottom-right corner of its screen, over its Tile (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`). A tap on it opens the sheet over the Game (`apps/pwa/src/hud.ts:191-197`); the Game never sees that tap. Peers have no pill.
+- **Cause:** while a Match runs, the Host's folded sheet is a small "Setup" pill 8 px in from the bottom-right corner of its screen, over its Tile (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`). A tap on it opens the sheet over the Game (`apps/pwa/src/hud.ts:191-197`). The pill fades 3 s after play starts; faded, a tap on it (or near it) only brings it back for 3 s, and the tap after that opens the sheet (`apps/pwa/src/hud/corner.ts`); the Game never sees that tap. Peers have no pill.
 - **Fix:** keep small targets and controls out of the Host Tile's bottom-right corner; tap "Hide" to fold the sheet back to the pill.

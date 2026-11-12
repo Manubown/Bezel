@@ -25,7 +25,7 @@ export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
         state.innerHTML = `${statusDot('off')} Looking for the host…`;
         meta.textContent = 'keep the host screen open';
       } else if (session.status === 'reconnecting') {
-        state.innerHTML = `${statusDot('wait')} Reconnecting to the host…`;
+        state.innerHTML = `${statusDot('warn')} Reconnecting to the host…`;
         meta.textContent = 'the connection dropped · trying again';
       } else if (session.status === 'syncing') {
         state.innerHTML = `${statusDot('wait')} ${maker ? 'Syncing clocks' : 'Connecting…'}`;

@@ -1,15 +1,10 @@
 import type { Layout, Surface } from '@mgc/layout';
+import { look, type Look } from './look';
 import type { Frame } from './metronome';
 import { placementSentence } from './placement';
 
 const MINOR_MM = 10;
 const MAJOR_MM = 50;
-
-/** `index.html`'s `--bg`, `--fg` and `--fg-2`. */
-const GROUND = '#121212';
-const FG = '#f2f0ea';
-const FG_2 = '#a8a59c';
-const FACE = 'system-ui, sans-serif';
 
 /** Kept clear at the top and the bottom of the screen: a Peer's strip, the Host's folded sheet bar. */
 const CLEAR_PX = 64;
@@ -26,11 +21,12 @@ const PICTO_INSET_PX = 2;
 /**
  * The lobby's placement preview on this Device: a millimetre grid continuous across bezels and the World bounds,
  * then this phone's placement cue: its Tile number across most of the screen's width, the sentence saying where
- * to lay it, and a pictogram of the Layout with this phone filled.
+ * to lay it, and a pictogram of the Layout with this phone filled. Painted with the look's tokens (`look.ts`).
  */
 export function drawPreview(frame: Frame, surface: Surface, layout: Layout): void {
   const { ctx, w, h, dpr } = frame;
-  ctx.fillStyle = GROUND;
+  const paint = look();
+  ctx.fillStyle = paint.bg;
   ctx.fillRect(0, 0, w, h);
 
   // Everything up to the cue is in world millimetres; the surface transform clips it to this screen.
@@ -41,14 +37,14 @@ export function drawPreview(frame: Frame, surface: Surface, layout: Layout): voi
   // Grid: continuous across bezels, the alignment check a human can read.
   ctx.lineWidth = mmPx;
   for (let gx = Math.ceil(b.x / MINOR_MM) * MINOR_MM; gx <= b.x + b.w; gx += MINOR_MM) {
-    ctx.strokeStyle = gx % MAJOR_MM === 0 ? '#3a3a3a' : '#222';
+    ctx.strokeStyle = gx % MAJOR_MM === 0 ? paint.line : paint.rule;
     ctx.beginPath();
     ctx.moveTo(gx, b.y);
     ctx.lineTo(gx, b.y + b.h);
     ctx.stroke();
   }
   for (let gy = Math.ceil(b.y / MINOR_MM) * MINOR_MM; gy <= b.y + b.h; gy += MINOR_MM) {
-    ctx.strokeStyle = gy % MAJOR_MM === 0 ? '#3a3a3a' : '#222';
+    ctx.strokeStyle = gy % MAJOR_MM === 0 ? paint.line : paint.rule;
     ctx.beginPath();
     ctx.moveTo(b.x, gy);
     ctx.lineTo(b.x + b.w, gy);
@@ -56,25 +52,25 @@ export function drawPreview(frame: Frame, surface: Surface, layout: Layout): voi
   }
 
   // World bounds.
-  ctx.strokeStyle = '#5bc46a';
+  ctx.strokeStyle = paint.fg2;
   ctx.lineWidth = 2 * mmPx;
   ctx.strokeRect(b.x, b.y, b.w, b.h);
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const index = layout.devices.findIndex((d) => d.id === surface.rect.id);
-  if (index >= 0) drawCue(ctx, w, h, layout, index);
+  if (index >= 0) drawCue(ctx, w, h, layout, index, paint);
 }
 
-/** The placement cue in CSS px, stacked and centred between the strip and the sheet bar. */
-function drawCue(ctx: CanvasRenderingContext2D, w: number, h: number, layout: Layout, index: number): void {
+/** The placement cue in CSS px, stacked and centred between the strip and the sheet bar: the number in the display face. */
+function drawCue(ctx: CanvasRenderingContext2D, w: number, h: number, layout: Layout, index: number, paint: Look): void {
   const sentence = placementSentence(layout, index);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
 
   // The sentence: one line, shrunk only when the screen is too narrow for it.
-  ctx.font = `500 100px ${FACE}`;
+  ctx.font = `500 100px ${paint.ui}`;
   const sentenceSize = Math.min(Math.max(w * 0.06, 16), 26, (100 * w * 0.9) / ctx.measureText(sentence).width);
-  ctx.font = `500 ${sentenceSize}px ${FACE}`;
+  ctx.font = `500 ${sentenceSize}px ${paint.ui}`;
   const s = ctx.measureText(sentence);
   const sentenceH = s.actualBoundingBoxAscent + s.actualBoundingBoxDescent;
 
@@ -87,7 +83,7 @@ function drawCue(ctx: CanvasRenderingContext2D, w: number, h: number, layout: La
   // The number: its ink NUMBER_WIDTH of the screen's width, unless the screen is too short for it. Measured on as
   // many 8s, a full-width digit, so a narrow 1 is drawn as large as a 2 and not larger.
   const label = String(index + 1);
-  ctx.font = `600 100px ${FACE}`;
+  ctx.font = `600 100px ${paint.display}`;
   const ref = ctx.measureText('8'.repeat(label.length));
   const refH = ref.actualBoundingBoxAscent + ref.actualBoundingBoxDescent;
   const numberRoom = h - 2 * CLEAR_PX - 2 * GAP_PX - sentenceH - pictoH;
@@ -95,11 +91,11 @@ function drawCue(ctx: CanvasRenderingContext2D, w: number, h: number, layout: La
   const numberH = refH * k;
 
   let y = Math.max(CLEAR_PX, (h - (numberH + GAP_PX + sentenceH + GAP_PX + pictoH)) / 2);
-  ctx.fillStyle = FG;
-  ctx.font = `600 ${100 * k}px ${FACE}`;
+  ctx.fillStyle = paint.fg;
+  ctx.font = `600 ${100 * k}px ${paint.display}`;
   ctx.fillText(label, w / 2, y + ref.actualBoundingBoxAscent * k);
   y += numberH + GAP_PX;
-  ctx.font = `500 ${sentenceSize}px ${FACE}`;
+  ctx.font = `500 ${sentenceSize}px ${paint.ui}`;
   ctx.fillText(sentence, w / 2, y + s.actualBoundingBoxAscent);
   y += sentenceH + GAP_PX;
 
@@ -116,15 +112,15 @@ function drawCue(ctx: CanvasRenderingContext2D, w: number, h: number, layout: La
     const rw = d.w * scale - 2 * PICTO_INSET_PX;
     const rh = d.h * scale - 2 * PICTO_INSET_PX;
     if (i === index) {
-      ctx.fillStyle = FG;
+      ctx.fillStyle = paint.fg;
       ctx.fillRect(PICTO_INSET_PX, PICTO_INSET_PX, rw, rh);
     } else {
-      ctx.strokeStyle = FG_2;
+      ctx.strokeStyle = paint.fg2;
       ctx.strokeRect(PICTO_INSET_PX, PICTO_INSET_PX, rw, rh);
     }
     if (digits >= 9) {
-      ctx.fillStyle = i === index ? GROUND : FG_2;
-      ctx.font = `600 ${digits}px ${FACE}`;
+      ctx.fillStyle = i === index ? paint.bg : paint.fg2;
+      ctx.font = `600 ${digits}px ${paint.ui}`;
       ctx.textBaseline = 'middle';
       ctx.fillText(String(i + 1), (d.w * scale) / 2, (d.h * scale) / 2);
     }

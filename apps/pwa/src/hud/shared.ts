@@ -15,7 +15,8 @@ export function syncStats(c: { rtt?: number; offset?: number } | undefined): str
   return c ? `${ms(c.rtt)} · Δ${ms(c.offset)}` : '—';
 }
 
-export function statusDot(state: 'ok' | 'wait' | 'off'): string {
+/** A status dot: `ok` in, `wait` on its way (neutral), `warn` a weak or lost connection (the warning colour), `off` not there. */
+export function statusDot(state: 'ok' | 'wait' | 'warn' | 'off'): string {
   return `<svg class="dot dot-${state}" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>`;
 }
 

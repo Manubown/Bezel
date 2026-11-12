@@ -6,8 +6,10 @@ import brand from '../../../../brand.json';
 import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
 import type { Hud, HudOptions, Play } from '../hud';
 import { arrangements } from '../lobby';
+import { look } from '../look';
 import { MAKER_FLAG } from '../maker';
 import { placementHint } from '../placement';
+import { fadeCorner } from './corner';
 import { describeLast, esc, statusDot, syncStats } from './shared';
 
 /**
@@ -24,7 +26,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
   /** The address to type: host plus the app's path, without the trailing slash (`manubown.github.io/Bezel`); in Maker mode with its flag (`manubown.github.io/Bezel/?maker`). */
   const address = (joinUrl.host + joinUrl.pathname).replace(/\/$/, '') + (maker ? `/?${MAKER_FLAG}` : '');
   const qr = document.createElement('canvas');
-  await QRCode.toCanvas(qr, joinUrl.toString(), { width: 168, margin: 0, color: { dark: '#121212', light: '#f2f0ea' } });
+  await QRCode.toCanvas(qr, joinUrl.toString(), { width: 168, margin: 0, color: { dark: look().bg, light: look().fg } });
 
   root.className = 'sheet';
   root.innerHTML = `
@@ -67,6 +69,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
       </div>
     </div>`;
   root.querySelector('.qr')!.append(qr);
+  fadeCorner(root);
   const bar = root.querySelector<HTMLButtonElement>('.bar')!;
   const barMeta = root.querySelector('.bar-meta')!;
   const barAction = root.querySelector('.bar-action')!;
@@ -213,6 +216,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     const described = play.last && describeLast(play.last);
     const lastLine = described && [described.headline, described.detail].filter(Boolean).join(' · ');
     reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
+    reason.classList.toggle('last', !refusal);
 
     // The game log, in Maker mode: its newest line on the folded bar while a Match runs, every line in the sheet.
     const newest = play.log.at(-1);
@@ -299,7 +303,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     const syncOf = (e: RosterEntry | undefined, self: boolean): string => {
       if (self) return '';
       // Two missed heartbeats (`WEAK_MS`): still there and still in the Match, not paused for.
-      if (e?.link === 'weak') return `${statusDot('wait')} weak connection`;
+      if (e?.link === 'weak') return `${statusDot('warn')} weak connection`;
       const synced = e?.sync.synced === true;
       // Players see the dot, and "connecting" until the phone's clock is in; a maker sees the clock figures.
       if (!maker) return `${statusDot(synced ? 'ok' : 'wait')}${synced ? '' : ' connecting'}`;
