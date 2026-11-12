@@ -48,7 +48,7 @@ if (stable) {
   app(workspace, 'play');
 }
 
-const problems = [...brokenLinks(), ...lostQueries()];
+const problems = [...brokenLinks(), ...missingAppLinks(), ...lostQueries()];
 for (const problem of problems) console.error(`pages: ${problem}`);
 if (problems.length) process.exit(1);
 console.log(`pages: apps/site/dist holds the site, play/ (${stable ? 'the stable tag' : 'this checkout'}) and next/; every link resolves, every forward keeps its query`);
@@ -94,6 +94,17 @@ function brokenLinks() {
       .filter((url) => !fileOf(url))
       .map((url) => `${address.pathname} links to ${url.pathname}, which is not in the output`);
   });
+}
+
+/**
+ * Pages of the site the app links to from its script, which `brokenLinks` cannot read: the privacy page, from the
+ * first phone's sheet (`apps/pwa/src/hud/sheet.ts`, spec D18).
+ */
+function missingAppLinks() {
+  return ['privacy/']
+    .map((page) => new URL(page, brand.address))
+    .filter((url) => !fileOf(url))
+    .map((url) => `the app links to ${url.pathname}, which is not in the output`);
 }
 
 /**

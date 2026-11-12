@@ -56,6 +56,7 @@ Top to bottom, the steps of getting a table going, then the rest (`apps/pwa/src/
 | game log (Maker mode only) | the running (or last) Match's faults, `ctx.log` lines and close, newest first; the last 50 (`apps/pwa/src/gamelog.ts:10`) |
 | Export log · Clear · "N lines" (Maker mode only) | the session log ([below](#the-session-log-what-each-phone-records-and-how-to-get-it-off-the-phone)) |
 | "Join a different table", folded | opened: a code field and Join, which leave this table for that one (the page reloads as `?room=CODE`). This table's own code, in any letter case, is refused in words and nothing else happens |
+| Privacy | the site's privacy page (`privacy/` at `brand.json`'s address; `apps/site/src/pages/privacy.astro`), in a new tab, so this page and its table stay. `pnpm pages` fails if the output lacks it |
 
 When a Match ends with the sheet folded, the Host's result card ("Ana wins 7–5") offers **Play again**, the same Game with the same Players, arrangement and bots (`apps/pwa/src/lobby.ts` `startAgain`), and **Change game**, which opens the sheet. Play again is refused in words when a phone of that Match is no longer at the table ("Phone 2 is no longer at the table"), when a phone joined since (it has to be placed: use Change game), or when the Host changed the table since. A Match that ends while the sheet is open shows no card on the Host, only the "Last match" line.
 

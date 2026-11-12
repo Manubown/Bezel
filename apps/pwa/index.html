@@ -86,6 +86,8 @@
       @media (hover: hover) { .enter button:hover { background: var(--rule); } }
       .other-refusal { margin: 8px 0 0; color: var(--warn); }
       .other-refusal:empty { display: none; }
+      /* The privacy page (the site's), last on the first phone's sheet: quiet, but a full-height target. */
+      .sheet .privacy { justify-self: start; display: flex; align-items: center; min-height: var(--tap); color: var(--fg-2); text-underline-offset: 3px; }
       .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
       .seg button { min-height: var(--tap); padding: 0; color: var(--fg-2); transition: background 120ms, color 120ms; }
       .seg button + button { border-left: 1px solid var(--line); }
