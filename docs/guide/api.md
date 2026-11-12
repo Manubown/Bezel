@@ -91,7 +91,7 @@ export interface HostContext<S extends JsonValue, M extends JsonValue> {
 | `holderOf(controller)` | the Holder as of the last accepted `setHolder`, at once; `null` for nobody or a Tile |
 | `timer(tag, delayMs)` | calls `onTimer(tag, now)` after `delayMs`; the same tag replaces, `null` cancels; paused time does not count. A delay that is not a finite number ≥ 0 is refused |
 | `end(result)` | ends the Match on every Device with `result`; afterwards only `dispose` runs. `TypeError` if not plain JSON |
-| `log(...args)` | to the Host's console and HUD game log: JSON values as they are, an `Error` as its stack, anything else as text. Never throws |
+| `log(...args)` | to the Host's console and HUD game log (shown in Maker mode, `?maker`): JSON values as they are, an `Error` as its stack, anything else as text. Never throws |
 
 ### `HostHandlers<M>`
 

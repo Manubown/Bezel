@@ -23,7 +23,7 @@
 - `brand.json` (new, workspace root): `name` "Bezel", `pitch` "Put your phones side by side and they become one game board.", `address` "https://manubown.github.io/Bezel/".
 - `apps/pwa/brand.ts` (new): `brandPlugin`, the Vite plugin that fills in `index.html` and serves (dev) or writes (build) `manifest.webmanifest`; the two pure functions under it, `brandPage` (the page for a brand and a base) and `webManifest` (the manifest for a brand and the page). Wired in `apps/pwa/vite.config.ts`; `apps/pwa/tsconfig.json` includes it.
 - `apps/pwa/index.html`: `<title>`, `description` and the preview tags (`og:type`, `og:site_name`, `og:title`, `og:description`, `og:url`, `og:image` with size and alt, `twitter:card`) as `%BRAND_NAME%` / `%BRAND_PITCH%` / `%BRAND_URL%`; `theme-color` as `%GROUND%`; links to the manifest, the tab icon `icon.svg` and `apple-touch-icon.png`; a static splash inside `#hud` (name, pitch, a pulsing dot; still under reduced motion) that the HUD replaces; `.brand` on the bar and the strip.
-- `apps/pwa/src/hud.ts`: the `brand.json` import and one `<span class="brand">` in the bar and one in the strip (three lines).
+- The HUD: the `brand.json` import and one `<span class="brand">` in the bar and one in the strip (since the merge of `outside-view`, in `apps/pwa/src/hud/sheet.ts` and `hud/strip.ts`).
 - `apps/pwa/public/manifest.webmanifest` removed: the build writes it. Added in `apps/pwa/public/`: `icon.svg` (the mark), `icon-maskable.svg`, `preview.svg`, and the PNGs drawn from them: `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png` (180 px), `preview.png` (1200×630).
 - `apps/pwa/test/brand.test.ts` (new, 7 tests): title and splash, preview tags with this build's address, no other name in the template, manifest name/short name/description, manifest and theme colours from the page's ground, the three manifest icons and the apple-touch icon exist as PNGs of the stated size.
 - Docs: `docs/architecture.md` §5 gets a row for the public name; `docs/guide/running-on-phones.md` no longer names the deleted manifest file.
@@ -49,7 +49,8 @@
   - Loading state on the build, with the script bundle held back: `#hud` was the splash, fixed over the whole screen on the ground colour (rgb 18, 18, 18): "Bezel" large and bold, the pitch in grey under it, a pulsing dot (animation `alive`, `none` under prefers-reduced-motion). After the bundle was released `#hud` became the sheet and the splash was gone. With scripts off (dev server) the page shows the same splash and the title "Bezel".
   - First phone (dev server): the bar read "Bezel VHGN 1 phone · Row Hide", then "2 phones" once a second tab joined; tab title "Bezel".
   - Second tab with `?room=VHGN`: the strip read "Bezel" over "VHGN", "● Phone 2 of 2", "right of phone 1 · Player 2 …"; tab title "Bezel".
-- `grep -rn -E 'Bezel|MobileGameConnect|\bMGC\b' apps/pwa/src apps/pwa/index.html apps/pwa/public`: only a doc comment in `hud.ts` (the example address `manubown.github.io/Bezel`), which no player sees.
+- `grep -rn -E 'Bezel|MobileGameConnect|\bMGC\b' apps/pwa/src apps/pwa/index.html apps/pwa/public`: only a doc comment in the sheet's code (the example address `manubown.github.io/Bezel`), which no player sees.
+- After merging `outside-view` (the HUD split into `hud/*` and Maker mode, ticket 01): `pnpm typecheck && pnpm test` clean, 31 files, 234 tests passed. Dev server, two tabs: the bar read "Bezel HZ4M 2 phones · Row Hide", the strip "Bezel" over "HZ4M", "Phone 2 of 2", "right of phone 1 · Player 2"; both titles "Bezel".
 
 **Not verified**
 - On phones: Android's install offer, label and maskable icon under a real launcher's mask; the iPhone's Add to Home Screen icon and label.

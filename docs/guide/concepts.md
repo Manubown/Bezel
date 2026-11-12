@@ -160,7 +160,7 @@ While paused (`packages/sdk/src/match.ts:458-498`):
 
 ## Faults and the close ladder
 
-Nothing a Game throws crosses into the platform; it becomes a `fault` event on that Device and goes to the Host's game log and console. Repeated or fatal faults close a side (`packages/sdk/src/game.ts:10-14`, constants at `packages/sdk/src/match.ts:86-93`, `packages/sdk/src/game-side.ts:18`):
+Nothing a Game throws crosses into the platform; it becomes a `fault` event on that Device and goes to the Host's game log (shown in Maker mode, `?maker`) and console. Repeated or fatal faults close a side (`packages/sdk/src/game.ts:10-14`, constants at `packages/sdk/src/match.ts:86-93`, `packages/sdk/src/game-side.ts:18`):
 
 | What happens | Result |
 |---|---|
@@ -179,4 +179,4 @@ Which side closes decides what the players see:
 | a Peer's view | only that phone leaves the Match |
 | the Host's own view | the Host shows "The game stopped on this phone"; the Match goes on for the others |
 
-`ctx.log(...)` takes any values and never throws: JSON as it is, an `Error` as its stack, anything else as text. It reaches that Device's console and, on the Host, the HUD's game log.
+`ctx.log(...)` takes any values and never throws: JSON as it is, an `Error` as its stack, anything else as text. It reaches that Device's console and, on the Host, the HUD's game log (in Maker mode).

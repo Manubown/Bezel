@@ -137,7 +137,7 @@ docs/              developer guide, architecture, design docs, ADRs, phone sessi
 | M4 Cross-bezel swipe alignment | planned |
 | M5 Offline fallback (QR SDP), star-only transport | planned |
 
-Two hosted builds exist: **/Bezel/** is `master`; **/Bezel/stable/** is the commit the `stable` git tag points at, a known-good build to fall back on (`pnpm stable <ref>` moves it). Every phone keeps a session log; **Export log** on the Host's sheet shares it as NDJSON.
+Two hosted builds exist: **/Bezel/** is `master`; **/Bezel/stable/** is the commit the `stable` git tag points at, a known-good build to fall back on (`pnpm stable <ref>` moves it). Every phone keeps a session log; in Maker mode (`?maker`), **Export log** on the Host's sheet shares it as NDJSON.
 
 ## Contributing
 
