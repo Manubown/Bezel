@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "pnpm --filter @mgc/pwa dev",
     "build": "pnpm --filter @mgc/pwa build",
+    "pages": "node scripts/pages.mjs",
     "test": "vitest run",
-    "typecheck": "pnpm -r exec tsc -p .",
+    "typecheck": "pnpm -r --filter \"!@mgc/site\" exec tsc -p .",
     "new-game": "node scripts/new-game.mjs",
     "stable": "node scripts/stable.mjs",
     "setup-turn": "bash scripts/setup-turn.sh"
