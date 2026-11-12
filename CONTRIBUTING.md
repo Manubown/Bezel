@@ -52,7 +52,9 @@ Anything a Game can see is a contract: `packages/sdk/src/{types,game,wire}.ts`. 
 
 ## Issues and tickets
 
-The issue tracker is in the repo: one directory per feature under `.scratch/<feature>/`, a `spec.md`, and `issues/NN-<slug>.md` tickets with a `Status:` line (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`, `resolved`). Conventions: [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md), [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md). Open decisions that need a human are collected in `.scratch/sdk-friction-1/spec.md` Part B.
+**From outside:** a problem at the table or an idea for a Game goes to [GitHub Issues](https://github.com/Manubown/Bezel/issues/new/choose), through its two forms; a security problem goes privately ([`SECURITY.md`](SECURITY.md)). Everyone follows the [Code of Conduct](CODE_OF_CONDUCT.md). A pull request opens with a checklist of three rules from this guide ([`.github/pull_request_template.md`](.github/pull_request_template.md)): `pnpm typecheck && pnpm test` green, a Game imports `@mgc/sdk` only, and how it was tried.
+
+**The makers' tickets** stay in the repository, in [`.scratch/`](.scratch/README.md): one directory per feature under `.scratch/<feature>/`, a `spec.md`, and `issues/NN-<slug>.md` tickets with a `Status:` line (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`, `resolved`). Conventions: [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md), [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md). Open decisions that need a human are collected in `.scratch/sdk-friction-1/spec.md` Part B.
 
 ## Commits and PRs
 
@@ -63,5 +65,7 @@ The issue tracker is in the repo: one directory per feature under `.scratch/<fea
 ## Releases
 
 There is no version number. Pages serves the site at <https://manubown.github.io/Bezel/> (brand.json's `address`) and the app twice below it: <https://manubown.github.io/Bezel/next/> is `master`, live after every push; <https://manubown.github.io/Bezel/play/> is the app for everyone, built from the commit the `stable` git tag points at. A known-good commit is promoted with `pnpm stable <ref>`, which moves the tag and pushes it; Pages then rebuilds `play/` from that commit (`.github/workflows/pages.yml`). Move the tag after a successful run on real phones, not after a green CI. The old address of the stable build, `/Bezel/stable/`, forwards to `play/`; the site's root opened with a join code forwards to `next/`, and opened from an installed icon to `play/`. `pnpm pages` builds the same into `apps/site/dist` and checks that every link resolves and every forward keeps its query; `pnpm --filter @mgc/site preview` serves it under `/Bezel/`.
+
+What changes for players goes into [`CHANGELOG.md`](CHANGELOG.md) with the change, newest first, in the words players read.
 
 Both hosted app builds take their TURN relay from the repository secret `MGC_TURN_SERVERS`; `pnpm setup-turn` (from Git Bash on Windows) sets it and the dev server's `apps/pwa/.env.local` (`docs/guide/running-on-phones.md` §Connectivity flags). A fork without the secret builds a PWA without a relay.

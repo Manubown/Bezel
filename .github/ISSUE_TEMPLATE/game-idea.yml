@@ -1,0 +1,51 @@
+name: An idea for a Game
+description: A game that needs several phones lying side by side, or held in hand.
+labels: [game-idea, needs-triage]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Name of the game
+    validations:
+      required: true
+  - type: input
+    id: table
+    attributes:
+      label: Phones on the table
+      description: How many, and how they lie (in a row, end to end, in a grid).
+      placeholder: "2–4 in a row"
+    validations:
+      required: true
+  - type: input
+    id: hand
+    attributes:
+      label: Phones in hand
+      description: Phones the players hold instead of laying them down, if any.
+      placeholder: "None, or one per player"
+  - type: input
+    id: players
+    attributes:
+      label: Players
+      placeholder: "2–6"
+  - type: textarea
+    id: round
+    attributes:
+      label: How one round goes
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it needs several phones side by side
+      description: What would be lost on a single screen?
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: Would you build it?
+      description: Anyone can build a Game with the SDK; the developer guide starts at docs/guide/README.md.
+      options:
+        - No, it is an idea for the makers
+        - Maybe, with some help
+        - Yes, I would like to build it

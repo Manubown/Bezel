@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A security problem
+    url: https://github.com/Manubown/Bezel/security/advisories/new
+    about: Report it privately, not in a public issue (SECURITY.md).
+  - name: Building your own Game
+    url: https://github.com/Manubown/Bezel/blob/master/docs/guide/README.md
+    about: The developer guide, from the first command to the API reference.
