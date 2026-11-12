@@ -4,7 +4,8 @@ import type { Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
 import type { Hud, HudOptions, Play } from '../hud';
 import { MAKER_FLAG } from '../maker';
-import { describeLast, esc, placementHint, statusDot, syncStats } from './shared';
+import { placementHint } from '../placement';
+import { describeLast, esc, statusDot, syncStats } from './shared';
 
 const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column', grid: 'Grid' };
 
@@ -148,6 +149,9 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
   let rosterSync: string[] = [];
   let wasRunning = false;
   let shownLog: Play['log'] | undefined;
+  /** Whether another phone was ready at the last render, and whether one becoming ready has folded the sheet yet. */
+  let peerWasReady = false;
+  let foldedForPeer = false;
   setOpen(true);
 
   const render = () => {
@@ -160,6 +164,14 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
       if (play.running) root.dataset['playing'] = '';
       else delete root.dataset['playing'];
     }
+    // The first other phone to become ready in the lobby folds the sheet to its bar, so this phone's own number shows
+    // too; only once, so a person who opens the sheet again keeps it open.
+    const peerReady = session.roster().some((e) => e.present && e.sync.synced && e.info.deviceId !== session.self.deviceId);
+    if (peerReady && !peerWasReady && !foldedForPeer && !match) {
+      foldedForPeer = true;
+      setOpen(false);
+    }
+    peerWasReady = peerReady;
     const placed = layout?.devices.length ?? 0;
     const faults = maker ? play.log.filter((l) => l.kind === 'fault').length : 0;
     const running = games.find((g) => g.id === lobby.game) ?? game;

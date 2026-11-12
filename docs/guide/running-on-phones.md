@@ -41,7 +41,7 @@ Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 
 | Control | What it does |
 |---|---|
-| bar: code · "N phones · Row" · Setup/Hide | folds the sheet. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused", in Maker mode with "· N faults" and the newest game-log line under it |
+| bar: code · "N phones · Row" · Setup/Hide | folds the sheet. It also folds by itself once, when the first other phone is ready in the lobby, so the Host's own placement cue shows; opened again, it stays open. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused", in Maker mode with "· N faults" and the newest game-log line under it |
 | QR code, address, "Code" field + Join | how Peers join; Join leaves this table for another one |
 | Game row | picks the Game "Start" starts; sorted by name; the Host's last pick is picked again, kept with the lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`, `lobby.picked`), else the first (`apps/pwa/src/hud.ts:211-213`). The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
 | Arrangement: Row / Column / Grid | the template; the default is Row (`apps/pwa/src/lobby.ts:203`) |
@@ -59,11 +59,11 @@ The Layout is built from the Tile phones in Tile order, 4 mm apart, never rotate
 
 | Template | Placement | Hint on each phone |
 |---|---|---|
-| Row | left to right, centred vertically on the tallest | "right of phone N−1" |
-| Column | top to bottom, centred horizontally on the widest | "below phone N−1" |
-| Grid | ⌈√n⌉ columns, filled row by row; each cell as large as its row's and column's largest phone | "row r, column c" |
+| Row | left to right, centred vertically on the tallest | phone 1 "on the left", then "right of phone N−1" |
+| Column | top to bottom, centred horizontally on the widest | phone 1 "at the top", then "below phone N−1" |
+| Grid | ⌈√n⌉ columns, filled row by row; each cell as large as its row's and column's largest phone | phone 1 "top left", then "right of phone N−1"; the first of each row "below" the first of the row above |
 
-Phone 1 is always the "first phone". On every phone the lobby draws a millimetre grid (10 mm lines, stronger every 50 mm) continuous across the bezels, the World's bounds in green, and the phone's number (`apps/pwa/src/scene.ts`). Lay the phones so the grid lines meet; where they cannot, `pxPerMm` is off.
+Phone 1 is the phone the others are laid from, not necessarily the first phone (the Host): a reorder can put the Host anywhere. On every phone the lobby draws a millimetre grid (10 mm lines, stronger every 50 mm) continuous across the bezels and the World's bounds in green, and over them the placement cue: the phone's number in the foreground colour, about 60 % of the screen's width; under it the hint as a sentence ("Lay me right of phone 1", phone 1's "Lay me first, on the left"); under that a pictogram of the Layout with this phone filled (`apps/pwa/src/scene.ts`, the wording in `apps/pwa/src/placement.ts`). Reordering on the Host updates all three on every phone. Lay the phones so the grid lines meet; where they cannot, `pxPerMm` is off.
 
 ### Tile order, seats and bots
 

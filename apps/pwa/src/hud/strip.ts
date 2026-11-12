@@ -1,5 +1,6 @@
 import type { Hud, HudOptions } from '../hud';
-import { esc, placementHint, statusDot, syncStats } from './shared';
+import { placementHint } from '../placement';
+import { esc, statusDot, syncStats } from './shared';
 
 /** A Peer's top strip: the code, where this phone is in joining and in the lobby, and in Maker mode its clock and the session log's export. */
 export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
