@@ -41,12 +41,13 @@ export interface PauseNotice {
 }
 
 /**
- * The overlay for `reason` in `match`. A lost Device is named by the Player
+ * The overlay for `reason` in `match` on the Device `self`. A lost Device is named by the Player
  * who sits at it, if any (`seated`: Device → Player name), else by its phone
- * number in Layout order.
+ * number in Layout order. The lost Device itself, back before the Host resumes, reads that it is back.
  */
-export function describePause(match: MatchInfo, reason: PauseReason, seated: ReadonlyMap<DeviceId, string>): PauseNotice {
+export function describePause(match: MatchInfo, reason: PauseReason, seated: ReadonlyMap<DeviceId, string>, self: DeviceId): PauseNotice {
   if (reason.kind === 'platform') return { headline: 'Paused', detail: reason.note ?? '' };
+  if (reason.deviceId === self) return { headline: 'You’re back', detail: 'the match goes on in a moment' };
   const tile = match.tiles.findIndex((t) => t.deviceId === reason.deviceId);
   const player = seated.get(reason.deviceId);
   const phone = tile >= 0 ? `phone ${tile + 1}` : 'the controller';
