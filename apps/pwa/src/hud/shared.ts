@@ -1,26 +1,9 @@
-import type { Layout } from '@mgc/layout';
 import type { LastMatch } from '../hud';
 import { describeClose, describeResult } from '../result';
 
 /** The last Match in words: its result, or why it closed without one. */
 export function describeLast(last: LastMatch): { headline: string; detail: string } {
   return last.result ? describeResult(last.players, last.result) : describeClose(last.reason, last.detail);
-}
-
-/** Where phone `index` (0-based) goes relative to the one before it. */
-export function placementHint(layout: Layout, index: number): string {
-  if (index === 0) return 'first phone';
-  const n = index + 1;
-  switch (layout.template) {
-    case 'row':
-      return `right of phone ${n - 1}`;
-    case 'column':
-      return `below phone ${n - 1}`;
-    case 'grid': {
-      const cols = Math.ceil(Math.sqrt(layout.devices.length));
-      return `row ${Math.floor(index / cols) + 1}, column ${(index % cols) + 1}`;
-    }
-  }
 }
 
 function ms(n: number | undefined): string {

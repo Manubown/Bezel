@@ -11,7 +11,7 @@ pnpm new-game tap-race "Tap Race"
 pnpm install --no-frozen-lockfile
 ```
 
-You get `games/tap-race/src/index.ts` (the template's "Tap" Game, renamed) and `test/tap-race.test.ts`. The Game already shows up in the Host's Game row. Everything below replaces the body of that file piece by piece.
+You get `games/tap-race/src/index.ts` (the template's "Tap" Game, renamed) and `test/tap-race.test.ts`. The Game already shows up among the Host's Game cards in Maker mode (`?maker` on the Host's address). Everything below replaces the body of that file piece by piece.
 
 ## 1. Tunables and the state (`TAP_RACE`, `TapRaceState`)
 
@@ -161,7 +161,7 @@ What the suite pins, per the spec: the countdown runs one digit per second on ev
 pnpm dev
 ```
 
-Pick **Tap Race** in the Host's Game row, start with one phone and P2 as a Bot, or with two phones. [Running on phones](running-on-phones.md) covers the sheet; [Troubleshooting](troubleshooting.md) covers what goes wrong.
+Open the Host with `?maker` and pick **Tap Race** among its Game cards, start with one phone and P2 as a Bot, or with two phones. [Running on phones](running-on-phones.md) covers the sheet; [Troubleshooting](troubleshooting.md) covers what goes wrong.
 
 ## What to take from it
 

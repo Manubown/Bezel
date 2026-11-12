@@ -1,25 +1,27 @@
 import type { CloseReason, MatchResult, Player, PlayerId } from '@mgc/sdk';
 
 /**
- * A Match result in Player names: who won, and everyone's points in finishing
- * order. The ranking decides the order; without one, the scores do, and equal
- * top scores are a draw.
+ * A Match result in Player names: who won, and the points. Two sides that both scored read in one line, the
+ * winner's score first ("Ana wins 7–5", "Draw, 3–3"); more sides list everyone's points in finishing order as
+ * the detail. The ranking decides the order; without one, the scores do, and equal top scores are a draw.
  */
 export function describeResult(players: readonly Player[], result: MatchResult): { headline: string; detail: string } {
   const name = (id: PlayerId): string => players.find((p) => p.playerId === id)?.name ?? 'A player';
   const { scores, ranking } = result;
   const order = ranking ?? (scores ? Object.keys(scores).sort((a, b) => scores[b]! - scores[a]!) : []);
-  const detail = scores ? order.filter((id) => id in scores).map((id) => `${name(id)} ${scores[id]}`).join(' · ') : '';
+  const scored = scores ? order.filter((id) => id in scores) : [];
   const [first, second] = order;
-  if (first === undefined) return { headline: 'Match over', detail };
+  if (first === undefined) return { headline: 'Match over', detail: '' };
   const draw = !ranking && second !== undefined && scores?.[first] === scores?.[second];
-  return { headline: draw ? 'Draw' : `${name(first)} wins`, detail };
+  const headline = draw ? 'Draw' : `${name(first)} wins`;
+  if (scored.length === 2 && scored[0] === first) return { headline: `${headline}${draw ? ',' : ''} ${scores![first]}–${scores![scored[1]!]}`, detail: '' };
+  return { headline, detail: scored.map((id) => `${name(id)} ${scores![id]}`).join(' · ') };
 }
 
 /** What every phone says about a close that has no result; `detail` (the runtime's words) unless the reason says it all. */
 const CLOSED: Record<CloseReason, { headline: string; detail?: string }> = {
   ended: { headline: 'Match over' },
-  aborted: { headline: 'Match stopped', detail: 'Ended from the host phone' },
+  aborted: { headline: 'Game ended on the first phone', detail: '' },
   fault: { headline: 'The game crashed' },
   version: { headline: 'Game version mismatch' },
   protocol: { headline: 'The game broke the protocol' },

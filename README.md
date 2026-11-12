@@ -68,7 +68,7 @@ pnpm build        # the PWA into apps/pwa/dist (BASE_PATH=/sub/path/ for a sub-p
 pnpm new-game tap-race "Tap Race"      # copies games/_template → games/tap-race
 pnpm install --no-frozen-lockfile      # links @mgc/sdk into it
 pnpm vitest run games/tap-race         # its test runs in one process, no phones
-pnpm dev                               # it is in the Host's Game row; nothing to register
+pnpm dev                               # it is in the Host's Game list with ?maker; nothing to register
 ```
 
 A Game is ~100 lines: a manifest (how many Tiles, Controllers, Players), a host that reacts to `onInput`/`tick` and calls `ctx.publish(state)`, and a view that draws the latest state in world millimetres. Start at the **[Developer guide](docs/guide/README.md)**: [Getting started](docs/guide/getting-started.md) → [Your first Game](docs/guide/your-first-game.md) → [Concepts](docs/guide/concepts.md) → [API reference](docs/guide/api.md).

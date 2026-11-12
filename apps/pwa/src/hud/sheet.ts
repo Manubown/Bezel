@@ -1,17 +1,24 @@
 import type { RosterEntry } from '@mgc/core';
-import { TEMPLATE_IDS, type TemplateId } from '@mgc/layout';
+import type { TemplateId } from '@mgc/layout';
 import type { Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
 import brand from '../../../../brand.json';
-import type { Hud, HudOptions, Play } from '../hud';
+import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
+import type { HudOptions, Play, Sheet } from '../hud';
+import { arrangements } from '../lobby';
 import { MAKER_FLAG } from '../maker';
-import { describeLast, esc, placementHint, statusDot, syncStats } from './shared';
+import { placementHint } from '../placement';
+import { describeLast, esc, statusDot, syncStats } from './shared';
 
-const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column', grid: 'Grid' };
-
-/** The Host's bottom sheet: join code, Game, arrangement, Controllers, Player slots, Start, game log, roster, session log. */
-export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
+/**
+ * The Host's bottom sheet: join code, a card per Game, the arrangement when the Game names more than one, Controllers
+ * when it takes them, Player slots, Start, game log, roster, session log. `onToggle`: the Host folded or unfolded it
+ * (the bar, `unfold`).
+ */
+export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () => void): Promise<Sheet> {
   const { session, lobby, code, games, play, maker } = o;
+  /** The Games this phone offers (`gamelist.ts`): Pong and Air Hockey, in Maker mode every Game. */
+  const shown = gameList(games, maker);
   const joinUrl = new URL(location.href);
   // Peers join the same room with the same connectivity flags (`noturn`), so a Match never mixes paths, and in Maker mode with its flag, so one scan sets the whole table.
   joinUrl.search = `?room=${code}${new URLSearchParams(location.search).has('noturn') ? '&noturn' : ''}${maker ? `&${MAKER_FLAG}` : ''}`;
@@ -38,12 +45,10 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
           <button type="submit">Join</button>
         </form>
       </div>
-      <div class="seg games" role="radiogroup" aria-label="Game">
-        ${games.map((g, i) => `<button type="button" role="radio" data-g="${i}">${esc(g.name)}</button>`).join('')}
+      <div class="cards games" role="radiogroup" aria-label="Game">
+        ${shown.map((g) => `<button type="button" role="radio" class="card" data-g="${esc(g.id)}"><span class="card-name">${esc(g.name)}</span><span class="card-line">${esc(cardLine(g))}</span></button>`).join('')}
       </div>
-      <div class="seg arrangement" role="radiogroup" aria-label="Arrangement">
-        ${TEMPLATE_IDS.map((t) => `<button type="button" role="radio" data-t="${t}">${TEMPLATE_LABEL[t]}</button>`).join('')}
-      </div>
+      <div class="seg arrangement" role="radiogroup" aria-label="How the phones lie" hidden></div>
       <div class="roles">
         <p class="roles-label"></p>
         <div class="chips" role="group" aria-label="Controllers"></div>
@@ -69,6 +74,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
   const gameSeg = root.querySelector<HTMLElement>('.games')!;
   const seg = root.querySelector<HTMLElement>('.arrangement')!;
   const chips = root.querySelector<HTMLElement>('.chips')!;
+  const roles = root.querySelector<HTMLElement>('.roles')!;
   const players = root.querySelector<HTMLOListElement>('.players')!;
   const start = root.querySelector<HTMLButtonElement>('.start')!;
   const end = root.querySelector<HTMLButtonElement>('.end')!;
@@ -83,7 +89,10 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     bar.setAttribute('aria-expanded', String(open));
     barAction.textContent = open ? 'Hide' : 'Setup';
   };
-  bar.addEventListener('click', () => setOpen(!('open' in root.dataset)));
+  bar.addEventListener('click', () => {
+    setOpen(!('open' in root.dataset));
+    onToggle();
+  });
   // The session log records in both modes; its export and clear are a maker's.
   if (maker) wireDiagnostics(root, o.log);
   // Joining a table means leaving this one: the page reopens as a Peer of that room.
@@ -98,13 +107,13 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     if (room.length === 0) return;
     location.assign(`?room=${room}`);
   });
-  /** The Game Start starts: the lobby's pick, saved across a reload of the Host's page, else the first by name. */
-  let game = games.find((g) => g.id === lobby.picked) ?? games[0]!;
+  /** The Game Start starts: the lobby's pick, saved across a reload of the Host's page, if this phone offers it, else Pong (`firstPick`). */
+  let game = firstPick(shown, lobby.picked)!;
   lobby.setGame(game);
   gameSeg.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-g]');
     if (!btn) return;
-    game = games[Number(btn.dataset['g'])] ?? game;
+    game = shown.find((g) => g.id === btn.dataset['g']) ?? game;
     lobby.setGame(game);
     refusal = '';
     render();
@@ -149,33 +158,56 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
   let rosterHtml = '';
   let rosterSync: string[] = [];
   let wasRunning = false;
+  /** The Game whose arrangements the picker offers. */
+  let segGame = '';
   let shownLog: Play['log'] | undefined;
+  /** Whether another phone was ready at the last render, and whether one becoming ready has folded the sheet yet. */
+  let peerWasReady = false;
+  let foldedForPeer = false;
   setOpen(true);
 
   const render = () => {
     const { layout, match } = lobby;
-    // The sheet folds away while the Host's Tile shows the Game and comes back after.
+    // The sheet folds away while the Host's Tile shows the Game and stays folded after: the result card offers what comes next.
     if (play.running !== wasRunning) {
       wasRunning = play.running;
-      setOpen(!play.running);
       // Folded during a Match the bar is a corner pill (index.html `.sheet[data-playing]`).
-      if (play.running) root.dataset['playing'] = '';
-      else delete root.dataset['playing'];
+      if (play.running) {
+        setOpen(false);
+        root.dataset['playing'] = '';
+      } else delete root.dataset['playing'];
     }
+    // The first other phone to become ready in the lobby folds the sheet to its bar, so this phone's own number shows
+    // too; only once, so a person who opens the sheet again keeps it open.
+    const peerReady = session.roster().some((e) => e.present && e.sync.synced && e.info.deviceId !== session.self.deviceId);
+    if (peerReady && !peerWasReady && !foldedForPeer && !match) {
+      foldedForPeer = true;
+      setOpen(false);
+    }
+    peerWasReady = peerReady;
     const placed = layout?.devices.length ?? 0;
     const faults = maker ? play.log.filter((l) => l.kind === 'fault').length : 0;
     const running = games.find((g) => g.id === lobby.game) ?? game;
     barMeta.textContent = play.running
       ? `${running.name} · ${play.paused ? 'paused' : 'playing'}${faults ? ` · ${faults} fault${faults === 1 ? '' : 's'}` : ''}`
-      : `${placed} phone${placed === 1 ? '' : 's'}${layout ? ` · ${TEMPLATE_LABEL[layout.template]}` : ''}`;
+      : `${placed} phone${placed === 1 ? '' : 's'}${layout ? ` · ${ARRANGEMENT[layout.template]}` : ''}`;
     gameSeg.querySelectorAll<HTMLButtonElement>('button[data-g]').forEach((b) => {
-      b.setAttribute('aria-checked', String(games[Number(b.dataset['g'])] === (match ? running : game)));
+      b.setAttribute('aria-checked', String(b.dataset['g'] === (match ? running : game).id));
       b.disabled = match !== undefined;
     });
+    // The arrangements the Game names (the lobby lays the phones in the first), offered only when there is a choice.
+    const offered = arrangements(game);
+    if (game.id !== segGame) {
+      segGame = game.id;
+      seg.innerHTML = offered.map((t) => `<button type="button" role="radio" data-t="${t}">${ARRANGEMENT[t][0]!.toUpperCase()}${ARRANGEMENT[t].slice(1)}</button>`).join('');
+    }
+    seg.hidden = offered.length < 2;
     seg.querySelectorAll<HTMLButtonElement>('button[data-t]').forEach((b) => {
       b.setAttribute('aria-checked', String(b.dataset['t'] === layout?.template));
       b.disabled = match !== undefined;
     });
+    // Phones in hand only for a Game that takes them.
+    roles.hidden = game.controllers.max === 0;
     root.querySelector('.roles-label')!.innerHTML =
       lobby.seats === 'controllers'
         ? 'Players’ phones <span>each phone pressed here is held by one Player; the board stays on the table</span>'
@@ -186,6 +218,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     const described = play.last && describeLast(play.last);
     const lastLine = described && [described.headline, described.detail].filter(Boolean).join(' · ');
     reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
+    // A refusal is a warning; the last Match is news.
+    reason.classList.toggle('last', !refusal);
 
     // The game log, in Maker mode: its newest line on the folded bar while a Match runs, every line in the sheet.
     const newest = play.log.at(-1);
@@ -329,7 +363,16 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
       syncs[i]!.innerHTML = r.sync;
     });
   };
-  return { render };
+  return {
+    render,
+    get open() {
+      return 'open' in root.dataset;
+    },
+    unfold() {
+      setOpen(true);
+      onToggle();
+    },
+  };
 }
 
 /** The ◀ (towards the first Tile) or ▶ (towards the last) of a move button. */

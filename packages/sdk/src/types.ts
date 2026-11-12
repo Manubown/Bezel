@@ -112,6 +112,7 @@ export interface Manifest {
   tiles: Range;
   controllers: Range;
   players: Range;
+  /** The arrangements the Game can be played in; picking it in the lobby lays the phones in the first. Absent: any. */
   templates?: ('row' | 'column' | 'grid')[];
   minTileMm?: { w: number; h: number };
   /** Default false; true: the Host may make a Player slot a bot, and the host game plays every `Player.bot`. */

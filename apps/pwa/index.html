@@ -88,9 +88,13 @@
       .seg button { padding: 10px 0; color: var(--fg-2); transition: background 120ms, color 120ms; }
       .seg button + button { border-left: 1px solid var(--line); }
       .seg button[aria-checked="true"] { background: var(--fg); color: var(--bg); font-weight: 500; }
-      /* The Game row grows with games/: it scrolls sideways instead of squeezing. */
-      .seg.games { grid-auto-columns: max-content; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; }
-      .seg.games button { padding: 10px 14px; white-space: nowrap; }
+      /* A card per Game: its name, how many play and how the phones lie. Two side by side; in Maker mode, every Game in rows of two. */
+      .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .card { display: grid; gap: 2px; align-content: start; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; text-align: left; transition: border-color 120ms, background 120ms; }
+      .card .card-name { font-weight: 600; }
+      .card .card-line { color: var(--fg-2); font-size: 12px; }
+      .card[aria-checked="true"] { border-color: var(--fg); background: var(--bg); box-shadow: inset 0 0 0 1px var(--fg); }
+      .card:disabled { opacity: 0.45; cursor: default; }
       .roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
       .roster li { display: grid; grid-template-columns: 28px 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
       .roster li:first-child { border-top: 0; }
@@ -100,7 +104,7 @@
       .roster .sync { grid-row: 2; grid-column: 3; justify-self: end; color: var(--fg-2); }
       /* The Tile order: ◀ towards the first phone, ▶ towards the last. */
       .roster .order { grid-row: 1; grid-column: 3; justify-self: end; display: flex; gap: 6px; }
-      .move { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); transition: background 120ms; }
+      .move { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); transition: background 120ms; }
       .move svg { fill: currentColor; }
       .move:not(:disabled):active { background: var(--line); }
       @media (hover: hover) { .move:not(:disabled):hover { background: var(--line); } }
@@ -129,6 +133,8 @@
       .go .end { border: 1px solid var(--line); }
       .reason { margin: 0; color: var(--wait); min-height: 1.4em; }
       .reason:empty { display: none; }
+      /* The last Match is news, not a warning. */
+      .reason.last { color: var(--fg-2); }
       /* The session log: export (share sheet on phones, download elsewhere) and clear. */
       .diag { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; padding-top: 4px; border-top: 1px solid var(--line); }
       .diag button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg-2); }
@@ -150,16 +156,35 @@
       .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .strip .export { grid-row: 1 / span 2; grid-column: 3; align-self: start; pointer-events: auto; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg-2); font-size: 12px; }
 
-      /* How the last Match closed (its result, or why it stopped), over the lobby on every phone until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */
+      /* How the last Match closed (its result, or why it stopped), over the lobby on every phone that ran it: the first phone's with Play again and Change game, the others' until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */
       .result, .pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(84vw, 340px); padding: 22px 20px 16px; background: var(--raise); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); text-align: center; }
-      .result { cursor: pointer; }
+      .result.closes { cursor: pointer; }
       .pause { padding-bottom: 20px; pointer-events: none; }
       .result p, .pause p { margin: 0; }
       .result .result-head, .pause .pause-head { font-size: 26px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
       .result .result-detail, .pause .pause-detail { margin-top: 8px; color: var(--fg-2); font-size: 16px; }
       .result .result-hint { margin-top: 14px; color: var(--fg-2); font-size: 12px; }
+      .result .result-next { margin-top: 14px; font-size: 16px; }
+      .result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+      .result-actions button { min-height: 44px; border-radius: 8px; font-weight: 600; }
+      .result-actions .again { background: var(--ok); color: var(--bg); }
+      .result-actions .change { border: 1px solid var(--line); }
+      .result .result-refusal { margin-top: 10px; color: var(--wait); }
+      .result .result-refusal:empty { display: none; }
 
-      @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .chip, .move { transition: none; } .splash-dot { animation: none; } }
+      /* A Peer not in its table after 15 s: what to check, Try again, and its code to correct (join.ts). Inputs at 16 px: an iPhone does not zoom on focus. */
+      .help { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(88vw, 360px); display: grid; gap: 14px; padding: 20px; background: var(--raise); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); }
+      .help p, .help ul { margin: 0; }
+      .help .help-head { font-size: 20px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+      .help ul { padding-left: 1.2em; display: grid; gap: 8px; color: var(--fg-2); font-size: 16px; }
+      .help .help-retry { min-height: 44px; border-radius: 8px; font-weight: 600; background: var(--ok); color: var(--bg); }
+      .help form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+      .help input { font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; letter-spacing: 0.18em; text-transform: uppercase; }
+      .help form button { min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; font-weight: 600; }
+      /* The first phone: one phone keeps losing its connection, and what usually helps. It heads the sheet, above its bar, folded or open. */
+      .sheet .advice { flex: none; margin: 0; padding: 12px 16px; border-bottom: 2px solid var(--wait); }
+
+      @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .card, .chip, .move { transition: none; } .splash-dot { animation: none; } }
       /* Phones are used upright: the Layout is measured in portrait. A touch screen turned sideways is asked back; a desktop window is left alone. */
       #rotate { display: none; position: fixed; inset: 0; z-index: 10; place-items: center; background: var(--bg); text-align: center; padding: 24px; }
       #rotate p { margin: 0; font-size: 20px; color: var(--fg-2); }

@@ -48,6 +48,7 @@
 - With scripts off (Chrome's script execution disabled): the root, also with `?room=ABCD`, shows the name, the pitch and "Start a table"; `stable/?room=ABCD` shows "Bezel has moved: open it here."
 - `actionlint` 1.7.12 on `.github/workflows/pages.yml`: no findings.
 - `pnpm typecheck && pnpm test` before the merge of `outside-view`: type check clean (`@mgc/site` filtered out); 31 files, 234 tests passed.
+- After merging `outside-view` (tickets 02, 04, 05): `pnpm typecheck` clean; `pnpm test` 34 files, 267 tests passed. A first run of the tests, made while `pnpm pages` was building in parallel, had 1 failure of 267 whose name the captured tail did not keep; run alone it passed in full. `pnpm pages --here` on the merge: `astro check` 0 errors, 0 warnings, the check line as above, exit 0; `og:url` `…/Bezel/play/` and `…/Bezel/next/`. The first phone's QR is still the page's own address with `?room=` (`hud/sheet.ts`), not re-checked in the browser after the merge.
 
 **Not verified**
 - The first real run on GitHub: the action majors, `check-latest`, the stable worktree on Linux, the upload and the deploy. Read and linted only.

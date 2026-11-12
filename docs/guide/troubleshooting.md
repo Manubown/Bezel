@@ -17,10 +17,11 @@ One entry per symptom: what you see, why, what to do. Where a Game says somethin
 
 ### My Game is not in the Host's Game row
 
-The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `games/_template`, sorted by `manifest.name` (`apps/pwa/src/games.ts:8-15`).
+In Maker mode the PWA lists exactly the default exports of `games/*/src/index.ts`, minus `games/_template`, sorted by `manifest.name` (`apps/pwa/src/games.ts:8-15`). Without it, players see Pong and Air Hockey only (`apps/pwa/src/gamelist.ts`).
 
 | Cause | Fix |
 |---|---|
+| the Host is not in Maker mode | open the Host's address with `?maker` (remembered on that phone; `?maker=no` switches it off) |
 | the entry is not at `games/<slug>/src/index.ts` | move it there; that path is the glob |
 | the folder is `games/_template` | `pnpm new-game <slug> "<Name>"` copies it under a new name |
 | it is there, but further down: the list is alphabetical | look for its `manifest.name` |
@@ -33,7 +34,7 @@ The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `game
 
 ## Joining
 
-### Phones cannot find each other ("Looking for the host…")
+### Phones cannot find each other ("Finding table CODE…")
 
 | Cause | Fix |
 |---|---|
@@ -42,26 +43,26 @@ The PWA lists exactly the default exports of `games/*/src/index.ts`, minus `game
 | the Host page was opened as `localhost`, so its QR code points at `localhost` (`apps/pwa/src/hud.ts:127-129`) | open the Host page at the `Network` address Vite prints |
 | the Peer opened the address without `?room=`, so it became a Host of its own table | type the Host's code into its "Code" field, or open `/?room=CODE` |
 | the Host's page is closed, hidden or asleep: the Session lives on the Host (ADR-0002) | keep the Host's screen on and the page open |
+| the code is wrong: after 15 s the card reads "Table CODE not found yet" | type the code the first phone shows into the card's field and press Join; the page opens that table with the same flags |
 
 ### A phone stays in the lobby when the Match starts
 
 | Cause | Fix |
 |---|---|
-| it joined after Start: no joins mid-Match ("Match in progress · you join the next one") | wait for the next Match |
+| it joined after Start: no joins mid-Match ("A match is on · you join the next one") | wait for the next Match |
 | its build does not have that Game: the console says `This phone has no Game <id>: it sits Match <id> out` (`apps/pwa/src/main.ts:160-164`). A phone on the hosted build can join a dev-server table's code | open every phone on the same server |
 
 ## Starting
 
 ### Start is refused
 
-The reason shows under the Start button. The lobby checks in this order (`apps/pwa/src/lobby.ts:455-479`):
+The reason shows under the Start button. Never the arrangement: Start picks the Game, and picking a Game lays the phones in an arrangement it names. The lobby checks in this order (`apps/pwa/src/lobby.ts:455-479`):
 
 | Message | Cause | Fix |
 |---|---|---|
 | `<Game> does not support bots` | a Bot chip is pressed and the manifest has no `bots: true` | release the Bot chip, or add `bots: true` and play the bots in the host |
-| `<Game> needs the row arrangement, not grid` | the manifest's `templates` does not include the chosen arrangement | pick one it lists |
 | `<Game> needs 1–4 Tiles; 5 present` | `manifest.tiles` (Controllers are not Tiles) | add or remove phones, or mark some as Controllers |
-| `<Game> needs 1 Controller; 0 present` / `needs no Controllers; 1 present` | `manifest.controllers` | press or release Controller chips |
+| `<Game> needs 1 Controller; 0 present` / `needs 1 Controller; 2 present` | `manifest.controllers`; a Game that takes no Controllers puts every phone on the table when it is picked | press or release Controller chips |
 | `Phone 2 is 61.3 × 120 mm; <Game> needs Tiles of at least 65 × 120 mm` | `manifest.minTileMm`; sizes come from the `pxPerMm` guess | use a bigger phone, or lower `minTileMm` |
 | `Phone 2 is still joining` | a phone has not synced its clock or said who sits there yet | wait for its sync dot in the roster |
 | `Two Players have the same id` | two phones reported one Player id; each phone's Player id is stored in its browser (`apps/pwa/src/device.ts:59-71`) | clear the site data on one of them, so it gets new ids |
@@ -75,17 +76,17 @@ Numbers in the table are examples; the message names the Game and the real count
 ### The Match pauses ("Waiting for …") when a phone sleeps
 
 - **Cause:** the phone's screen turned off or its page was hidden, and its connection dropped. A phone holds a wake lock from its first tap on the page, lobby included (`apps/pwa/src/wake.ts:9-56`), so only a phone nobody has touched since its page loaded follows its own auto-lock. The Host notices after 5 s of silence (`LOST_MS`, `packages/core/src/session.ts`; at once when the connection closes), then pauses every phone (`apps/pwa/src/pause.ts:12-35`).
-- **Fix:** tap every phone once after it joins. To resume, wake the phone: back within 30 s, it plays on in the same Match ([reconnecting](#reconnecting-to-the-host-on-a-peer)); later, it rejoins the Match by itself once its connection is back; reload its page if it does not come back. The Match resumes when it is back and synced.
+- **Fix:** tap every phone once after it joins. To resume, wake the phone: back within 30 s, it plays on in the same Match ([reconnecting](#lost-the-table-reconnecting-on-a-peer)); later, it rejoins the Match by itself once its connection is back; reload its page if it does not come back. The Match resumes when it is back and synced.
 
 ### The pause never ends
 
 - **Cause:** the platform resumes only when every lost Match phone is back **and** has synced its clock.
 - **Fix:** reload the lost phone's page (its address keeps `?room=CODE`, and it rejoins under the same Device id); or press End match on the Host.
 
-### "Reconnecting to the host…" on a Peer
+### "Lost the table. Reconnecting…" on a Peer
 
-- **What it means:** this phone had the Host and lost it: the connection closed, the Host was silent for 5 s (`LOST_MS`; the 1 Hz clock pings are the heartbeat), or a re-attach did not sync its clock within 4 s (`SYNC_TIMEOUT_MS`, `packages/core/src/session.ts`). The phone drops its connections and looks for the Host again by itself. In the lobby its strip says so; during a Match a card over the Game does: "Reconnecting to the host… · the match goes on when the connection is back".
-- **During a Match:** the phone keeps its part of the Match, its Game view and state, for 30 s (`REJOIN_GRACE_MS`, `apps/pwa/src/rejoin.ts:5-6`). Back with the same Host within that time, and the Host's lobby still names the Match, it says `hello` and the Host replays the current state and its pause to it: the Match goes on, no lobby, no result card (`apps/pwa/src/rejoin.ts:37-60`, `apps/pwa/src/main.ts:236-270`). Meanwhile the Host has lost the phone too: within 5 s it pauses the Match on every other phone ("Waiting for phone 2 · It lost its connection · the match goes on when it is back") and resumes once the phone is back and synced; the returning phone shows the same "Waiting for …" card until that resume. In the browser smoke a dropped connection was back and playing within 1.7 s.
+- **What it means:** this phone had the Host and lost it: the connection closed, the Host was silent for 5 s (`LOST_MS`; the 1 Hz clock pings are the heartbeat), or a re-attach did not sync its clock within 4 s (`SYNC_TIMEOUT_MS`, `packages/core/src/session.ts`). The phone drops its connections and looks for the Host again by itself. In the lobby its strip says so, and after 15 s a card: "Still reconnecting to table CODE", what to check, **Try again** and the code; during a Match a card over the Game does: "Lost the table. Reconnecting… · the match goes on when the connection is back".
+- **During a Match:** the phone keeps its part of the Match, its Game view and state, for 30 s (`REJOIN_GRACE_MS`, `apps/pwa/src/rejoin.ts:5-6`). Back with the same Host within that time, and the Host's lobby still names the Match, it says `hello` and the Host replays the current state and its pause to it: the Match goes on, no lobby, no result card (`apps/pwa/src/rejoin.ts:37-60`, `apps/pwa/src/main.ts:236-270`). Meanwhile the Host has lost the phone too: within 5 s it pauses the Match on every other phone ("Waiting for phone 2 · It lost its connection · the match goes on when it is back") and resumes once the phone is back and synced; the returning phone reads "You’re back · the match goes on in a moment" until that resume. In the browser smoke a dropped connection was back and playing within 1.7 s.
 - **When it gives up:** after 30 s without the Host, the phone stops its part: "Connection lost", then the lobby. The Host keeps waiting until End match, and the phone rejoins the same Match by itself once its connection is back (its part starts afresh from the Host's state). If the Host is back without the Match, the card reads "Connection lost · The host phone restarted": its page reloaded ([the host phone reloaded](#the-host-phone-reloaded)), or it ended the Match while this phone was away, which a returning phone cannot tell apart. If the Host has started another Match meanwhile, the card reads "Connection lost".
 - **Fix:** keep every phone awake and on one network ([wake lock](running-on-phones.md#screen-wake-lock)). If it does not come back, reload the phone's page (its address keeps `?room=CODE`). Its log has the cause: a `peer-leave` (the connection closed) or `link` lines going `weak` before the `roster` line with `status: "reconnecting"` (silence).
 
@@ -163,7 +164,7 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 ### The host phone reloaded
 
 - **What comes back:** the room code, so the Peers find the Host again within a few seconds (`apps/pwa/src/main.ts:22-23`), and the lobby as the Host set it: arrangement, Tile order, Controllers, the picked Game, the Bot chips. The Host's page keeps them per room code in that tab's `sessionStorage` (`mgc.lobby.<CODE>`, `apps/pwa/src/lobby.ts:85-126`). Each phone takes its old place when it is back, a phone that does not come back leaves no gap, a new phone joins at the end. Moving a phone with ◀ ▶ before all are back gives up the places of the missing ones.
-- **What does not:** the running Match: its host game lived in the Host's page. Every Peer shows "Reconnecting to the host…" until it finds the reloaded Host (2 s in the browser smoke), then its Match ends with "Connection lost · The host phone restarted" (`apps/pwa/src/rejoin.ts:62-68`); press Start again.
+- **What does not:** the running Match: its host game lived in the Host's page. Every Peer shows "Lost the table. Reconnecting…" until it finds the reloaded Host (2 s in the browser smoke), then its Match ends with "Connection lost · The host phone restarted" (`apps/pwa/src/rejoin.ts:62-68`); press Start again.
 - **Fix:** keep the Host's page from reloading: install the app ("Add to Home Screen"), which has no pull-to-refresh, and keep the Host's screen on. A new tab, or a closed and reopened one, is a new Host with a new code and an empty lobby (`sessionStorage` lives per tab).
 
 ### Every phone reloads and the Match is gone when someone saves a file
@@ -173,9 +174,9 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 
 ## On phones (from live test 1, `.scratch/live-test-1/findings.md`)
 
-### A phone shows "Syncing clocks" forever, or "Looking for the host" / "Reconnecting to the host…" comes and goes
+### A phone stays on "Connecting…" or "Lost the table. Reconnecting…", and the first phone says it keeps losing its connection
 
-- **Symptom in its log:** `peer-join` → `roster` → one or two `clock` samples → `peer-leave` after ~11 s → `peer-join` again, for minutes. Since connectivity-1 the phone does not wait for the transport: it gives up after 4 s without a synced clock and reconnects itself, so the cycle is a `peer-leave` about 4 s after each `peer-join` and the strip alternates "Syncing clocks" ("Connecting…" without Maker mode) and "Reconnecting to the host…".
+- **Symptom in its log:** `peer-join` → `roster` → one or two `clock` samples → `peer-leave` after ~11 s → `peer-join` again, for minutes. Since connectivity-1 the phone does not wait for the transport: it gives up after 4 s without a synced clock and reconnects itself, so the cycle is a `peer-leave` about 4 s after each `peer-join` and the strip stays on "Connecting…" ("Lost the table. Reconnecting…" once it had been in; in Maker mode its second line alternates "syncing clocks" and "reconnecting to the host"), with the help card after 15 s. The first phone shows "<phone> keeps losing its connection…" above its sheet once that phone's connection ended three times in a row within 15 s.
 - **Cause:** the connection opens fine (ICE `connected`, a direct UDP pair with 4–50 ms rtt, the first clock replies arrive), then within 0.1–1.5 s the Host's packets stop reaching the Peer while the Peer's still reach the Host; ICE notices nothing for ~6 s. Seen between iPhones on a Personal Hotspot whose Host is the hotspot phone (its own address is only ever a peer-reflexive candidate), on ~90 % of attempts; the Android phones on the same table connected first time. The `ice` lines in the log (states, every candidate pair with STUN counters, the data channel's message counts, on join and whenever a link turns `weak`) are what settles the rest.
 - **Fix:** give the build a TURN relay (`pnpm setup-turn`; [connectivity flags](running-on-phones.md#connectivity-flags)). With one, a Peer that failed three times in a row joins through the relay only and its log gets a `relay` line; without one it keeps looping. Before that, the Host tries a cheaper thing by itself: after the first failed connection it stops signaling its own addresses (its log gets a `withhold` line), so the Peer's second and third attempts run without the address suspected of causing the cut; if one of them holds, the Peer's `ice` line shows a `prflx` pair and no `relay` line follows. The builds up to `02edc2e` named a public relay host that no longer exists, so they had none, whatever their `device` line said about `turn`. Also try hosting on a phone that is not the hotspot, or a normal Wi-Fi router. Export the logs either way.
 
