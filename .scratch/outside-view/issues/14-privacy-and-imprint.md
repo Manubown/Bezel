@@ -12,7 +12,7 @@
 - [x] The parties' names are read from the build's actual configuration, not assumed: the signaling relays the transport uses and the Relay provider of the hosted build
 - [x] The imprint page has marked blanks for name, postal address, contact and country, and a build of the site lists the blanks still open
 - [x] Both pages are linked from the site's footer; the app's sheet links the privacy page
-- [ ] The README's privacy paragraph (ticket 15) and this page say the same thing
+- [x] The README's privacy paragraph (ticket 15) and this page say the same thing
 
 ## Comments
 
@@ -63,3 +63,7 @@
 - The relays' and STUN servers' own logging: no policy of theirs is cited; the page says only what they are sent.
 - The README paragraph (last box): ticket 15's. The paragraph I would want there (ticket 15 was sent the facts, with one correction to its draft: the relays see the SHA-1 topic, not a SHA-256 namespace):
   > **Privacy.** No accounts, no cookies, no analytics, no ads. GitHub Pages hosts the site and the app and sees each visitor's IP address. The phones of a table find each other through five public Nostr relays, which see each phone's IP address, a scrambled form of the table's name and its encrypted offer to connect; Google's and Cloudflare's STUN servers tell each phone its public address; when no direct path works, the encrypted traffic goes through a Relay run by Metered, which sees the phones' IP addresses. Each phone keeps a random Device id and Player id, a few settings (Maker mode, how many games it finished and whether the install offer was closed) and a session log in its own browser; nothing goes to the makers, and the log leaves the phone only if someone exports it. Details and how to delete it: [privacy](https://manubown.github.io/Bezel/privacy/).
+
+### 2026-11-13, Main (integration)
+
+Last box ticked after ticket 15 merged (`565e66e`): its agent compared the README's privacy paragraph with the built privacy page (relays, STUN servers, Metered, no cookies, no ads, what the phone keeps) and found them the same. Not re-read by a second reader.
