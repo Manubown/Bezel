@@ -2,11 +2,13 @@ import type { RosterEntry } from '@mgc/core';
 import type { TemplateId } from '@mgc/layout';
 import type { Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
+import brand from '../../../../brand.json';
 import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
 import type { Hud, HudOptions, Play } from '../hud';
 import { arrangements } from '../lobby';
 import { MAKER_FLAG } from '../maker';
-import { describeLast, esc, placementHint, statusDot, syncStats } from './shared';
+import { placementHint } from '../placement';
+import { describeLast, esc, statusDot, syncStats } from './shared';
 
 /**
  * The Host's bottom sheet: join code, a card per Game, the arrangement when the Game names more than one, Controllers
@@ -27,6 +29,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
   root.className = 'sheet';
   root.innerHTML = `
     <button class="bar" type="button">
+      <span class="brand">${esc(brand.name)}</span>
       <span class="code">${esc(code)}</span>
       <span class="bar-meta"></span>
       <span class="bar-action"></span>
@@ -154,6 +157,9 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
   /** The Game whose arrangements the picker offers. */
   let segGame = '';
   let shownLog: Play['log'] | undefined;
+  /** Whether another phone was ready at the last render, and whether one becoming ready has folded the sheet yet. */
+  let peerWasReady = false;
+  let foldedForPeer = false;
   setOpen(true);
 
   const render = () => {
@@ -166,6 +172,14 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
       if (play.running) root.dataset['playing'] = '';
       else delete root.dataset['playing'];
     }
+    // The first other phone to become ready in the lobby folds the sheet to its bar, so this phone's own number shows
+    // too; only once, so a person who opens the sheet again keeps it open.
+    const peerReady = session.roster().some((e) => e.present && e.sync.synced && e.info.deviceId !== session.self.deviceId);
+    if (peerReady && !peerWasReady && !foldedForPeer && !match) {
+      foldedForPeer = true;
+      setOpen(false);
+    }
+    peerWasReady = peerReady;
     const placed = layout?.devices.length ?? 0;
     const faults = maker ? play.log.filter((l) => l.kind === 'fault').length : 0;
     const running = games.find((g) => g.id === lobby.game) ?? game;

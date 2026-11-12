@@ -41,7 +41,7 @@ Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 
 | Control | What it does |
 |---|---|
-| bar: code · "N phones · in a row" · Setup/Hide | folds the sheet. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused", in Maker mode with "· N faults" and the newest game-log line under it |
+| bar: code · "N phones · in a row" · Setup/Hide | folds the sheet. It also folds by itself once, when the first other phone is ready in the lobby, so the Host's own placement cue shows; opened again, it stays open. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused", in Maker mode with "· N faults" and the newest game-log line under it |
 | QR code, address, "Code" field + Join | how Peers join; Join leaves this table for another one |
 | Game cards | one per Game: its name, how many play and how the phones lie ("2 players · phones in a row"); a tap picks the Game "Start" starts. Players see Pong, then Air Hockey; Maker mode every Game, sorted by name (`apps/pwa/src/gamelist.ts`). The Host's last pick is picked again, kept with the lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`, `lobby.picked`), when the list has it, else Pong. The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
 | Arrangement: In a row / End to end / In a grid | the template; picking a Game selects the first its manifest's `templates` names (any, when it names none). Shown only when the Game names more than one, offering only those (Air Hockey: end to end, in a row) |
@@ -59,11 +59,11 @@ The Layout is built from the Tile phones in Tile order, 4 mm apart, never rotate
 
 | Template | Placement | Hint on each phone |
 |---|---|---|
-| Row | left to right, centred vertically on the tallest | "right of phone N−1" |
-| Column | top to bottom, centred horizontally on the widest | "below phone N−1" |
-| Grid | ⌈√n⌉ columns, filled row by row; each cell as large as its row's and column's largest phone | "row r, column c" |
+| Row | left to right, centred vertically on the tallest | phone 1 "on the left", then "right of phone N−1" |
+| Column | top to bottom, centred horizontally on the widest | phone 1 "at the top", then "below phone N−1" |
+| Grid | ⌈√n⌉ columns, filled row by row; each cell as large as its row's and column's largest phone | phone 1 "top left", then "right of phone N−1"; the first of each row "below" the first of the row above |
 
-Phone 1 is always the "first phone". On every phone the lobby draws a millimetre grid (10 mm lines, stronger every 50 mm) continuous across the bezels, the World's bounds in green, and the phone's number (`apps/pwa/src/scene.ts`). Lay the phones so the grid lines meet; where they cannot, `pxPerMm` is off.
+Phone 1 is the phone the others are laid from, not necessarily the first phone (the Host): a reorder can put the Host anywhere. On every phone the lobby draws a millimetre grid (10 mm lines, stronger every 50 mm) continuous across the bezels and the World's bounds in green, and over them the placement cue: the phone's number in the foreground colour, about 60 % of the screen's width; under it the hint as a sentence ("Lay me right of phone 1", phone 1's "Lay me first, on the left"); under that a pictogram of the Layout with this phone filled (`apps/pwa/src/scene.ts`, the wording in `apps/pwa/src/placement.ts`). Reordering on the Host updates all three on every phone. Lay the phones so the grid lines meet; where they cannot, `pxPerMm` is off.
 
 ### Tile order, seats and bots
 
@@ -89,7 +89,7 @@ A Tile's size in mm is its visible CSS size divided by this, so a 420 × 860 px 
 
 - Each phone's size is measured once, when the page loads (`apps/pwa/src/main.ts:65`), from `visualViewport`, which excludes browser toolbars where `innerHeight` may not (`apps/pwa/src/device.ts:131-143`).
 - Load the page with the phone sideways, or let iOS Safari show or hide its toolbars after that, and its Tile no longer matches its screen. Hold the phone upright, then reload it.
-- A phone added to the home screen opens without browser toolbars (`display: fullscreen` in `apps/pwa/public/manifest.webmanifest`).
+- A phone added to the home screen opens without browser toolbars (`display: fullscreen` in the web manifest, which the build writes: `apps/pwa/brand.ts`).
 
 ## Screen wake lock
 

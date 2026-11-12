@@ -3,9 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-    <meta name="theme-color" content="#121212" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <title>MobileGameConnect</title>
+    <meta name="theme-color" content="%GROUND%" />
+    <!-- Relative: the build writes the manifest from brand.json (brand.ts), it is no file in public/ that Vite would give the base. -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>%BRAND_NAME%</title>
+    <meta name="description" content="%BRAND_PITCH%" />
+    <!-- A shared link's preview. The picture holds no name, so brand.json stays the one place that spells it. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="%BRAND_NAME%" />
+    <meta property="og:title" content="%BRAND_NAME%" />
+    <meta property="og:description" content="%BRAND_PITCH%" />
+    <meta property="og:url" content="%BRAND_URL%" />
+    <meta property="og:image" content="%BRAND_URL%preview.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Three phones lie in a row on a dark table; a ball crosses the gap between two of them." />
+    <meta name="twitter:card" content="summary_large_image" />
     <style>
       :root {
         --bg: #121212;
@@ -30,18 +45,27 @@
       #game { position: fixed; inset: 0; background: var(--bg); }
       button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
       .code { font-weight: 600; font-size: 20px; letter-spacing: 0.18em; }
+      /* The public name (brand.json): first on the first phone's bar and on a joined phone's strip. */
+      .brand { font-weight: 700; font-size: 17px; letter-spacing: 0.02em; }
       .dot { vertical-align: 0; margin-right: 2px; }
       .dot-ok { fill: var(--ok); }
       .dot-wait { fill: var(--wait); }
       .dot-off { fill: var(--off); }
 
+      /* Before the script opens the HUD: the name, the pitch and a sign of life, so the page is never black. */
+      .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; background: var(--bg); text-align: center; }
+      .splash-name { margin: 0; font-size: 44px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.1; }
+      .splash-pitch { margin: 0; max-width: 24ch; color: var(--fg-2); font-size: 17px; text-wrap: balance; }
+      .splash-dot { width: 12px; height: 12px; margin-top: 22px; border-radius: 50%; background: var(--fg); animation: alive 900ms ease-in-out infinite alternate; }
+      @keyframes alive { from { opacity: 0.2; transform: scale(0.7); } }
+
       /* Host: bottom sheet. Collapsed it is one bar so the tile stays visible. */
       .sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 100dvh; display: flex; flex-direction: column; background: var(--raise); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45); padding-bottom: env(safe-area-inset-bottom, 0); transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1); }
-      .sheet .bar { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: baseline; width: 100%; padding: 14px 16px; text-align: left; flex: none; }
+      .sheet .bar { display: grid; grid-template-columns: auto auto 1fr auto; gap: 12px; align-items: baseline; width: 100%; padding: 14px 16px; text-align: left; flex: none; }
       /* While the Host's Tile shows a Game the folded bar is a small pill in a corner, so the Tile stays the Game's. */
       .sheet[data-playing]:not([data-open]) { left: auto; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0)); border: 1px solid var(--line); border-radius: 999px; box-shadow: none; padding-bottom: 0; opacity: 0.7; }
       .sheet[data-playing]:not([data-open]) .bar { display: flex; gap: 6px; padding: 5px 10px; font-size: 12px; }
-      .sheet[data-playing]:not([data-open]) .code, .sheet[data-playing]:not([data-open]) .bar-meta, .sheet[data-playing]:not([data-open]) .bar-log { display: none; }
+      .sheet[data-playing]:not([data-open]) .brand, .sheet[data-playing]:not([data-open]) .code, .sheet[data-playing]:not([data-open]) .bar-meta, .sheet[data-playing]:not([data-open]) .bar-log { display: none; }
       .sheet .bar-meta { color: var(--fg-2); }
       .sheet .bar-action { color: var(--ok); font-weight: 500; }
       /* The sheet's body scrolls on its own when the phone is shorter than the sheet (QR, Games, roster). */
@@ -80,7 +104,7 @@
       .roster .sync { grid-row: 2; grid-column: 3; justify-self: end; color: var(--fg-2); }
       /* The Tile order: ◀ towards the first phone, ▶ towards the last. */
       .roster .order { grid-row: 1; grid-column: 3; justify-self: end; display: flex; gap: 6px; }
-      .move { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); transition: background 120ms; }
+      .move { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); transition: background 120ms; }
       .move svg { fill: currentColor; }
       .move:not(:disabled):active { background: var(--line); }
       @media (hover: hover) { .move:not(:disabled):hover { background: var(--line); } }
@@ -124,7 +148,8 @@
 
       /* Peer: one slim strip at the top. */
       .strip { position: fixed; top: 0; left: 0; right: 0; display: grid; grid-template-columns: auto 1fr auto; column-gap: 12px; align-items: baseline; padding: calc(10px + env(safe-area-inset-top, 0)) 14px 14px; background: linear-gradient(var(--bg) 55%, transparent); pointer-events: none; }
-      .strip .code { font-size: 16px; grid-row: 1; }
+      .strip .brand { grid-row: 1; grid-column: 1; }
+      .strip .code { grid-row: 2; grid-column: 1; font-size: 13px; color: var(--fg-2); }
       .strip .state { grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .strip .export { grid-row: 1 / span 2; grid-column: 3; align-self: start; pointer-events: auto; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg-2); font-size: 12px; }
@@ -138,7 +163,7 @@
       .result .result-detail, .pause .pause-detail { margin-top: 8px; color: var(--fg-2); font-size: 16px; }
       .result .result-hint { margin-top: 14px; color: var(--fg-2); font-size: 12px; }
 
-      @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .card, .chip, .move { transition: none; } }
+      @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .card, .chip, .move { transition: none; } .splash-dot { animation: none; } }
       /* Phones are used upright: the Layout is measured in portrait. A touch screen turned sideways is asked back; a desktop window is left alone. */
       #rotate { display: none; position: fixed; inset: 0; z-index: 10; place-items: center; background: var(--bg); text-align: center; padding: 24px; }
       #rotate p { margin: 0; font-size: 20px; color: var(--fg-2); }
@@ -148,7 +173,12 @@
   <body>
     <canvas id="stage"></canvas>
     <div id="game" hidden></div>
-    <section id="hud" aria-live="polite"></section>
+    <!-- Until the script opens the HUD (it replaces this section's content and class): the name, the pitch and a sign of life. The build fills in brand.json. -->
+    <section id="hud" class="splash" aria-live="polite">
+      <h1 class="splash-name">%BRAND_NAME%</h1>
+      <p class="splash-pitch">%BRAND_PITCH%</p>
+      <span class="splash-dot" aria-hidden="true"></span>
+    </section>
     <div id="rotate" role="status"><p>Turn your phone upright</p></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
