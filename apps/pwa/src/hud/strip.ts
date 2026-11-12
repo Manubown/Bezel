@@ -1,3 +1,4 @@
+import brand from '../../../../brand.json';
 import type { Hud, HudOptions } from '../hud';
 import { placementHint } from '../placement';
 import { esc, statusDot, syncStats } from './shared';
@@ -7,7 +8,7 @@ export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
   const { session, lobby, code, play, maker } = o;
   root.className = 'strip';
   root.innerHTML =
-    `<span class="code">${esc(code)}</span><span class="state"></span><span class="meta"></span>` +
+    `<span class="brand">${esc(brand.name)}</span><span class="code">${esc(code)}</span><span class="state"></span><span class="meta"></span>` +
     (maker ? `<button type="button" class="export" aria-label="Export the session log">Log</button>` : '');
   root.querySelector<HTMLButtonElement>('.export')?.addEventListener('click', () => void o.log.export());
   const state = root.querySelector('.state')!;

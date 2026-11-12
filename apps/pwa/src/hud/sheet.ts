@@ -2,6 +2,7 @@ import type { RosterEntry } from '@mgc/core';
 import { TEMPLATE_IDS, type TemplateId } from '@mgc/layout';
 import type { Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
+import brand from '../../../../brand.json';
 import type { Hud, HudOptions, Play } from '../hud';
 import { MAKER_FLAG } from '../maker';
 import { placementHint } from '../placement';
@@ -23,6 +24,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
   root.className = 'sheet';
   root.innerHTML = `
     <button class="bar" type="button">
+      <span class="brand">${esc(brand.name)}</span>
       <span class="code">${esc(code)}</span>
       <span class="bar-meta"></span>
       <span class="bar-action"></span>
