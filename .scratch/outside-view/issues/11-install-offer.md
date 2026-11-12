@@ -28,8 +28,8 @@
 - `apps/pwa/src/main.ts`: `watchInstall()` is the first line of `start()`, before any `await`. A `closed` with reason `ended` counts one finished Match before the HUD renders the card. `install` is handed to the HUD.
 - `apps/pwa/src/hud.ts`: `HudOptions.install`, the banner opened beside the advice line, and a render when the app gets installed. `apps/pwa/src/hud/install.ts` (new): `offerHtml` (the `.offer` block), `wireOffer` (the Install button), `inAppBanner`.
 - `apps/pwa/src/hud/cards.ts` `lastCard`: the offer goes in as one block after the first phone's buttons and refusal line, and on the other phones between "The first phone starts the next game" and "Tap to close". The card that carried it records the dismissal when it closes or gives way to the next Match's card. A tap inside the offer does not close a joined phone's card.
-- `apps/pwa/src/hud/sheet.ts`: one block, `<div class="install-row">`, after the roster and before the maker's log row, filled once and shown while `installOffer(...).row` says so.
-- `apps/pwa/index.html`: `.offer`, `.result .offer`, `.install-row`, `.inapp`, `.sheet .inapp`, `.strip .inapp`. These are plain classes on the tokens there today (`--fg-2`, `--line`, `--raise`, `--wait`).
+- `apps/pwa/src/hud/sheet.ts`: one block, `<div class="install-row">`, after the game log and before the maker's log row (in ticket 03's order), filled once and shown while `installOffer(...).row` says so.
+- `apps/pwa/index.html`: `.offer`, `.result .offer`, `.install-row`, `.inapp`, `.sheet .inapp`, `.strip .inapp`. These are plain classes on ticket 08's tokens (`@mgc/look`): `--fg-2`, `--line`, `--rule` for the dividers, `--raise`, `--warn` for the banner's rule, and `--tap` and `--radius` for the Install button. The Install button is outlined, as a second action under Play again.
 - Docs: `docs/guide/running-on-phones.md` §Installing as a PWA is rewritten. It now says what Android and an iPhone/iPad get, what every phone gets, the offer and where it shows, and that an iPhone locks no orientation, installed or not. The same section's Host table has rows for the banner and the install row. "What a Peer sees" now mentions the offer on the card. The Connectivity flags line and `troubleshooting.md` "The phone turned sideways" now read "locked when installed on Android; an iPhone ignores it". There is an entry in `docs/platform-design.md` (end of a Match section) and a row in `docs/architecture.md` §5. No citation was re-anchored.
 
 **Decisions**
@@ -40,7 +40,7 @@
 - The banner keeps the spec's words for every platform ("Safari or Chrome"): from an iPhone in-app browser, either browser works. On the first phone it heads the sheet, above the advice line and the bar, folded or open. On a joined phone it is the strip's third line. It is hidden while a Match runs. It cannot be dismissed. There is no install offer inside another app's browser, because such a browser cannot add to the home screen.
 - `beforeinstallprompt` has its default prevented, so Chrome's own install bar does not appear before the first finished Match. Chrome fires the event again after a dismissed prompt (seen in the smoke), so each tap on Install opens the browser's own dialog while Chrome offers one.
 - The situation is read once per page: the HUD asks on every render, up to once per frame during a Match. `appinstalled` is the one change during the page's life.
-- Ticket 08: the new rules use `--wait` (banner border), `--line`, `--raise` and `--fg-2`. Map them with the rest of the tokens.
+- The banner is a warning (this browser cannot do what the app needs), so it gets the amber rule (`--warn`), as the advice line does.
 
 **Verified**
 - Each slice was red before green with `pnpm vitest run apps/pwa/test/install.test.ts`: the module was missing (no tests ran), then 6 passed. `platformOf`: 4 failed, then 10 passed. `runsInstalled`: 3 failed, then 13 passed. `installOffer` installed: "installOffer is not a function", then 14 passed. In-app: "expected undefined to be 'Open this page in Safari or Chrome'", then 15. Android: "expected undefined to be 'Add Bezel to your home screen'", then 17. iOS and Chrome on iOS: 2 failed, then 20. Dismissed: "expected { …(4) } to be undefined", then 21 passed.
@@ -55,7 +55,9 @@
   - **In-app-browser banner.** A first phone with an Instagram iOS user agent and nothing finished showed at once, as the sheet's first child: "Open this page in Safari or Chrome / This app’s own browser cannot put it on your home screen. In its menu (⋯ or ⋮), choose to open it in your browser." It had no `.offer` and the row was hidden. A phone joining it with a TikTok Android user agent showed the same banner as the strip's third line, under "Bezel · Finding table Q9PZ…".
   - **Installed.** An iPhone Safari user agent with `navigator.standalone` set to true by an init script and the count preset to 1 had its row hidden and no banner. Instagram's user agent with the same flag had no banner and no row. The control, the same iPhone user agent and preset without the flag, showed the row with the Safari steps.
 - No service worker: the change registers none and adds no file; `grep -rn serviceWorker apps/pwa/src apps/pwa/index.html apps/pwa/vite.config.ts apps/pwa/brand.ts` finds nothing.
-- Ticket 17 already holds the phone checks: "Install from Safari and from Chrome on Android; the installed app opens full-screen and opens the app, not the site".
+- Ticket 17 already holds the phone checks, so ticket 17's file is unchanged: "Install from Safari and from Chrome on Android; the installed app opens full-screen and opens the app, not the site".
+- After merging `outside-view` with 03 and 12, and then again with 08 (`pnpm install --frozen-lockfile`, the rules moved onto 08's tokens): `pnpm typecheck && pnpm test` gave a clean typecheck and 39 test files, 329 tests passed. That includes 08's test against direct colours and undefined `var(--…)`. In the conflicts, `sheet.ts` kept 03's order with the install row between the game log and the maker's log row. The guide's sheet table kept 03's rows plus the banner and install rows.
+- The smoke was rerun on the merged build, same setup, fresh profiles: a Pong Match ran 79 s and the bot won 7–0. The first phone's card showed the outlined Install under the ivory Play again, with the steps hidden. The other phone's card showed the iPhone steps. Change game set `mgc.installDismissed` and showed the row after the game log, above "Join a different table". The Instagram first phone and the TikTok joined phone showed the banner with the amber rule.
 
 **Not verified**
 - Real phones: Chrome's install dialog accepted and the app installed (`appinstalled` hiding the offer), Safari's and Chrome on iOS's real menus against the step wording, the in-app browsers' real user agents and their "open in browser" menus, and the installed app opening full-screen. The installed state was emulated through `navigator.standalone` only. The display-mode branch is unit-tested only.
@@ -63,6 +65,5 @@
 - Samsung Internet's and Firefox's menu wording against the generic fallback steps.
 
 **For the next tickets**
-- Ticket 03: the sheet row is one block, `<div class="install-row" hidden>`, filled and shown from `render`; move it as a block. The banner is prepended to the sheet by `hud/install.ts`, outside the sheet's markup.
-- Ticket 08: see Decisions for the tokens the new rules use.
+- The sheet row is one block, `<div class="install-row" hidden>`, filled and shown from `render`; move it as a block. The banner is prepended to the sheet or strip by `hud/install.ts`, outside their markup.
 - Ticket 13 (site): the steps' words are in `install.ts` if the home page's "how to install" should match them.

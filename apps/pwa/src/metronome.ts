@@ -1,3 +1,5 @@
+import { look } from './look';
+
 export const BEAT_MS = 1000;
 const FLASH_MS = 80;
 
@@ -65,14 +67,15 @@ export function drawMetronome({ ctx, w, h }: Frame, t: number, synced: boolean):
   const flash = synced && t - beat * BEAT_MS < FLASH_MS;
   const phase = (t - beat * BEAT_MS) / BEAT_MS;
 
-  ctx.fillStyle = flash ? '#f2f0ea' : '#121212';
+  const paint = look();
+  ctx.fillStyle = flash ? paint.fg : paint.bg;
   ctx.fillRect(0, 0, w, h);
 
-  ctx.fillStyle = synced ? '#5bc46a' : '#3a3a3a';
+  ctx.fillStyle = synced ? paint.fg : paint.rule;
   ctx.fillRect(0, h - 6, w * phase, 6);
 
-  ctx.fillStyle = flash ? '#121212' : synced ? '#f2f0ea' : '#4a4a4a';
-  ctx.font = `600 ${Math.min(w, h) * 0.38}px system-ui, sans-serif`;
+  ctx.fillStyle = flash ? paint.bg : synced ? paint.fg : paint.fg2;
+  ctx.font = `600 ${Math.min(w, h) * 0.38}px ${paint.display}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(beat % 100).padStart(2, '0'), w / 2, h / 2);

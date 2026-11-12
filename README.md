@@ -104,6 +104,7 @@ Deeper: [Architecture](docs/architecture.md) · [SDK contract](docs/sdk-design.m
 apps/pwa/          the Host + Peer PWA: lobby, HUD, session log, runs the picked Game on every phone
 packages/core/     transport (WebRTC via Trystero, in-memory for tests), clock sync, Session
 packages/layout/   shape templates, Surface (world mm ↔ screen px)
+packages/look/     the night-table look: colour and type tokens and the display face, for the app and the site
 packages/sdk/      the Game API (defineGame, runMatch), in-process link, wire types, test harness (@mgc/sdk/test)
 games/             one package per Game; games/_template is the starter
 scripts/           new-game.mjs (scaffold a Game), stable.mjs (move the `stable` release tag)

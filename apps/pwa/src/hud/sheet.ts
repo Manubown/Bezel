@@ -6,9 +6,11 @@ import brand from '../../../../brand.json';
 import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
 import type { HudOptions, Play, Sheet } from '../hud';
 import { arrangements } from '../lobby';
+import { look } from '../look';
 import { MAKER_FLAG } from '../maker';
 import { otherTable, tableCode } from '../othertable';
 import { placementHint } from '../placement';
+import { fadeCorner } from './corner';
 import { offerHtml, wireOffer } from './install';
 import { describeLast, esc, statusDot, syncStats } from './shared';
 
@@ -28,7 +30,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
   /** The address to type: host plus the app's path, without the trailing slash (`manubown.github.io/Bezel`); in Maker mode with its flag (`manubown.github.io/Bezel/?maker`). */
   const address = (joinUrl.host + joinUrl.pathname).replace(/\/$/, '') + (maker ? `/?${MAKER_FLAG}` : '');
   const qr = document.createElement('canvas');
-  await QRCode.toCanvas(qr, joinUrl.toString(), { width: 168, margin: 0, color: { dark: '#121212', light: '#f2f0ea' } });
+  await QRCode.toCanvas(qr, joinUrl.toString(), { width: 168, margin: 0, color: { dark: look().bg, light: look().fg } });
 
   root.className = 'sheet';
   root.innerHTML = `
@@ -79,6 +81,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
       </details>
     </div>`;
   root.querySelector('.qr')!.append(qr);
+  fadeCorner(root);
   const bar = root.querySelector<HTMLButtonElement>('.bar')!;
   const barMeta = root.querySelector('.bar-meta')!;
   const barAction = root.querySelector('.bar-action')!;
@@ -331,7 +334,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     const syncOf = (e: RosterEntry | undefined, self: boolean): string => {
       if (self) return '';
       // Two missed heartbeats (`WEAK_MS`): still there and still in the Match, not paused for.
-      if (e?.link === 'weak') return `${statusDot('wait')} weak connection`;
+      if (e?.link === 'weak') return `${statusDot('warn')} weak connection`;
       const synced = e?.sync.synced === true;
       // Players see the dot, and "connecting" until the phone's clock is in; a maker sees the clock figures.
       if (!maker) return `${statusDot(synced ? 'ok' : 'wait')}${synced ? '' : ' connecting'}`;

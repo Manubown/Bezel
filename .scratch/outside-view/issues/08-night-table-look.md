@@ -4,14 +4,67 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Colour and type tokens are defined once and are what the sheet, the strip, the cards and the lobby preview use; no screen keeps a private copy of a colour
-- [ ] The display face is served from the app's own origin (no request to a font host), with a system fallback that does not shift the layout
-- [ ] Every text and control on the platform screens meets WCAG 2.2 contrast (4.5:1 text, 3:1 large text and control borders); the audit's failing rows (placement number, pill, borders) pass
-- [ ] Text fields are 16 px: an iPhone does not zoom on focus
-- [ ] Every control on the sheet is at least 44 px high; Start is taller than the rest
-- [ ] The sheet respects the top safe area
-- [ ] The corner control fades during play and returns on a touch near it
-- [ ] The warning colour is used for warnings only
-- [ ] Browser smoke at 390×844 and 360×780, screenshots in a comment: first phone sheet, joined phone, pause card, result card
+- [x] Colour and type tokens are defined once and are what the sheet, the strip, the cards and the lobby preview use; no screen keeps a private copy of a colour
+- [x] The display face is served from the app's own origin (no request to a font host), with a system fallback that does not shift the layout
+- [x] Every text and control on the platform screens meets WCAG 2.2 contrast (4.5:1 text, 3:1 large text and control borders); the audit's failing rows (placement number, pill, borders) pass
+- [x] Text fields are 16 px: an iPhone does not zoom on focus
+- [x] Every control on the sheet is at least 44 px high; Start is taller than the rest
+- [x] The sheet respects the top safe area
+- [x] The corner control fades during play and returns on a touch near it
+- [x] The warning colour is used for warnings only
+- [x] Browser smoke at 390×844 and 360×780, screenshots in a comment: first phone sheet, joined phone, pause card, result card
+
+## Comments
+
+### 2026-11-13, agent (implementation)
+
+**Changed**
+- `packages/look` (new workspace package `@mgc/look`, MIT AND OFL-1.1): `tokens.css`, the one file of the night table's tokens: ground `--bg #0b0b0c`, `--raise #17171a` (sheet, cards), ivory `--fg #f2f0ea`, `--fg-2 #a8a59c`, control border `--line #6e6e72`, dividers and grid `--rule #2a2a2e`, `--off`, `--warn #e0b94a` (warnings only), `--player-1..4` coral `#ff6b4a`, teal `#2ec4b6`, violet `#a98bff`, lime `#c2e05a`, two shadows, `--font-display` / `--font-ui` / `--font-mono`, sizes `--text-xs..xxl` (`--text-m` 16 px), `--tap` 44 px, `--tap-main` 56 px, radii; and the `@font-face` of the display face. `fonts/unbounded-600.woff2` (Unbounded, Latin subset, weight 600, 21 kB, as Google Fonts serves it, unmodified) with `fonts/OFL.txt` beside it. `src/index.ts`: `tokensOf(css)`, `groundOf(css)` (moved here from `apps/pwa/brand.ts`), `contrast(a, b)` (WCAG 2.2). `test/look.test.ts`: the formula against the audit's measured ratios, and every pair the screens use against its WCAG minimum.
+- `apps/pwa/index.html`: the `:root` block is gone; the style starts with `@import '@mgc/look/tokens.css'` and every colour, face and size is a token. A `<link rel="preload">` fetches the face at once. Restyled through the existing class names, no markup changed: 16 px base and fields, 14 px meta (no 12 px text left for players), every sheet control `min-height: var(--tap)`, Start `var(--tap-main)` and the one ivory fill, `--line` borders, the name, Game cards' names and the result headline in the display face, the sheet's `max-height` below the top safe area, the corner pill 44 px and fading, focus ring and selection in ivory, the last-Match line neutral (`.reason.last`, the same rule and class ticket 06 adds).
+- `apps/pwa/src/look.ts` (new): the tokens the canvas and the QR code paint with, read once from the page's style. `scene.ts` (the lobby preview: ground, grid, bounds, number, sentence, pictogram) and `metronome.ts` take their colours and faces from it, the Tile number in the display face; the QR code's two colours are `--bg` and `--fg`.
+- `apps/pwa/src/hud/corner.ts` (new): `isNear` and `fadeCorner`: the folded bar during play is in full view for 3 s after play starts or the sheet folds, then fades to 20 %; a touch within 48 px of it brings it back for 3 s; while faded a tap on it only brings it back, the next one opens the sheet. Installed by one line in `hud/sheet.ts`. `test/corner.test.ts`.
+- `hud/shared.ts`: `statusDot` gains `'warn'`; `'wait'` is neutral grey and pulses. Amber now marks only a weak connection (sheet) and "Reconnecting to the host…" (strip), a refused Start and a maker's log faults.
+- `apps/pwa/brand.ts`: the manifest's colours and `theme-color` come from `groundOf` of `@mgc/look/tokens.css`; `brandPage(html, brand, base, ground)`, `webManifest(brand, ground)`. `apps/pwa/face.ts` (new): on the dev server only, the face's preload gets the `/@fs/` address (a build resolves the page's path itself).
+- Icons and preview: the SVGs' ground is `#0b0b0c`; `icon-192/512.png`, `icon-maskable-512.png`, `apple-touch-icon.png` and `preview.png` rasterised again from them with headless Chrome. `test/brand.test.ts` checks the SVGs' ground is the tokens' ground. `test/look.test.ts` (app): no colour literal in the page's style or in `src/`, no `var(--x)` the look does not define, the face is a relative file of the look, `optional`, preloaded, and no link or script to another host.
+- Docs: `docs/architecture.md` §5 a row for the look; README's repository list; `docs/guide/running-on-phones.md` and `troubleshooting.md` sentences about the green dot, the green bounds and the pill.
+
+**Decisions**
+- The tokens are a workspace package, not a file in the app: the site (`apps/site`, Astro) adds `"@mgc/look": "workspace:*"` and imports `@mgc/look/tokens.css`; the `@font-face` names the font relative to the CSS, so each build emits it to its own origin. `@mgc/look` is code-free for the browser except the three functions.
+- The display face is Unbounded (wide, geometric, rounded-square letters like a phone's screen), one static weight (600) so the file is 21 kB rather than the variable 51 kB: the first visit gets it in time more often. Body type stays the phone's own (`system-ui`).
+- `font-display: optional` plus preload, rather than `swap` with a metric-matched fallback: Unbounded is so wide (average advance 0.71 em against Arial's 0.44) that a matched fallback would be drawn 1.6× too tall. A phone without the file after ~100 ms keeps the system face for that visit; nothing ever swaps.
+- Colour comes from the Players: no green any more. "Connected" is an ivory dot; Start, the picked arrangement, a pressed chip are ivory fills. Players 3 and 4 are violet and lime, chosen away from the warning amber. The platform's sheet and cards do not yet colour a Player's name: that needs the SDK's palette function of ticket 09 (position in the Match's Player list), which the sheet's `P1`/`P2` numbering does not always equal.
+- The corner pill: faded at 20 % it is inactive (its first tap only brings it back), so a thumb in the corner mid-rally does not open the sheet; shown, it is fully opaque (`--fg` on `--raise`, 15.7:1, the audit's 4.48:1 row).
+- The lobby grid: fine lines `--rule`, every 50 mm `--line`, the World's bounds `--fg-2`.
+
+**Verified**
+- `pnpm vitest run packages/look apps/pwa/test/look.test.ts apps/pwa/test/corner.test.ts apps/pwa/test/brand.test.ts`, each slice red first: 44 passed.
+- `pnpm typecheck && pnpm test`: typecheck clean; 36 files, 287 tests passed.
+- Token pairs (WCAG 2.2, the test's numbers): `--fg` on `--bg` 17.26, on `--raise` 15.70; `--fg-2` on `--bg` 7.99, on `--raise` 7.26; `--bg` on `--fg` 17.26; `--warn` on `--raise` 9.55, on `--bg` 10.50; `--line` on `--raise` 3.52, on `--bg` 3.88; `--off` on `--raise` 3.79; coral on `--bg` 6.98, on `--raise` 6.35, `--bg` on coral 6.98; teal 9.08 / 8.25 / 9.08; violet on `--raise` 6.66; lime 12.01. The audit's failing rows: Tile number 1.31 → 17.26 (pixel read back from the canvas: `#f2f0ea` on `#0b0b0c`); pill 4.48 → 15.70, opaque; borders 1.20/1.31 → 3.52/3.88; the beat number before sync `#4a4a4a` (2.11) → `--fg-2` (7.99).
+- `BASE_PATH=/play/ vite build`: one `assets/unbounded-600-<hash>.woff2` (20.95 kB); `index.html` preloads `/play/assets/unbounded-600-<hash>.woff2` and the inlined `@font-face` names the same file; no other host. `manifest.webmanifest`: `background_color` and `theme_color` `#0b0b0c`.
+- The face from the build (`vite preview`, headless Chrome, three fresh profiles at 390×844): the font fetched at 39–54 ms, done at 75–103 ms, first paint 132–168 ms; CDP `CSS.getPlatformFontsForNode` on `.brand` and `.card-name`: "Unbounded SemiBold (web)" in all three. With the font held back 2.5 s and the cache off: at 364 ms the face was `loading` and the text Segoe UI; at 6.5 s the face was `loaded`, the text still Segoe UI, and the boxes of `.brand`, `.card-name`, `.code`, `.bar-meta`, `.start` identical to the 0.1 px. On the dev server a fresh profile also kept the system face (the cold dev server is slower than the block period); a reload used Unbounded.
+- Browser smoke on the dev server (port 5208), headless Chrome, two phones per size, each page loaded twice so the face is cached; contrast computed in the page from computed colours against the nearest opaque background:
+  - 390×844, first phone's sheet: "Bezel" and the Game cards' names in Unbounded, the QR on ivory, code field, Pong/Air Hockey cards, P1/P2 rows with Bot chips, an ivory "Start Pong", the roster. 22 text elements, the lowest 7.26:1 (meta, hint, card lines, placeholder); 7 control borders, the lowest 3.52:1; every control 44 px high (code field, Join, name field, Bot chips, ◀ ▶), Start 56, the bar 57; both fields 16 px.
+  - 390×844, joined phone: the strip "Bezel" (Unbounded) over "78K5", "● Phone 2 of 2", "right of phone 1 · Player 2" (7.99 to 17.26); the lobby preview on `#0b0b0c`, a large ivory "2" in Unbounded, "Lay me right of phone 1", the pictogram. The first phone, folded: an ivory "1", "Lay me first, on the left", the bar at the bottom.
+  - The corner control in Pong: 75×46 px pill in the bottom-right corner, "Setup"; 3.3 s after the start faded (opacity 0.2, no `data-awake`); a touch at (100, 150) left it faded; a touch 27 px left of it brought it back (`data-awake`, opacity 1) and it faded again 3 s later; a tap on it while faded brought it back without opening the sheet; the next tap opened the sheet over the Game ("Pong · playing", End match).
+  - Pause card (the second phone's tab closed): "Waiting for Player 2" / "Phone 2 lost its connection · the match goes on when it is back" on `--raise` with a `--line` border, 15.70 and 7.26; the pill behind it faded.
+  - Result card (End match after the phone came back): "Match stopped" in Unbounded, "Ended from the host phone", "Tap to close" over the reopened sheet; the sheet's "Last match: …" line grey (`.reason.last`), not amber.
+  - 360×780: the same four screens. Sheet: the hint wraps to five lines beside the QR, cards' lines to two, nothing clipped; the lowest text 7.26, border 3.52, controls 44, Start 56, fields 16 px. Strip and preview as at 390 with a smaller "2".
+  - Top safe area, emulated with CDP `Emulation.setSafeAreaInsetsOverride` (top 47, bottom 34) at 360×780: the open sheet's `max-height` 733 px, its top at 47 px with the body scrolling, its bottom padding 34 px; the pill's bottom 8 px above the bottom inset.
+- The PNGs read back: `icon-192.png` / `icon-512.png` ground `#0b0b0c`, transparent outside the rounded square; `icon-maskable-512.png`, `apple-touch-icon.png` (180) and `preview.png` (1200×630) on `#0b0b0c`; sizes as the manifest says.
+
+**After merging `outside-view`** (tickets 02, 03, 04, 05, 06, 12 landed meanwhile)
+- Their rules mapped to the tokens: the first phone's folded "Join a different table" (`summary` 44 px, field and Join 44 px, its refusal `--warn`); the result card's Play again (`--fg` fill, `--bg` text), Change game (`--line`), its refusal (`--warn`), the card's buttons `--tap`; the help card (Try again an ivory fill, its field and Join `--tap`, 16 px, `--radius-card`, `--shadow-card`); the first phone's advice line (its amber rule `--warn`). The strip's joining dot is amber for "Lost the table. Reconnecting…" and neutral for "Finding table …" / "Connecting…". The last-Match line keeps 06's `.reason.last`.
+- `pnpm install --frozen-lockfile` clean; `pnpm typecheck && pnpm test`: typecheck clean (the site left to Astro, ticket 12), 38 files, 308 tests passed.
+- Browser smoke again on the dev server, both sizes: the first phone's sheet in 03's order (QR and "Other phones: open the camera and scan this…", "Lay the phones like this" and the roster, the Game cards, Players, Start, "Join a different table"): lowest text 7.26, borders 3.52, controls 44 (Start 56, bar 57, cards 85), fields 16 px, the name and cards in Unbounded. Joined phone: strip and preview as before (7.99 / 17.26). Pause card as before. Result card: Pong against a bot on the first phone alone until it ended by itself, the sheet folded: "Bot wins 7–0" in Unbounded (15.70), Play again ivory with `#0b0b0c` text, Change game outlined (3.52), both 44 px; at 360×780 the same card, nothing clipped. Ending a Match from the open sheet now shows no card on the first phone, only the grey "Last match: Game ended on the first phone" line (ticket 06).
+
+**Not verified**
+- On phones: the face on a real first visit over mobile data, the notch and home indicator (emulated only), the fade of the pill under a real thumb, the icons under a launcher's mask.
+- Safari: the whole smoke was Chrome.
+- A real winner on the result card: the smoke ended the Match from the first phone, so the card said "Match stopped"; the headline's display face is the same either way.
+
+**For the next tickets**
+- 09: the CSS tokens `--player-1..4` are the palette's values; the SDK's palette (TS, D10) has to repeat them, so pin it with a test that reads `packages/look/tokens.css` (`tokensOf`). The display face in a canvas: `600 <px>px` with the family from `--font-display` (`apps/pwa/src/look.ts` shows how the platform reads it); a Game sees only the SDK, so the SDK would pass the family string.
+- 13: `import '@mgc/look/tokens.css'` in the site's layout and preload `@mgc/look/fonts/unbounded-600.woff2`; the face then comes from the site's own origin. `groundOf` for the site's `theme-color`.
+- Anyone styling: no colour literal in `apps/pwa/index.html` or `apps/pwa/src` and no unknown `var(--…)`: `apps/pwa/test/look.test.ts` fails on either. `--ok` and `--wait` are gone: a main action is `background: var(--fg); color: var(--bg)`, a warning `var(--warn)`, a control `min-height: var(--tap)`.

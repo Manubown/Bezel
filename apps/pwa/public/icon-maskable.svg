@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- The mark of icon.svg on a full square, at 80 % so a launcher's mask (a circle of 40 % radius at least) never cuts it.
        Source of icon-maskable-512.png and apple-touch-icon.png (180 px; iOS rounds the corners itself), rasterised once with headless Chrome. -->
-  <rect width="512" height="512" fill="#121212"/>
+  <rect width="512" height="512" fill="#0b0b0c"/>
   <g transform="translate(256 256) scale(0.8) translate(-256 -256)">
     <g fill="none" stroke="#f2f0ea" stroke-width="24">
       <rect x="114" y="150" width="108" height="212" rx="18"/>
       <rect x="290" y="150" width="108" height="212" rx="18"/>
     </g>
-    <circle cx="256" cy="256" r="44" fill="#121212"/>
+    <circle cx="256" cy="256" r="44" fill="#0b0b0c"/>
     <circle cx="256" cy="256" r="30" fill="#f2f0ea"/>
   </g>
 </svg>

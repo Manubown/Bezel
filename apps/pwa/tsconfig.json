@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["vite/client"]
   },
-  "include": ["src", "test", "vite.config.ts", "brand.ts"]
+  "include": ["src", "test", "vite.config.ts", "brand.ts", "face.ts"]
 }
