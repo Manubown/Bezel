@@ -1,6 +1,6 @@
 # Troubleshooting
 
-One entry per symptom: what you see, why, what to do. Where a Game says something, look in two places: the Host's sheet ("game log": faults, `ctx.log` lines, refusals and closes) and the browser console of the phone it happened on (`<Game>: fault in host.tick: …` with the stack, `<Game> host: …` for logs; `apps/pwa/src/main.ts:186-187`). In a test, the same lines are `t.events(deviceId)`.
+One entry per symptom: what you see, why, what to do. Where a Game says something, look in two places: the Host's sheet in [Maker mode](running-on-phones.md#connectivity-flags) (open it with `?maker`; "game log": faults, `ctx.log` lines, refusals and closes) and the browser console of the phone it happened on (`<Game>: fault in host.tick: …` with the stack, `<Game> host: …` for logs; `apps/pwa/src/main.ts:186-187`). In a test, the same lines are `t.events(deviceId)`.
 
 ## Setup
 
@@ -91,7 +91,7 @@ Numbers in the table are examples; the message names the Game and the real count
 
 ### The Host's roster says "weak connection" for a phone
 
-- **What it means:** the Host has not heard that phone for 2.5 s, two missed clock heartbeats (`WEAK_MS`, `packages/core/src/session.ts`); the row shows its clock numbers again as soon as the phone is heard (`apps/pwa/src/hud.ts:382-388`). Not a pause: the Match goes on. After 5 s of silence (`LOST_MS`) the phone counts as lost: its row reads "disconnected", and a Match it is in pauses.
+- **What it means:** the Host has not heard that phone for 2.5 s, two missed clock heartbeats (`WEAK_MS`, `packages/core/src/session.ts`); the row shows its green dot again (in Maker mode its clock numbers) as soon as the phone is heard (`apps/pwa/src/hud.ts:382-388`). Not a pause: the Match goes on. After 5 s of silence (`LOST_MS`) the phone counts as lost: its row reads "disconnected", and a Match it is in pauses.
 - **Fix:** usually nothing; it was a blip. Often or for long: the phone's screen is turning off (tap it once), it is far from the Wi-Fi, or the network drops packets (live test 1's hotspot). The `link` lines in the Host's log list every `weak` and `lost` stretch per phone.
 
 ### "The game crashed" on every phone, or "The game stopped on this phone"
@@ -175,7 +175,7 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 
 ### A phone shows "Syncing clocks" forever, or "Looking for the host" / "Reconnecting to the host…" comes and goes
 
-- **Symptom in its log:** `peer-join` → `roster` → one or two `clock` samples → `peer-leave` after ~11 s → `peer-join` again, for minutes. Since connectivity-1 the phone does not wait for the transport: it gives up after 4 s without a synced clock and reconnects itself, so the cycle is a `peer-leave` about 4 s after each `peer-join` and the strip alternates "Syncing clocks" and "Reconnecting to the host…".
+- **Symptom in its log:** `peer-join` → `roster` → one or two `clock` samples → `peer-leave` after ~11 s → `peer-join` again, for minutes. Since connectivity-1 the phone does not wait for the transport: it gives up after 4 s without a synced clock and reconnects itself, so the cycle is a `peer-leave` about 4 s after each `peer-join` and the strip alternates "Syncing clocks" ("Connecting…" without Maker mode) and "Reconnecting to the host…".
 - **Cause:** the connection opens fine (ICE `connected`, a direct UDP pair with 4–50 ms rtt, the first clock replies arrive), then within 0.1–1.5 s the Host's packets stop reaching the Peer while the Peer's still reach the Host; ICE notices nothing for ~6 s. Seen between iPhones on a Personal Hotspot whose Host is the hotspot phone (its own address is only ever a peer-reflexive candidate), on ~90 % of attempts; the Android phones on the same table connected first time. The `ice` lines in the log (states, every candidate pair with STUN counters, the data channel's message counts, on join and whenever a link turns `weak`) are what settles the rest.
 - **Fix:** give the build a TURN relay (`pnpm setup-turn`; [connectivity flags](running-on-phones.md#connectivity-flags)). With one, a Peer that failed three times in a row joins through the relay only and its log gets a `relay` line; without one it keeps looping. Before that, the Host tries a cheaper thing by itself: after the first failed connection it stops signaling its own addresses (its log gets a `withhold` line), so the Peer's second and third attempts run without the address suspected of causing the cut; if one of them holds, the Peer's `ice` line shows a `prflx` pair and no `relay` line follows. The builds up to `02edc2e` named a public relay host that no longer exists, so they had none, whatever their `device` line said about `turn`. Also try hosting on a phone that is not the hotspot, or a normal Wi-Fi router. Export the logs either way.
 

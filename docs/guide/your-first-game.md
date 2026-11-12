@@ -93,7 +93,7 @@ count ×3 → spawn → [expire | bot:<id> | a tap] → spawn → … → end
 - `bot:<id>`: that bot hits the target; `next({ playerId: id, … })`.
 - `end`: `ctx.end(result(...))` closes the Match on every phone; the platform shows the result card.
 
-`next(hit?)` is the one place state moves between targets: score the hit, cancel `expire` and every bot timer (a timer that was due but not yet delivered is cancelled too), choose `play` or `done`, arm `spawn` or `end`, publish. `ctx.log(...)` lines reach the Host's game log in the sheet and `t.events()` in tests.
+`next(hit?)` is the one place state moves between targets: score the hit, cancel `expire` and every bot timer (a timer that was due but not yet delivered is cancelled too), choose `play` or `done`, arm `spawn` or `end`, publish. `ctx.log(...)` lines reach the Host's game log in the sheet (in Maker mode, `?maker`) and `t.events()` in tests.
 
 `now` in `onTimer` is the shared time the timer was due, which is the right stamp for `target.since`.
 

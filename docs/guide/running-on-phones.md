@@ -5,7 +5,7 @@
 `pnpm dev` starts Vite on port 5173 with `host: true` (reachable from the LAN) and a self-signed certificate from `@vitejs/plugin-basic-ssl` (`apps/pwa/vite.config.ts`). HTTPS is required on phones for the screen wake lock and a secure context for WebRTC.
 
 - Open the `Network` address Vite prints (`https://<your-LAN-ip>:5173/`) on the Host phone. Each phone's browser warns about the self-signed certificate once; accept it.
-- Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE`, plus `&noturn` when the Host has it (`apps/pwa/src/hud.ts:127-129`), so a `localhost` Host hands the other phones an address they cannot reach.
+- Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE`, plus `&noturn` when the Host has it and `&maker` in [Maker mode](#connectivity-flags) (`apps/pwa/src/hud.ts:127-129`), so a `localhost` Host hands the other phones an address they cannot reach.
 - Another port: `pnpm --filter @mgc/pwa dev --port 5181`.
 - Without a laptop: every push to `master` publishes the PWA to https://manubown.github.io/Bezel/ (`.github/workflows/pages.yml`), with a real certificate but only the Games on `master`. `BASE_PATH=/Bezel/ pnpm build` builds the same into `apps/pwa/dist` (README).
 
@@ -27,11 +27,13 @@ A Peer's top strip says where it is (`apps/pwa/src/hud.ts:443-481`):
 |---|---|
 | Looking for the host… · keep the host screen open | no Host has answered since this page loaded |
 | Reconnecting to the host… · the connection dropped · trying again | it had the Host and lost it: the connection closed, the Host was silent for 5 s, or the clock did not sync within 4 s. It reconnects by itself ([reconnecting](troubleshooting.md#reconnecting-to-the-host-on-a-peer)) |
-| Syncing clocks · measuring the offset to the host | connected; the shared clock is being measured |
-| Synced · waiting for arrangement | synced; the Host's lobby state has not arrived yet |
+| Syncing clocks · measuring the offset to the host | connected; the shared clock is being measured. Without [Maker mode](#connectivity-flags): "Connecting…" |
+| Synced · waiting for arrangement | synced; the Host's lobby state has not arrived yet. Without Maker mode: "Connected · waiting for arrangement" |
 | Phone N of M · <where it goes> · <Player> | a Tile, its place in the Tile order, and who sits there |
 | Controller · hold this phone in hand | the Host marked it a Controller |
 | Match in progress · you join the next one | a Match started without this phone; no joins mid-Match |
+
+In [Maker mode](#connectivity-flags) every line after "Syncing clocks" ends in this phone's clock figures (`rtt · Δoffset`), and a **Log** button exports the session log; without it the strip shows neither.
 
 ## The Host's sheet
 
@@ -39,7 +41,7 @@ Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 
 | Control | What it does |
 |---|---|
-| bar: code · "N phones · Row" · Setup/Hide | folds the sheet. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused · N faults" with the newest game-log line under it |
+| bar: code · "N phones · Row" · Setup/Hide | folds the sheet. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused", in Maker mode with "· N faults" and the newest game-log line under it |
 | QR code, address, "Code" field + Join | how Peers join; Join leaves this table for another one |
 | Game row | picks the Game "Start" starts; sorted by name; the Host's last pick is picked again, kept with the lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`, `lobby.picked`), else the first (`apps/pwa/src/hud.ts:211-213`). The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
 | Arrangement: Row / Column / Grid | the template; the default is Row (`apps/pwa/src/lobby.ts:203`) |
@@ -47,8 +49,9 @@ Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 | Players: P1, P2 (`seats: 'ends'`), or one row per Controller phone (`seats: 'controllers'`) | each Player's name (editable, up to 24 characters), where it sits ("phone 1", or "Controller"), and, with `'ends'`, a **Bot** chip when the Game's manifest has `bots: true` (`apps/pwa/src/hud.ts:316-335`) |
 | Start <Game> / End match | Start freezes the Match; End match stops it on every phone ("Match stopped") |
 | reason line | why Start was refused ([messages](troubleshooting.md#start-is-refused)), else "Last match: …" |
-| game log | the running (or last) Match's faults, `ctx.log` lines and close, newest first; the last 50 (`apps/pwa/src/gamelog.ts:10`) |
-| roster | every phone in Tile order with where it goes, its Player and clock sync; ◀ ▶ move a Tile; Controllers listed as "C"; a phone not heard for 2.5 s reads "weak connection" instead of its clock numbers ([weak connection](troubleshooting.md#the-hosts-roster-says-weak-connection-for-a-phone)), a lost one "disconnected" |
+| game log (Maker mode only) | the running (or last) Match's faults, `ctx.log` lines and close, newest first; the last 50 (`apps/pwa/src/gamelog.ts:10`) |
+| roster | every phone in Tile order with where it goes, its Player and a dot for its connection (green once its clock is synced; "connecting" before; in Maker mode the clock figures `rtt · Δoffset` or "syncing"); ◀ ▶ move a Tile; Controllers listed as "C"; a phone not heard for 2.5 s reads "weak connection" instead ([weak connection](troubleshooting.md#the-hosts-roster-says-weak-connection-for-a-phone)), a lost one "disconnected" |
+| Export log · Clear · "N lines" (Maker mode only) | the session log ([below](#the-session-log-what-each-phone-records-and-how-to-get-it-off-the-phone)) |
 
 ### Templates
 
@@ -111,7 +114,7 @@ The web manifest asks for `display: fullscreen` and `orientation: portrait`. On 
 
 Every page keeps a log of what it saw (`apps/pwa/src/recorder.ts`), in IndexedDB, so it survives reloads and crashes: the newest 20 000 lines (about 3 MB), one database per Device id. Nothing leaves the phone until you export it.
 
-**Export:** the Host's sheet has **Export log** (and **Clear**) at the bottom; a Peer's strip has **Log** at the top right. On a phone the browser's share sheet opens (`navigator.share` with a file): send the `.txt` to yourself by mail, AirDrop, Drive, a chat. Where files cannot be shared (desktop browsers), the file downloads. The name is `mgc-<code>-<host|peer>-<time>.txt`.
+**Export:** in [Maker mode](#connectivity-flags), the Host's sheet has **Export log** (and **Clear**) at the bottom and a Peer's strip has **Log** at the top right; without it the log still records, and switching Maker mode on later exports everything recorded before. On a phone the browser's share sheet opens (`navigator.share` with a file): send the `.txt` to yourself by mail, AirDrop, Drive, a chat. Where files cannot be shared (desktop browsers), the file downloads. The name is `mgc-<code>-<host|peer>-<time>.txt`.
 
 **Format:** NDJSON, one JSON object per line, the first a summary (`k: "export"`: Device, role, code, line count, when the log started). Every other line has `t` (shared time, ms: the Host's clock, this phone's own until it synced), `w` (wall time, ms since the epoch) and `k` (the kind), then the kind's fields:
 
@@ -141,6 +144,7 @@ Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Pe
 - **When a phone uses it.** ICE prefers a direct pair, so on a network that works the relay carries nothing. A Peer whose connection to the Host died three times in a row without lasting 15 s stops trying the direct path and joins through the relay only (`RELAY_AFTER` in `apps/pwa/src/main.ts`; the policy is `packages/core/src/relay-escalation.ts`); its log gets a `relay` line and its `ice` lines show a `relay` pair. If the relay does not connect within 20 s the phone goes back to trying every path. A relayed connection costs latency (the packets leave the table and come back) and counts against the account's quota.
 - **A Host that stops signaling its own addresses.** After one connection to a Peer ended within 15 s of coming up, the Host leaves its own addresses (ICE `typ host` candidates) out of what it signals for every connection that follows, until the page is reloaded (`WITHHOLD_AFTER` in `apps/pwa/src/main.ts`; `packages/core/src/own-addresses.ts`). A Peer still finds the Host: it sees where the Host's connectivity checks come from, and its `ice` lines then show the Host as `prflx`. It is there for an iPhone that is the Personal Hotspot: that phone signals its cellular address, and a Peer's checks toward it are what every dying attempt of live runs 5 and 6 had in common. Whether it makes the hotspot's direct path live is not yet shown on phones; the Host's log gets a `withhold` line, and a Peer that still fails goes to the relay as before. A Peer leaving within 15 s of joining on a healthy network switches it on too; there the connection forms the same way, checked between two Chrome tabs.
 - `?noturn` on the Host's address leaves the relay out, for comparison runs; the QR carries the flag so every Peer does the same.
+- `?maker` switches on **Maker mode**, the app as its makers see it (`apps/pwa/src/maker.ts`): the clock figures and words ("Syncing clocks", `rtt · Δoffset`), the counting beat on a phone's screen before it is in, the game log, and the session log's **Export log**, **Clear** and **Log**. The phone remembers it for later visits without the flag (`localStorage` `mgc.maker`); `?maker=no` switches it off again, and that is remembered too. The Host's QR code and its typed address ("open <address>/?maker") carry the flag, so one scan sets the whole table. The session log records the same lines with Maker mode on or off.
 - Phones are measured upright: the manifest asks for portrait (locked when installed), and a browser tab turned sideways shows "Turn your phone upright" until turned back.
 - Safari Page Zoom is corrected for (`device.ts` `pageZoom`): 75 % zoom no longer makes a phone's Tile a third too large. Safari applies the zoom some tens of ms after the page starts, so the phone is measured once its viewport has been still for 120 ms (`viewportSettled`).
 

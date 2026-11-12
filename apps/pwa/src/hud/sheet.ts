@@ -3,18 +3,19 @@ import { TEMPLATE_IDS, type TemplateId } from '@mgc/layout';
 import type { Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
 import type { Hud, HudOptions, Play } from '../hud';
+import { MAKER_FLAG } from '../maker';
 import { describeLast, esc, placementHint, statusDot, syncStats } from './shared';
 
 const TEMPLATE_LABEL: Record<TemplateId, string> = { row: 'Row', column: 'Column', grid: 'Grid' };
 
 /** The Host's bottom sheet: join code, Game, arrangement, Controllers, Player slots, Start, game log, roster, session log. */
 export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> {
-  const { session, lobby, code, games, play } = o;
+  const { session, lobby, code, games, play, maker } = o;
   const joinUrl = new URL(location.href);
-  // Peers join the same room with the same connectivity flags (`noturn`), so a Match never mixes paths.
-  joinUrl.search = `?room=${code}${new URLSearchParams(location.search).has('noturn') ? '&noturn' : ''}`;
-  /** The address to type: host plus the app's path, without the trailing slash (`manubown.github.io/Bezel`). */
-  const address = (joinUrl.host + joinUrl.pathname).replace(/\/$/, '');
+  // Peers join the same room with the same connectivity flags (`noturn`), so a Match never mixes paths, and in Maker mode with its flag, so one scan sets the whole table.
+  joinUrl.search = `?room=${code}${new URLSearchParams(location.search).has('noturn') ? '&noturn' : ''}${maker ? `&${MAKER_FLAG}` : ''}`;
+  /** The address to type: host plus the app's path, without the trailing slash (`manubown.github.io/Bezel`); in Maker mode with its flag (`manubown.github.io/Bezel/?maker`). */
+  const address = (joinUrl.host + joinUrl.pathname).replace(/\/$/, '') + (maker ? `/?${MAKER_FLAG}` : '');
   const qr = document.createElement('canvas');
   await QRCode.toCanvas(qr, joinUrl.toString(), { width: 168, margin: 0, color: { dark: '#121212', light: '#f2f0ea' } });
 
@@ -53,7 +54,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
       </div>
       <ol class="log" aria-label="Game log, newest first" hidden></ol>
       <ol class="roster"></ol>
-      <div class="diag">
+      <div class="diag"${maker ? '' : ' hidden'}>
         <button type="button" class="export">Export log</button>
         <button type="button" class="clear-log">Clear</button>
         <span class="diag-meta"></span>
@@ -81,7 +82,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     barAction.textContent = open ? 'Hide' : 'Setup';
   };
   bar.addEventListener('click', () => setOpen(!('open' in root.dataset)));
-  wireDiagnostics(root, o.log);
+  // The session log records in both modes; its export and clear are a maker's.
+  if (maker) wireDiagnostics(root, o.log);
   // Joining a table means leaving this one: the page reopens as a Peer of that room.
   const enter = root.querySelector<HTMLFormElement>('.enter')!;
   const roomInput = enter.elements.namedItem('room') as HTMLInputElement;
@@ -159,7 +161,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
       else delete root.dataset['playing'];
     }
     const placed = layout?.devices.length ?? 0;
-    const faults = play.log.filter((l) => l.kind === 'fault').length;
+    const faults = maker ? play.log.filter((l) => l.kind === 'fault').length : 0;
     const running = games.find((g) => g.id === lobby.game) ?? game;
     barMeta.textContent = play.running
       ? `${running.name} · ${play.paused ? 'paused' : 'playing'}${faults ? ` · ${faults} fault${faults === 1 ? '' : 's'}` : ''}`
@@ -183,10 +185,10 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
     const lastLine = described && [described.headline, described.detail].filter(Boolean).join(' · ');
     reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
 
-    // The game log: its newest line on the folded bar while a Match runs, every line in the sheet.
+    // The game log, in Maker mode: its newest line on the folded bar while a Match runs, every line in the sheet.
     const newest = play.log.at(-1);
-    barLog.hidden = !play.running || !newest;
-    if (play.log !== shownLog) {
+    barLog.hidden = !maker || !play.running || !newest;
+    if (maker && play.log !== shownLog) {
       shownLog = play.log;
       if (newest) {
         barLog.className = `bar-log log-${newest.kind}`;
@@ -270,6 +272,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions): Promise<Hud> 
       // Two missed heartbeats (`WEAK_MS`): still there and still in the Match, not paused for.
       if (e?.link === 'weak') return `${statusDot('wait')} weak connection`;
       const synced = e?.sync.synced === true;
+      // Players see the dot, and "connecting" until the phone's clock is in; a maker sees the clock figures.
+      if (!maker) return `${statusDot(synced ? 'ok' : 'wait')}${synced ? '' : ' connecting'}`;
       return `${statusDot(synced ? 'ok' : 'wait')} ${synced ? syncStats(e.sync) : 'syncing'}`;
     };
     const late = (id: string) => match !== undefined && !match.devices.some((m) => m.deviceId === id) && 'joins the next match';

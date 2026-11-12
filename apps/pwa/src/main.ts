@@ -6,6 +6,7 @@ import { LOG_LINES, logLineOf } from './gamelog';
 import { openHud, type Play } from './hud';
 import { openLobby, sessionLobbyStore } from './lobby';
 import { describePause, pauseOnDeviceLoss, type PauseNotice } from './pause';
+import { claimMakerMode } from './maker';
 import { drawMetronome, startCanvasLoop } from './metronome';
 import { createRecorder } from './recorder';
 import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
@@ -64,6 +65,8 @@ async function start(): Promise<void> {
   const [deviceId] = await Promise.all([claimDeviceId(), viewportSettled()]);
   const self = deviceInfo(deviceId);
   const params = new URLSearchParams(location.search);
+  // Maker mode (`?maker`, remembered on this Device; `?maker=no` switches it off) shows what players never see; the session log records either way.
+  const maker = claimMakerMode(params);
   const room = params.get('room')?.toUpperCase();
   const code = room ?? hostRoomCode();
   // The build's TURN relay (`VITE_MGC_TURN_SERVERS`, `turn.ts`): ICE prefers a direct pair, the relay is the fallback for
@@ -146,7 +149,7 @@ async function start(): Promise<void> {
     grace = undefined;
     graceExpired = false;
   };
-  const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted'), log: rec });
+  const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted'), log: rec, maker });
   /** At most one HUD render per animation frame for the game log: a game may log on every frame. */
   let logRender = 0;
   const renderLog = (): void => {
@@ -281,7 +284,9 @@ async function start(): Promise<void> {
   startCanvasLoop(stage, (f) => {
     if (play.running) return; // the Game owns the screen
     if (session.status === 'ready' && lobby.layout && lobby.surface) drawPreview(f, lobby.surface, lobby.layout);
-    else drawMetronome(f, session.clock.now(), session.status === 'ready');
+    // Before the preview: the shared-clock beat, a maker's sync probe; players see the bare ground.
+    else if (maker) drawMetronome(f, session.clock.now(), session.status === 'ready');
+    else f.ctx.clearRect(0, 0, f.w, f.h);
   });
 }
 

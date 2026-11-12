@@ -41,8 +41,13 @@ export interface HudOptions {
   play: Readonly<Play>;
   /** Host: ends the running Match. */
   abort(): void;
-  /** The session log this page keeps; the HUD offers its export. */
+  /** The session log this page keeps; the HUD offers its export in Maker mode. */
   log: Pick<Recorder, 'export' | 'clear' | 'count'>;
+  /**
+   * Maker mode (`maker.ts`): what players never see is shown (the clock figures and words, the game log, the session
+   * log's export and clear), and the Host's join address carries the flag. Off, the HUD speaks to players.
+   */
+  maker: boolean;
 }
 
 export interface Hud {

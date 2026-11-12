@@ -36,7 +36,7 @@ This is Vite (`pnpm --filter @mgc/pwa dev`) on port 5173, over HTTPS with a self
 2. On every other phone (a **Peer**), either scan the QR code, or open the same address and type the code into the "Code" field of the sheet and press Join. Opening `https://<your-LAN-ip>:5173/?room=CODE` directly does the same. Each phone accepts the certificate once.
 3. Open the Host page by its LAN address, not `localhost`: the QR code encodes the Host page's own URL with `?room=CODE` (and `&noturn` when the Host's address has it; `apps/pwa/src/hud.ts:127-129`), and the other phones cannot reach `localhost`.
 
-A Peer's top strip goes "Looking for the host…" → "Syncing clocks" → "Phone 2 of 2". Details, every control of the Host's sheet, and what can go wrong: [Running on phones](running-on-phones.md).
+A Peer's top strip goes "Looking for the host…" → "Connecting…" → "Phone 2 of 2" ("Syncing clocks" and the clock figures in [Maker mode](running-on-phones.md#connectivity-flags), `?maker`). Details, every control of the Host's sheet, and what can go wrong: [Running on phones](running-on-phones.md).
 
 ## Start Pong
 
