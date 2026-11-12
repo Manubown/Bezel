@@ -171,6 +171,16 @@
       .result-actions .change { border: 1px solid var(--line); }
       .result .result-refusal { margin-top: 10px; color: var(--wait); }
       .result .result-refusal:empty { display: none; }
+      /* The install offer (install.ts): under the result card's buttons, and as a row of the first phone's sheet. What, why, then the Install button or the steps. */
+      .offer { display: grid; gap: 4px; }
+      .offer p, .offer ol { margin: 0; }
+      .offer .offer-head { font-size: 16px; font-weight: 600; }
+      .offer .offer-reason { color: var(--fg-2); }
+      .offer .offer-install { min-height: 44px; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; font-weight: 600; }
+      .offer .offer-steps { margin-top: 6px; padding-left: 1.4em; display: grid; gap: 4px; font-size: 16px; text-align: left; }
+      .result .offer { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+      .result .offer-steps { justify-self: center; }
+      .install-row { padding-top: 12px; border-top: 1px solid var(--line); }
 
       /* A Peer not in its table after 15 s: what to check, Try again, and its code to correct (join.ts). Inputs at 16 px: an iPhone does not zoom on focus. */
       .help { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(88vw, 360px); display: grid; gap: 14px; padding: 20px; background: var(--raise); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); }
@@ -183,6 +193,12 @@
       .help form button { min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; font-weight: 600; }
       /* The first phone: one phone keeps losing its connection, and what usually helps. It heads the sheet, above its bar, folded or open. */
       .sheet .advice { flex: none; margin: 0; padding: 12px 16px; border-bottom: 2px solid var(--wait); }
+      /* Inside another app's browser (install.ts): open the page in Safari or Chrome. It heads the first phone's sheet, above the advice and the bar; on the other phones it is the strip's third line. */
+      .inapp { margin: 0; padding: 12px 16px; background: var(--raise); border-bottom: 2px solid var(--wait); }
+      .inapp b { display: block; font-weight: 600; }
+      .sheet .inapp { flex: none; }
+      .strip .inapp { grid-row: 3; grid-column: 1 / -1; margin: 10px -14px 0; color: var(--fg-2); }
+      .strip .inapp b { color: var(--fg); }
 
       @media (prefers-reduced-motion: reduce) { .sheet, .seg button, .card, .chip, .move { transition: none; } .splash-dot { animation: none; } }
       /* Phones are used upright: the Layout is measured in portrait. A touch screen turned sideways is asked back; a desktop window is left alone. */

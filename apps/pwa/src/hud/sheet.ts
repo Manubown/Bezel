@@ -8,11 +8,12 @@ import type { HudOptions, Play, Sheet } from '../hud';
 import { arrangements } from '../lobby';
 import { MAKER_FLAG } from '../maker';
 import { placementHint } from '../placement';
+import { offerHtml, wireOffer } from './install';
 import { describeLast, esc, statusDot, syncStats } from './shared';
 
 /**
  * The Host's bottom sheet: join code, a card per Game, the arrangement when the Game names more than one, Controllers
- * when it takes them, Player slots, Start, game log, roster, session log. `onToggle`: the Host folded or unfolded it
+ * when it takes them, Player slots, Start, game log, roster, the install offer's row, session log. `onToggle`: the Host folded or unfolded it
  * (the bar, `unfold`).
  */
 export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () => void): Promise<Sheet> {
@@ -61,6 +62,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
       </div>
       <ol class="log" aria-label="Game log, newest first" hidden></ol>
       <ol class="roster"></ol>
+      <div class="install-row" hidden></div>
       <div class="diag"${maker ? '' : ' hidden'}>
         <button type="button" class="export">Export log</button>
         <button type="button" class="clear-log">Clear</button>
@@ -82,6 +84,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
   const barLog = root.querySelector<HTMLElement>('.bar-log')!;
   const log = root.querySelector<HTMLOListElement>('.log')!;
   const roster = root.querySelector<HTMLOListElement>('.roster')!;
+  const installRow = root.querySelector<HTMLElement>('.install-row')!;
+  wireOffer(installRow, o.install);
 
   const setOpen = (open: boolean) => {
     if (open) root.dataset['open'] = '';
@@ -220,6 +224,10 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
     // A refusal is a warning; the last Match is news.
     reason.classList.toggle('last', !refusal);
+    // The install offer's row (`installOffer`): for good after this Device's first finished Match, unless installed.
+    const pitch = o.install.offer().row;
+    installRow.hidden = !pitch;
+    if (pitch && !installRow.hasChildNodes()) installRow.innerHTML = offerHtml(pitch);
 
     // The game log, in Maker mode: its newest line on the folded bar while a Match runs, every line in the sheet.
     const newest = play.log.at(-1);

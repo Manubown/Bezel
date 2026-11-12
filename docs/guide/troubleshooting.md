@@ -202,7 +202,7 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 
 ### The phone turned sideways and the Layout is wrong
 
-- **Cause:** phones are measured upright; a turned phone keeps the size it had at load. The current build asks for portrait (`manifest.webmanifest` `orientation: portrait`, locked when installed; in a browser tab a "Turn your phone upright" overlay covers a landscape screen).
+- **Cause:** phones are measured upright; a turned phone keeps the size it had at load. The current build asks for portrait (`manifest.webmanifest` `orientation: portrait`, locked when installed on Android; an iPhone ignores it, installed or not), and a "Turn your phone upright" overlay covers a landscape screen.
 
 ### Export log shared a 37-byte "Text.txt" with just the file name
 

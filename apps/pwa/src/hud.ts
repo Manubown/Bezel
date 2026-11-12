@@ -3,8 +3,10 @@ import type { CloseReason, Manifest, MatchResult, Player } from '@mgc/sdk';
 import type { LogLine } from './gamelog';
 import { dropoutAdvice } from './hud/advice';
 import { lastCard, pauseCard } from './hud/cards';
+import { inAppBanner } from './hud/install';
 import { hostSheet } from './hud/sheet';
 import { peerStrip } from './hud/strip';
+import type { Installer } from './installer';
 import type { Lobby } from './lobby';
 import type { PauseNotice } from './pause';
 import type { Recorder } from './recorder';
@@ -49,6 +51,11 @@ export interface HudOptions {
    * the session log's export and clear), and the Host's join address carries the flag. Off, the HUD speaks to players.
    */
   maker: boolean;
+  /**
+   * The install offer (`installer.ts`): the in-app-browser banner on every Device, the offer on the result card, and the
+   * Host's sheet row. A Peer's strip carries no row: its two lines are the phone's status.
+   */
+  install: Installer;
 }
 
 export interface Hud {
@@ -66,10 +73,10 @@ export interface Sheet extends Hud {
  * Host's bottom sheet (join code, Game, arrangement, Controllers, Player slots
  * with names and bots, Start, game log, and the roster in Tile order with its
  * move buttons) or a Peer's top strip with its help card, plus the last Match's close (its result,
- * or why it stopped; on the Host with Play again and Change game) and a paused Match's notice on
- * every Device, and on the Host the advice line when one phone keeps dropping. They step aside while
+ * or why it stopped; on the Host with Play again and Change game; the install offer under it) and a paused Match's notice on
+ * every Device, on the Host the advice line when one phone keeps dropping, and inside another app's browser the banner. They step aside while
  * this Device runs a Match. One module per surface: `hud/sheet.ts`, `hud/strip.ts`, `hud/cards.ts`,
- * `hud/advice.ts`; what they share is `hud/shared.ts`.
+ * `hud/advice.ts`, `hud/install.ts`; what they share is `hud/shared.ts`.
  */
 export async function openHud(root: HTMLElement, o: HudOptions): Promise<Hud> {
   // Folding or unfolding the sheet by hand renders the card, which steps aside for an unfolded sheet.
@@ -78,16 +85,19 @@ export async function openHud(root: HTMLElement, o: HudOptions): Promise<Hud> {
   const closeCard = lastCard(o, sheet);
   const pause = pauseCard(o.play);
   const advice = o.session.role === 'host' ? dropoutAdvice(root, o) : undefined;
+  const banner = inAppBanner(root, o);
   const hud: Hud = {
     render() {
       panel.render();
       closeCard();
       pause();
       advice?.();
+      banner();
     },
   };
   o.session.onChange(hud.render);
   o.lobby.onChange(hud.render);
+  o.install.onChange(hud.render);
   hud.render();
   return hud;
 }

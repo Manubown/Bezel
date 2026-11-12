@@ -82,6 +82,7 @@ A `Layout` is a set of `Tile`s `{ x, y, w, h, rot, deviceId }` in millimetres; `
 | a new Game-facing capability | `packages/sdk/src/{types,game,wire,match,game-side}.ts`, the test harness, `docs/sdk-design.md`, `docs/guide/api.md` |
 | a lobby rule (who may start, seats, templates) | `apps/pwa/src/lobby.ts` (+ `apps/pwa/test/lobby.test.ts`), the refusal messages quoted in `docs/guide/troubleshooting.md` |
 | the Host sheet or Peer strip | `apps/pwa/src/hud/sheet.ts`, `apps/pwa/src/hud/strip.ts` (the result and pause cards: `hud/cards.ts`; `hud.ts` opens them), `apps/pwa/index.html` |
+| the install offer and the in-app-browser banner | `apps/pwa/src/install.ts` (what to offer; `apps/pwa/test/install.test.ts`), `apps/pwa/src/installer.ts` (what the browser says, the prompt, the Device's count), `apps/pwa/src/hud/install.ts` |
 | the public name, pitch or address | `brand.json` at the workspace root, nothing else: the build fills in `apps/pwa/index.html` and writes the web manifest from it (`apps/pwa/brand.ts`), the sheet and the strip import it. The icons and the link-preview picture are SVG sources and PNGs in `apps/pwa/public/` |
 | connectivity, clock, roster | `packages/core/src/{trystero-transport,session,clock}.ts` |
 | another template or the mm math | `packages/layout/src/{templates,surface}.ts` |
