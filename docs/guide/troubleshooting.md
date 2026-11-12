@@ -7,7 +7,7 @@ One entry per symptom: what you see, why, what to do. Where a Game says somethin
 ### The browser says the connection is not private
 
 - **Cause:** the dev server's certificate is self-signed (`@vitejs/plugin-basic-ssl`, `apps/pwa/vite.config.ts`). HTTPS is required for the wake lock and WebRTC on phones.
-- **Fix:** accept the warning once on each phone and browser. To avoid it, use the hosted build (https://manubown.github.io/Bezel/), which has only the Games on `master`.
+- **Fix:** accept the warning once on each phone and browser. To avoid it, use the hosted build of `master` (https://manubown.github.io/Bezel/next/), which has only the Games on `master`.
 
 ### `pnpm install` refuses the lockfile after `pnpm new-game`
 
@@ -41,7 +41,7 @@ In Maker mode the PWA lists exactly the default exports of `games/*/src/index.ts
 | a phone has no internet: signaling goes through public Nostr relays (`packages/core/src/trystero-transport.ts:159-161`) | give every phone internet; there is no offline mode yet (M5, `docs/PLAN.md:88`) |
 | the phones are on different networks | put them on one Wi-Fi or one phone's hotspot (README) |
 | the Host page was opened as `localhost`, so its QR code points at `localhost` (`apps/pwa/src/hud.ts:127-129`) | open the Host page at the `Network` address Vite prints |
-| the Peer opened the address without `?room=`, so it became a Host of its own table | type the Host's code into its "Code" field, or open `/?room=CODE` |
+| the Peer opened the address without `?room=`, so it became a Host of its own table | type the Host's code under "Join a different table" at the bottom of its sheet, or open `/?room=CODE` |
 | the Host's page is closed, hidden or asleep: the Session lives on the Host (ADR-0002) | keep the Host's screen on and the page open |
 | the code is wrong: after 15 s the card reads "Table CODE not found yet" | type the code the first phone shows into the card's field and press Join; the page opens that table with the same flags |
 

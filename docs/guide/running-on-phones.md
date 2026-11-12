@@ -7,7 +7,7 @@
 - Open the `Network` address Vite prints (`https://<your-LAN-ip>:5173/`) on the Host phone. Each phone's browser warns about the self-signed certificate once; accept it.
 - Do not open the Host page as `localhost`: the join QR code is the Host page's own URL with `?room=CODE`, plus `&noturn` when the Host has it and `&maker` in [Maker mode](#connectivity-flags) (`apps/pwa/src/hud.ts:127-129`), so a `localhost` Host hands the other phones an address they cannot reach.
 - Another port: `pnpm --filter @mgc/pwa dev --port 5181`.
-- Without a laptop: every push to `master` publishes the PWA to https://manubown.github.io/Bezel/ (`.github/workflows/pages.yml`), with a real certificate but only the Games on `master`. `BASE_PATH=/Bezel/ pnpm build` builds the same into `apps/pwa/dist` (README).
+- Without a laptop: every push to `master` publishes the PWA to https://manubown.github.io/Bezel/next/ (`.github/workflows/pages.yml`), with a real certificate but only the Games on `master`. `BASE_PATH=/Bezel/next/ pnpm build` builds the same into `apps/pwa/dist`; `pnpm pages` builds the whole published site ([two hosted builds](#two-hosted-builds-the-latest-and-a-known-good-one)).
 
 ## Network
 
@@ -19,7 +19,7 @@
 
 - A phone that opens the address **without** `?room=` becomes a Host with a new 4-letter code (letters and digits without 0, O, 1, I, L: `apps/pwa/src/main.ts:20-21`). A reloaded Host tab keeps its code, so its Peers find it again (`apps/pwa/src/main.ts:22-23`, `41-46`), and its lobby: arrangement, Tile order, Controllers, Game and bots come back as the phones do; the running Match does not ([the host phone reloaded](troubleshooting.md#the-host-phone-reloaded)).
 - **QR:** a Peer scans the Host's QR code and opens `…/?room=CODE`.
-- **Code:** a Peer opens the address (the Host's sheet shows it: "Scan to join, or open <address> and enter the code."), types the code into its own sheet's "Code" field and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:199-210`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:67`).
+- **Code:** a Peer opens the address (the Host's sheet shows it: "Other phones: open the camera and scan this, or open <address> and join table <CODE>."), which makes it the first phone of a table of its own, opens "Join a different table" at the bottom of its sheet, types the code and presses Join; the page reloads as `?room=CODE` (`apps/pwa/src/hud.ts:199-210`). Typing `/?room=CODE` by hand is the same; the code is not case-sensitive (`apps/pwa/src/main.ts:67`). A Host's own code typed there, in any letter case, is refused ("<CODE> is this table’s code: scan the QR above with the other phones.", `apps/pwa/src/othertable.ts`): the page stays and its Session goes on.
 
 A Peer's top strip says where it is (`apps/pwa/src/hud.ts:443-481`):
 
@@ -39,14 +39,15 @@ In [Maker mode](#connectivity-flags) the second line holds the makers' words ("l
 
 ## The Host's sheet
 
-Top to bottom (`apps/pwa/src/hud.ts:136-175`):
+Top to bottom, the steps of getting a table going, then the rest (`apps/pwa/src/hud.ts:136-175`):
 
 | Control | What it does |
 |---|---|
 | banner (only inside another app's browser) | at the top, folded or open: "Open this page in Safari or Chrome" ([Installing as a PWA](#installing-as-a-pwa)) |
 | advice line (only when one phone keeps dropping) | above the bar, folded or open: "<phone> keeps losing its connection. An iPhone hotspot often fails: use the same Wi-Fi on every phone, or mobile data on every phone." once one phone's connection ended three times in a row within 15 s of coming in (the transport's measure of a connection that did not work, `RELAY_STABLE_MS`); it goes once that phone's connection lasts 15 s. Maker mode adds the count (`apps/pwa/src/hud/advice.ts`, `apps/pwa/src/join.ts`) |
 | bar: code · "N phones · in a row" · Setup/Hide | folds the sheet. It also folds by itself once, when the first other phone is ready in the lobby, so the Host's own placement cue shows; opened again, it stays open. While a Match runs the folded sheet is only a small "Setup" pill in the bottom-right corner (`apps/pwa/src/hud.ts:268-274`, `apps/pwa/index.html:42-44`); opened then, the bar reads "<Game> · playing/paused", in Maker mode with "· N faults" and the newest game-log line under it. When the Match ends it stays folded: the result card offers what comes next |
-| QR code, address, "Code" field + Join | how Peers join; Join leaves this table for another one |
+| QR code, "Other phones: open the camera and scan this, or open <address> and join table <CODE>." | how Peers join |
+| "Lay the phones like this": the roster | every phone in Tile order with where it goes, its Player and a dot for its connection (green once its clock is synced; "connecting" before; in Maker mode the clock figures `rtt · Δoffset` or "syncing"); ◀ ▶ move a Tile; Controllers listed as "C"; a phone not heard for 2.5 s reads "weak connection" instead ([weak connection](troubleshooting.md#the-hosts-roster-says-weak-connection-for-a-phone)), a lost one "disconnected" |
 | Game cards | one per Game: its name, how many play and how the phones lie ("2 players · phones in a row"); a tap picks the Game "Start" starts. Players see Pong, then Air Hockey; Maker mode every Game, sorted by name (`apps/pwa/src/gamelist.ts`). The Host's last pick is picked again, kept with the lobby across a reload of the Host's page (`sessionStorage` `mgc.lobby.<CODE>`, `lobby.picked`), when the list has it, else Pong. The Game decides how the lobby seats Players ([seats](concepts.md#seats-and-bots)) |
 | Arrangement: In a row / End to end / In a grid | the template; picking a Game selects the first its manifest's `templates` names (any, when it names none). Shown only when the Game names more than one, offering only those (Air Hockey: end to end, in a row) |
 | Controllers, or "Players’ phones" when the Game has `seats: 'controllers'` (`apps/pwa/src/hud.ts:289-292`): one chip per phone; shown only when the Game takes Controllers, and picking one that takes none puts every phone back on the table | pressed = Controller (held in hand, out of the Layout and the Tile order); press again to make it a Tile. Under "Players’ phones" each pressed phone is one Player's |
@@ -54,9 +55,9 @@ Top to bottom (`apps/pwa/src/hud.ts:136-175`):
 | Start <Game> / End match | Start freezes the Match; End match stops it on every phone ("Game ended on the first phone") |
 | reason line | why Start was refused ([messages](troubleshooting.md#start-is-refused)), in amber; else "Last match: …", in grey |
 | game log (Maker mode only) | the running (or last) Match's faults, `ctx.log` lines and close, newest first; the last 50 (`apps/pwa/src/gamelog.ts:10`) |
-| roster | every phone in Tile order with where it goes, its Player and a dot for its connection (green once its clock is synced; "connecting" before; in Maker mode the clock figures `rtt · Δoffset` or "syncing"); ◀ ▶ move a Tile; Controllers listed as "C"; a phone not heard for 2.5 s reads "weak connection" instead ([weak connection](troubleshooting.md#the-hosts-roster-says-weak-connection-for-a-phone)), a lost one "disconnected" |
 | install row (after this phone's first finished Match, unless installed) | the app for the home screen: Install (Android) or the steps (iPhone, iPad) ([Installing as a PWA](#installing-as-a-pwa)) |
 | Export log · Clear · "N lines" (Maker mode only) | the session log ([below](#the-session-log-what-each-phone-records-and-how-to-get-it-off-the-phone)) |
+| "Join a different table", folded | opened: a code field and Join, which leave this table for that one (the page reloads as `?room=CODE`). This table's own code, in any letter case, is refused in words and nothing else happens |
 
 When a Match ends with the sheet folded, the Host's result card ("Ana wins 7–5") offers **Play again**, the same Game with the same Players, arrangement and bots (`apps/pwa/src/lobby.ts` `startAgain`), and **Change game**, which opens the sheet. Play again is refused in words when a phone of that Match is no longer at the table ("Phone 2 is no longer at the table"), when a phone joined since (it has to be placed: use Change game), or when the Host changed the table since. A Match that ends while the sheet is open shows no card on the Host, only the "Last match" line.
 
@@ -169,11 +170,13 @@ Reading it: `jq -c 'select(.k=="clock") | [.t,.rtt,.offset]' log.txt` plots a Pe
 
 ## Two hosted builds: the latest and a known-good one
 
-Every push to `master` publishes the PWA to **https://manubown.github.io/Bezel/**. The same site also serves **https://manubown.github.io/Bezel/stable/**: the commit the git tag `stable` points at, built from its own tree (`.github/workflows/pages.yml`). So a change that misbehaves on phones is tested against the known-good build by opening the other address: no rollback, no redeploy, both are live at once.
+Every push to `master` publishes the PWA to **https://manubown.github.io/Bezel/next/**. The same site also serves **https://manubown.github.io/Bezel/play/**, the app for everyone: the commit the git tag `stable` points at, built from its own tree. Both sit below the site at **https://manubown.github.io/Bezel/** (`apps/site`), and one workflow publishes all three (`.github/workflows/pages.yml`, `scripts/pages.mjs`). So a change that misbehaves on phones is tested against the known-good build by opening the other address: no rollback, no redeploy, both are live at once.
 
-- `pnpm stable` prints where `stable` points; `pnpm stable <ref>` moves the tag to a commit, tag or branch, pushes it, and Pages rebuilds both channels (`scripts/stable.mjs`). `/stable/COMMIT` names the commit the channel was built from.
-- Put every phone on the **same** address: a Host on `/stable/` and a Peer on `/` are different builds, and the QR code only guarantees that by encoding the Host page's own URL.
-- Both channels share the origin, so a phone keeps its Device id and its session logs across them.
+- `pnpm stable` prints where `stable` points; `pnpm stable <ref>` moves the tag to a commit, tag or branch, pushes it, and Pages rebuilds the site and both builds (`scripts/stable.mjs`). `/play/COMMIT` and `/next/COMMIT` name the commit each build was made from.
+- Put every phone on the **same** address: a Host on `/play/` and a Peer on `/next/` are different builds, and the QR code only guarantees that by encoding the Host page's own URL.
+- The old addresses forward, each with its query: `/Bezel/stable/` to `/Bezel/play/`; `/Bezel/?room=CODE`, the QR of a first phone still on a build from before the move, to `/Bezel/next/?room=CODE`; `/Bezel/` opened from an icon installed from it to `/Bezel/play/`.
+- Both builds share the origin, so a phone keeps its Device id and its session logs across them.
+- `pnpm pages` builds what Pages publishes into `apps/site/dist` and checks that every link resolves and every forward keeps its query; `pnpm --filter @mgc/site preview` serves it under `/Bezel/` (Node 22.23.4 or newer, for Astro).
 
 ## Several tabs on one computer
 

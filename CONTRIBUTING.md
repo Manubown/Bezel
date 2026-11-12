@@ -6,17 +6,18 @@ Short version: `pnpm install`, change something, `pnpm typecheck && pnpm test`, 
 
 | Tool | Version | Pinned in |
 |---|---|---|
-| Node | 22 | `.github/workflows/pages.yml` (what CI runs) |
+| Node | 22 (22.23.4 or newer: Astro needs it for the site) | `.github/workflows/pages.yml` (what CI runs) |
 | pnpm | 10.33.0 | `package.json` `packageManager`; `corepack enable` picks it up |
 
 ```sh
 pnpm install
 pnpm dev          # Vite dev server over self-signed HTTPS on the LAN
 pnpm test         # vitest over packages/, games/, apps/
-pnpm typecheck    # tsc -p . in every workspace package (strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes)
+pnpm typecheck    # tsc -p . in every workspace package but the site (strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes)
+pnpm pages        # the site and both app builds as Pages publishes them, into apps/site/dist, checked
 ```
 
-The workspace is `apps/*`, `packages/*`, `games/*` (`pnpm-workspace.yaml`). CI (`pages.yml`) runs install with `--frozen-lockfile`, then typecheck, test, build, and publishes `apps/pwa/dist` to GitHub Pages on every push to `master`.
+The workspace is `apps/*`, `packages/*`, `games/*` (`pnpm-workspace.yaml`); `apps/site` is the site, an Astro project that `astro check` checks when it builds. CI (`pages.yml`) runs install with `--frozen-lockfile`, then typecheck, test and `pnpm pages`, and publishes `apps/site/dist` to GitHub Pages on every push to `master`.
 
 ## Where things go
 
@@ -61,6 +62,6 @@ The issue tracker is in the repo: one directory per feature under `.scratch/<fea
 
 ## Releases
 
-There is no version number; `master` is live at <https://manubown.github.io/Bezel/> after every push. A known-good commit is promoted with `pnpm stable <ref>`, which moves the `stable` git tag and pushes it; Pages then rebuilds <https://manubown.github.io/Bezel/stable/> from that commit (`.github/workflows/pages.yml`). Move the tag after a successful run on real phones, not after a green CI.
+There is no version number. Pages serves the site at <https://manubown.github.io/Bezel/> (brand.json's `address`) and the app twice below it: <https://manubown.github.io/Bezel/next/> is `master`, live after every push; <https://manubown.github.io/Bezel/play/> is the app for everyone, built from the commit the `stable` git tag points at. A known-good commit is promoted with `pnpm stable <ref>`, which moves the tag and pushes it; Pages then rebuilds `play/` from that commit (`.github/workflows/pages.yml`). Move the tag after a successful run on real phones, not after a green CI. The old address of the stable build, `/Bezel/stable/`, forwards to `play/`; the site's root opened with a join code forwards to `next/`, and opened from an installed icon to `play/`. `pnpm pages` builds the same into `apps/site/dist` and checks that every link resolves and every forward keeps its query; `pnpm --filter @mgc/site preview` serves it under `/Bezel/`.
 
-The hosted build takes its TURN relay from the repository secret `MGC_TURN_SERVERS`; `pnpm setup-turn` (from Git Bash on Windows) sets it and the dev server's `apps/pwa/.env.local` (`docs/guide/running-on-phones.md` §Connectivity flags). A fork without the secret builds a PWA without a relay.
+Both hosted app builds take their TURN relay from the repository secret `MGC_TURN_SERVERS`; `pnpm setup-turn` (from Git Bash on Windows) sets it and the dev server's `apps/pwa/.env.local` (`docs/guide/running-on-phones.md` §Connectivity flags). A fork without the secret builds a PWA without a relay.

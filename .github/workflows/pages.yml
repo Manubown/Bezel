@@ -1,9 +1,15 @@
-# Builds the PWA and publishes it to GitHub Pages on every push to master, and
-# whenever the `stable` tag moves, so phones can open it with no dev server:
-#   https://manubown.github.io/Bezel/          master, the latest
-#   https://manubown.github.io/Bezel/stable/   the commit the `stable` tag points at
-# Two builds on one site: a change that breaks phones is tested against the
-# known-good one by opening the other address; `pnpm stable <ref>` moves the tag.
+# Publishes the site and the app to GitHub Pages on every push to master, and whenever the `stable` tag moves
+# (spec D16 of .scratch/outside-view):
+#   https://manubown.github.io/Bezel/          the site (apps/site), at brand.json's address
+#   https://manubown.github.io/Bezel/play/     the app for everyone: the commit the `stable` tag points at, built from
+#                                              its own tree (master while there is no tag)
+#   https://manubown.github.io/Bezel/next/     the app as on master, for the makers
+#   https://manubown.github.io/Bezel/stable/   forwards to play/ with its query: old links, QR codes and icons
+#   https://manubown.github.io/Bezel/?room=…   forwards to next/ with its query: the QR of a first phone still on a
+#                                              build from before the move; the root opened from an installed icon
+#                                              forwards to play/
+# One upload, so the site and both app builds cannot drift apart. `pnpm pages` builds and checks the same into
+# apps/site/dist; `pnpm stable <ref>` moves the tag.
 name: pages
 
 on:
@@ -25,41 +31,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: master
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
+          # Astro needs 22.23.4 or newer; the runner's cached 22 may be older.
           node-version: 22
+          check-latest: true
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm build
+      # The site (with `astro check`), both app builds, the forwards; fails on a link that does not resolve or a
+      # forward that drops its query (scripts/pages.mjs).
+      - run: pnpm pages
         env:
-          # The repository name: Pages serves a project site from /<repo>/.
-          BASE_PATH: /${{ github.event.repository.name }}/
-          # The TURN relay's ICE servers as a JSON array (`apps/pwa/src/turn.ts`); unset = no relay. `pnpm setup-turn` sets it.
+          # The TURN relay's ICE servers as a JSON array (`apps/pwa/src/turn.ts`), in both app builds; unset = no
+          # relay. `pnpm setup-turn` sets it.
           VITE_MGC_TURN_SERVERS: ${{ secrets.MGC_TURN_SERVERS }}
-      # The stable channel: the tagged commit, built from its own tree, served under /stable/.
-      - name: Build the stable tag
-        env:
-          VITE_MGC_TURN_SERVERS: ${{ secrets.MGC_TURN_SERVERS }}
-        run: |
-          if git rev-parse -q --verify refs/tags/stable >/dev/null; then
-            git worktree add ../stable stable
-            (cd ../stable && pnpm install --frozen-lockfile && BASE_PATH="/${{ github.event.repository.name }}/stable/" pnpm build)
-            mkdir -p apps/pwa/dist/stable
-            cp -r ../stable/apps/pwa/dist/. apps/pwa/dist/stable/
-            git -C ../stable rev-parse --short HEAD > apps/pwa/dist/stable/COMMIT
-          else
-            echo "no stable tag: only master is published"
-          fi
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
-          path: apps/pwa/dist
+          path: apps/site/dist
 
   deploy:
     needs: build
@@ -69,4 +64,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
