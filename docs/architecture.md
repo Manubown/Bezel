@@ -34,6 +34,8 @@ Dependency rules. The arrows are the only ones the `package.json` dependencies a
 | `games/*` | `@mgc/sdk` | `core`, `layout`, `apps/pwa` (each Game's "imports nothing but the SDK" test) |
 | `apps/pwa` | all three packages, `games/*` via discovery | – |
 
+The site (`apps/site`) imports from `@mgc/pwa` only the modules that `apps/pwa/package.json`'s `exports` name (`games`, `gamelist`, `install`, `join`, `sessioncode`, the files in `public/`). Each is pure when loaded: no DOM, no storage, no state, nothing that runs on import, so the site renders them at build time and in its own few scripts. The lobby, the HUD and `main.ts` hold state and are never exported.
+
 ## 2. One phone, from page load to a running Game (`apps/pwa/src/main.ts`)
 
 1. **Identity.** `claimDeviceId()` (`device.ts`) gives the tab a persisted `DeviceId`; `deviceInfo()` measures the screen (CSS px, `dpr`, a `pxPerMm` heuristic per platform, corrected for Safari Page Zoom).

@@ -4,12 +4,12 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "//": "exports: the app's modules the site (apps/site) imports. Each is pure when loaded: no DOM, no storage, no state, nothing that runs on import. A stateful module (the lobby, the HUD, main.ts) is never exported (docs/architecture.md §1).",
   "exports": {
     "./games": "./src/games.ts",
     "./gamelist": "./src/gamelist.ts",
     "./install": "./src/install.ts",
     "./join": "./src/join.ts",
-    "./lobby": "./src/lobby.ts",
     "./sessioncode": "./src/sessioncode.ts",
     "./public/*": "./public/*"
   },

@@ -1,6 +1,5 @@
-import type { TemplateId } from '@mgc/layout';
+import { TEMPLATE_IDS, type TemplateId } from '@mgc/layout';
 import type { Manifest, Range } from '@mgc/sdk';
-import { templatesOf } from './lobby';
 
 /**
  * The Games players see on the Host, in the order they see them (spec D2): Pong, then Air Hockey.
@@ -20,6 +19,11 @@ export function gameList(discovered: readonly Manifest[], maker: boolean): Manif
  */
 export function firstPick(shown: readonly Manifest[], remembered: string | undefined): Manifest | undefined {
   return shown.find((g) => g.id === remembered) ?? gameList(shown, false)[0] ?? shown[0];
+}
+
+/** The templates `game` can be played in, the one picking it selects first (spec D6): its Manifest's `templates`, else every template. */
+export function templatesOf(game: Manifest): readonly TemplateId[] {
+  return game.templates?.length ? game.templates : TEMPLATE_IDS;
 }
 
 /** How the phones on the table lie in each template, in words a stranger reads. */

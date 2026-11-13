@@ -1,6 +1,5 @@
-import { TEMPLATE_WORDS, cardLine, gameList } from '@mgc/pwa/gamelist';
+import { TEMPLATE_WORDS, cardLine, gameList, templatesOf } from '@mgc/pwa/gamelist';
 import type { GAMES } from '@mgc/pwa/games';
-import { templatesOf } from '@mgc/pwa/lobby';
 
 /** A Game's Manifest, as the app discovers it in `games/*`. */
 type Manifest = (typeof GAMES)[number]['manifest'];

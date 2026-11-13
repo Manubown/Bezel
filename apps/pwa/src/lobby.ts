@@ -1,6 +1,7 @@
 import type { DeviceId, RosterEntry, Session, SessionStatus } from '@mgc/core';
 import { Surface, TEMPLATE_IDS, buildLayout, isLayout, type DeviceRect, type Layout, type Rect, type TemplateId } from '@mgc/layout';
 import type { Device, Manifest, MatchInfo, Player, PlayerId, Range, Tile } from '@mgc/sdk';
+import { templatesOf } from './gamelist';
 
 /** The lobby's Session channel: Host → Peers the lobby state, Peer → Host who sits there. */
 const LOBBY_CHANNEL = 'lobby';
@@ -106,11 +107,6 @@ export interface Lobby {
  */
 export function openLobby(session: Session, pxPerMm: number, playerId: PlayerId, store?: LobbyStore): Lobby {
   return session.role === 'host' ? new HostLobby(session, pxPerMm, playerId, store) : new PeerLobby(session, pxPerMm, playerId);
-}
-
-/** The templates `game` can be played in, the one picking it selects first (spec D6): its Manifest's `templates`, else every template. */
-export function templatesOf(game: Manifest): readonly TemplateId[] {
-  return game.templates?.length ? game.templates : TEMPLATE_IDS;
 }
 
 /** The Host's lobby decisions, saved across a reload of its page: nothing derived from them, never a Match. */
