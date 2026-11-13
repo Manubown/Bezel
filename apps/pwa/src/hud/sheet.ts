@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import brand from '../../../../brand.json';
 import { TEMPLATE_WORDS, cardLine, firstPick, gameList, templatesOf } from '../gamelist';
 import type { HudOptions, Play, Sheet } from '../hud';
+import { keepLastGame, lastGame } from '../lastgame';
 import { look } from '../look';
 import { MAKER_FLAG } from '../maker';
 import { CODE_LENGTH, joinAddress, otherSession, sessionCode } from '../sessioncode';
@@ -138,14 +139,18 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     // With this page's flags as written (`maker`, `noturn`), as the help card's code field does.
     else location.assign(joinAddress(location.href, to.code));
   });
-  /** The Game Start starts: the lobby's pick, saved across a reload of the Host's page, if this phone offers it, else Pong (`firstPick`). */
-  let game = firstPick(shown, lobby.picked)!;
+  /**
+   * The Game Start starts: the lobby's pick, saved across a reload of the Host's page, else this Device's last pick, if
+   * this phone offers it, else Pong (`firstPick`).
+   */
+  let game = firstPick(shown, [lobby.picked, lastGame()])!;
   lobby.setGame(game);
   gameSeg.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-g]');
     if (!btn) return;
     game = shown.find((g) => g.id === btn.dataset['g']) ?? game;
     lobby.setGame(game);
+    keepLastGame(game.id);
     refusal = '';
     render();
   });

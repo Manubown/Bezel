@@ -14,11 +14,16 @@ export function gameList(discovered: readonly Manifest[], maker: boolean): Manif
 }
 
 /**
- * The Game picked when the sheet opens: the remembered pick (`Lobby.picked`) if `shown` has it, else the first featured
- * Game it has (Pong, in Maker mode too), else the first shown.
+ * The Game picked when the sheet opens: the first of the `remembered` picks, in order, that `shown` has (this Session's
+ * pick across a reload of the Host's page, `Lobby.picked`, then the Device's last pick on an earlier visit,
+ * `lastgame.ts`), else the first featured Game it has (Pong, in Maker mode too), else the first shown (spec D2, story 6).
  */
-export function firstPick(shown: readonly Manifest[], remembered: string | undefined): Manifest | undefined {
-  return shown.find((g) => g.id === remembered) ?? gameList(shown, false)[0] ?? shown[0];
+export function firstPick(shown: readonly Manifest[], remembered: readonly (string | undefined)[]): Manifest | undefined {
+  for (const id of remembered) {
+    const game = shown.find((g) => g.id === id);
+    if (game) return game;
+  }
+  return gameList(shown, false)[0] ?? shown[0];
 }
 
 /** The templates `game` can be played in, the one picking it selects first (spec D6): its Manifest's `templates`, else every template. */

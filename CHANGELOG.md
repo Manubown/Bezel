@@ -22,7 +22,7 @@ The app for everyone ([`play/`](https://manubown.github.io/Bezel/play/)) is the 
 
 - The night-table look: a near-black table, ivory text, coral and teal for the first two players, and a display face of its own, served with the app, for the name, game titles and scores. Every control on the first phone's sheet is at least 44 px high, and typing a code no longer makes an iPhone zoom in.
 - Scores in Pong and Air Hockey are brighter, and Air Hockey's message before the start no longer runs into the score when the phones lie in a row.
-- The first phone offers two games, Pong and Air Hockey, as cards that say how many play and how the phones lie; picking one lays the phones the way it needs. The other five games, the clock figures and the log export are in Maker mode (add `?maker` to the address).
+- The first phone offers two games, Pong and Air Hockey, as cards that say how many play and how the phones lie; picking one lays the phones the way it needs. The other five games, the clock figures and the log export are in Maker mode (add `?maker` to the address). It offers the game last picked on that phone first, also on a later visit.
 - The first phone's sheet reads as steps: the QR code ("Other phones: open the camera and scan this"), how to lay the phones, the game, the players, Start. "Join a different table" is folded at the bottom and refuses the table's own code, so the first phone cannot end its own table by mistake.
 
 ## Connecting, round 2 (2026-11-10 to 2026-11-11)

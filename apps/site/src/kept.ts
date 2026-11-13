@@ -11,7 +11,7 @@ export interface Kept {
   sources: string[];
 }
 
-/** Read off the code: `device.ts`, `maker.ts`, `sound.ts`, `installer.ts`, `main.ts`, `lobby.ts`, `recorder.ts`. */
+/** Read off the code: `device.ts`, `maker.ts`, `sound.ts`, `installer.ts`, `lastgame.ts`, `main.ts`, `lobby.ts`, `recorder.ts`. */
 export const KEPT: Kept[] = [
   {
     what: 'A Device id',
@@ -39,6 +39,11 @@ export const KEPT: Kept[] = [
     detail:
       'How many games this phone has finished, and whether you closed a result card that carried the offer or used it there, so that the offer comes after your first finished game and does not keep coming back on the cards. It stays until you delete it.',
     sources: ['installer.ts'],
+  },
+  {
+    what: 'The last game you picked',
+    detail: 'On the first phone, once you picked a game on its sheet: which one, so that the next table you open starts with it. It stays until you delete it.',
+    sources: ['lastgame.ts'],
   },
   {
     what: 'The table you opened',

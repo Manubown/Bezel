@@ -42,23 +42,29 @@ describe('firstPick', () => {
   const makers = gameList(DISCOVERED, true);
 
   it('is Pong on a Device that never picked, in Maker mode too', () => {
-    expect(firstPick(players, undefined)?.id).toBe('mgc.pong');
-    expect(firstPick(makers, undefined)?.id).toBe('mgc.pong');
+    expect(firstPick(players, [])?.id).toBe('mgc.pong');
+    expect(firstPick(makers, [undefined, undefined])?.id).toBe('mgc.pong');
   });
 
   it('is the remembered Game when the list the Device shows has it', () => {
-    expect(firstPick(players, 'mgc.air-hockey')?.id).toBe('mgc.air-hockey');
-    expect(firstPick(makers, 'mgc.snake')?.id).toBe('mgc.snake');
+    expect(firstPick(players, ['mgc.air-hockey'])?.id).toBe('mgc.air-hockey');
+    expect(firstPick(makers, ['mgc.snake'])?.id).toBe('mgc.snake');
   });
 
-  it('is Pong when the remembered Game is not in the list: a maker’s pick on a player’s list, or a Game gone', () => {
-    expect(firstPick(players, 'mgc.snake')?.id).toBe('mgc.pong');
-    expect(firstPick(players, 'mgc.gone')?.id).toBe('mgc.pong');
-    expect(firstPick(makers, 'mgc.gone')?.id).toBe('mgc.pong');
+  it('is the Device’s last pick on a new visit, and this table’s own pick across a reload before that (story 6)', () => {
+    expect(firstPick(players, [undefined, 'mgc.air-hockey'])?.id).toBe('mgc.air-hockey');
+    expect(firstPick(players, ['mgc.pong', 'mgc.air-hockey'])?.id).toBe('mgc.pong');
+    expect(firstPick(players, ['mgc.snake', 'mgc.air-hockey'])?.id).toBe('mgc.air-hockey');
+  });
+
+  it('is Pong when no remembered Game is in the list: a maker’s pick on a player’s list, or a Game gone', () => {
+    expect(firstPick(players, ['mgc.snake'])?.id).toBe('mgc.pong');
+    expect(firstPick(players, [undefined, 'mgc.gone'])?.id).toBe('mgc.pong');
+    expect(firstPick(makers, ['mgc.gone'])?.id).toBe('mgc.pong');
   });
 
   it('is the first Game shown when the list has no Pong', () => {
-    expect(firstPick(gameList(DISCOVERED.slice(1, 3), true), undefined)?.id).toBe('mgc.breakout');
+    expect(firstPick(gameList(DISCOVERED.slice(1, 3), true), [])?.id).toBe('mgc.breakout');
   });
 });
 
