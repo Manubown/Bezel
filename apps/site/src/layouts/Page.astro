@@ -1,7 +1,8 @@
 ---
 // Every page of the site: the app's look (@mgc/look: its tokens, its display face fetched at once from this origin),
-// a link preview, the footer. A page's own first script (a forward) goes in the `first` slot, before anything the
-// browser would otherwise load; a page's own head elements go in `head`.
+// the icon, a link preview, the sitemap, the name back to the home page on every other page, the footer. A page's own
+// first script (a forward) goes in the `first` slot, before anything the browser would otherwise load; a page's own
+// head elements go in `head`.
 import '@mgc/look/tokens.css';
 import '../styles/site.css';
 import { groundOf } from '@mgc/look';
@@ -52,6 +53,13 @@ const canonical = new URL(Astro.url.pathname, Astro.site).href;
     <slot name="head" />
   </head>
   <body>
+    {
+      title && (
+        <header class="column top">
+          <a class="home" href={import.meta.env.BASE_URL}>{brand.name}</a>
+        </header>
+      )
+    }
     <slot />
     <div class="column">
       <Footer />

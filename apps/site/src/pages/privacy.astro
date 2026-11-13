@@ -5,7 +5,7 @@
 import brand from '../../../../brand.json';
 import Detail from '../components/Detail.astro';
 import { KEPT } from '../kept';
-import Legal from '../layouts/Legal.astro';
+import Page from '../layouts/Page.astro';
 
 /** Where the site and the app are published, and so where the browser keeps the app's data. */
 const host = new URL(brand.address).host;
@@ -20,110 +20,112 @@ const STUN = { google: ['stun.l.google.com', 'stun1.l.google.com', 'stun2.l.goog
 const RELAY_HOST = 'standard.relay.metered.ca';
 ---
 
-<Legal title="Privacy" description={`What ${brand.name} keeps on your phone, who your phone talks to while you play, and what each of them sees.`}>
-  <h1>Privacy</h1>
-  <p>
-    {brand.name} has no accounts, no cookies, no analytics and no ads. It never asks who you are, and nothing you do in it
-    is sent to its makers.
-  </p>
-  <p>
-    To bring the phones of a table together over the internet, though, your phone talks to a few others. This page names
-    each of them and what it sees. It was checked against the app on 13 November 2026.
-  </p>
+<Page title="Privacy" description={`What ${brand.name} keeps on your phone, who your phone talks to while you play, and what each of them sees.`}>
+  <main class="column prose">
+    <h1>Privacy</h1>
+    <p>
+      {brand.name} has no accounts, no cookies, no analytics and no ads. It never asks who you are, and nothing you do in it
+      is sent to its makers.
+    </p>
+    <p>
+      To bring the phones of a table together over the internet, though, your phone talks to a few others. This page names
+      each of them and what it sees. It was checked against the app on 13 November 2026.
+    </p>
 
-  <h2>Who your phone talks to</h2>
+    <h2>Who your phone talks to</h2>
 
-  <h3>GitHub, which hosts these pages</h3>
-  <p>
-    The site and the app are files on GitHub Pages, run by GitHub, Inc. When your phone opens them, GitHub sees its IP
-    address, the addresses it opens (for a phone that joins by the QR code, that includes the table’s code) and which
-    browser it uses, as the host of any website does. GitHub says it logs visitors’ IP addresses for security (<a
-      href="https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages#data-collection"
-      >GitHub Pages: data collection</a
-    >, <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub’s privacy statement</a>).
-  </p>
+    <h3>GitHub, which hosts these pages</h3>
+    <p>
+      The site and the app are files on GitHub Pages, run by GitHub, Inc. When your phone opens them, GitHub sees its IP
+      address, the addresses it opens (for a phone that joins by the QR code, that includes the table’s code) and which
+      browser it uses, as the host of any website does. GitHub says it logs visitors’ IP addresses for security (<a
+        href="https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages#data-collection"
+        >GitHub Pages: data collection</a
+      >, <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub’s privacy statement</a>).
+    </p>
 
-  <h3>Five public signaling relays, where phones find each other</h3>
-  <p>
-    Phones find their table through five public relays of the Nostr network, run by people and companies that have nothing
-    to do with {brand.name}:
-    {RELAYS.map((relay, i) => (<>{i > 0 && (i === RELAYS.length - 1 ? ' and ' : ', ')}<code>{relay}</code></>))}.
-    They are the ones the connection library {brand.name} is built on (Trystero) picks for it; {brand.name} does not pick its own.
-    While the app is open, your phone stays connected to them. A relay sees:
-  </p>
-  <ul>
-    <li>your phone’s IP address;</li>
-    <li>
-      the table’s name, scrambled: the code itself is not sent, but a code of four letters can be worked back out by anyone
-      who tries;
-    </li>
-    <li>
-      each phone’s offer to connect, locked with a key made from the table’s code. An offer holds the network addresses a
-      direct connection could use.
-    </li>
-  </ul>
-  <p>
-    Anyone else connected to the same relay can see the same messages. Nothing of the game itself passes through the relays.
-    Your phone signs its messages with a key it makes anew each time the app opens, so that key does not tell your visits apart.
-  </p>
+    <h3>Five public signaling relays, where phones find each other</h3>
+    <p>
+      Phones find their table through five public relays of the Nostr network, run by people and companies that have nothing
+      to do with {brand.name}:
+      {RELAYS.map((relay, i) => (<>{i > 0 && (i === RELAYS.length - 1 ? ' and ' : ', ')}<code>{relay}</code></>))}.
+      They are the ones the connection library {brand.name} is built on (Trystero) picks for it; {brand.name} does not pick its own.
+      While the app is open, your phone stays connected to them. A relay sees:
+    </p>
+    <ul>
+      <li>your phone’s IP address;</li>
+      <li>
+        the table’s name, scrambled: the code itself is not sent, but a code of four letters can be worked back out by anyone
+        who tries;
+      </li>
+      <li>
+        each phone’s offer to connect, locked with a key made from the table’s code. An offer holds the network addresses a
+        direct connection could use.
+      </li>
+    </ul>
+    <p>
+      Anyone else connected to the same relay can see the same messages. Nothing of the game itself passes through the relays.
+      Your phone signs its messages with a key it makes anew each time the app opens, so that key does not tell your visits apart.
+    </p>
 
-  <h3>Google and Cloudflare, which tell a phone its address</h3>
-  <p>
-    Before two phones connect, each one asks an address server (STUN) where its traffic reaches the internet from:
-    {STUN.google.map((server, i) => (<>{i > 0 && ', '}<code>{server}</code></>))} (Google) and <code>{STUN.cloudflare}</code>
-    (Cloudflare). They come with the same library. They see your phone’s IP address each time it sets up a connection, and nothing else.
-  </p>
+    <h3>Google and Cloudflare, which tell a phone its address</h3>
+    <p>
+      Before two phones connect, each one asks an address server (STUN) where its traffic reaches the internet from:
+      {STUN.google.map((server, i) => (<>{i > 0 && ', '}<code>{server}</code></>))} (Google) and <code>{STUN.cloudflare}</code>
+      (Cloudflare). They come with the same library. They see your phone’s IP address each time it sets up a connection, and nothing else.
+    </p>
 
-  <h3>Metered, which runs the Relay</h3>
-  <p>
-    When two phones cannot reach each other directly, as on some phone hotspots and mobile networks, their connection goes
-    through a Relay: <code>{RELAY_HOST}</code>, run by Metered (Next Path Software Consulting Inc., Canada) on the makers’
-    account. Each phone asks the Relay for a way through whenever it sets up a connection, so Metered sees your phone’s IP
-    address each time; the game passes through it only when the direct way does not work. Then Metered also sees when the
-    phones play and how much data passes. Everything that passes between the phones is encrypted, as every connection between
-    browsers is, so the Relay cannot read the game. Metered says it keeps this connection data for 30 days (<a
-      href="https://www.metered.ca/privacy">Metered’s privacy policy</a
-    >).
-  </p>
+    <h3>Metered, which runs the Relay</h3>
+    <p>
+      When two phones cannot reach each other directly, as on some phone hotspots and mobile networks, their connection goes
+      through a Relay: <code>{RELAY_HOST}</code>, run by Metered (Next Path Software Consulting Inc., Canada) on the makers’
+      account. Each phone asks the Relay for a way through whenever it sets up a connection, so Metered sees your phone’s IP
+      address each time; the game passes through it only when the direct way does not work. Then Metered also sees when the
+      phones play and how much data passes. Everything that passes between the phones is encrypted, as every connection between
+      browsers is, so the Relay cannot read the game. Metered says it keeps this connection data for 30 days (<a
+        href="https://www.metered.ca/privacy">Metered’s privacy policy</a
+      >).
+    </p>
 
-  <h3>The other phones at your table</h3>
-  <p>
-    The phones of a table connect to each other directly whenever they can, and like any direct connection, each one sees
-    the others’ IP addresses. Your phone also sends them what the table needs: what kind of phone it is (for example “iPhone”
-    or “Android”), the size of its screen, its Device id and Player id (below), the Players’ names, and your touches during a
-    game. The first phone passes every phone’s messages on to the others, so it sees all of them.
-  </p>
+    <h3>The other phones at your table</h3>
+    <p>
+      The phones of a table connect to each other directly whenever they can, and like any direct connection, each one sees
+      the others’ IP addresses. Your phone also sends them what the table needs: what kind of phone it is (for example “iPhone”
+      or “Android”), the size of its screen, its Device id and Player id (below), the Players’ names, and your touches during a
+      game. The first phone passes every phone’s messages on to the others, so it sees all of them.
+    </p>
 
-  <h2>What the app keeps on your phone</h2>
-  <p>It keeps these in your browser’s storage for {host}, not in cookies:</p>
-  <ul>
-    {KEPT.map((kept) => (<li><strong>{kept.what}.</strong> {kept.detail}</li>))}
-  </ul>
-  <p>
-    Of these, the other phones of your table get what the table needs: your Device id and Player id, and from the first
-    phone the table’s picks. Nothing goes to the makers or anyone else. The log leaves your phone only if someone
-    exports it (in Maker mode, with Export log) and sends the file on.
-  </p>
+    <h2>What the app keeps on your phone</h2>
+    <p>It keeps these in your browser’s storage for {host}, not in cookies:</p>
+    <ul>
+      {KEPT.map((kept) => (<li><strong>{kept.what}.</strong> {kept.detail}</li>))}
+    </ul>
+    <p>
+      Of these, the other phones of your table get what the table needs: your Device id and Player id, and from the first
+      phone the table’s picks. Nothing goes to the makers or anyone else. The log leaves your phone only if someone
+      exports it (in Maker mode, with Export log) and sends the file on.
+    </p>
 
-  <h2>How to delete it</h2>
-  <p>
-    Delete the site data for <code>{host}</code> in your browser’s settings: in Safari under Website Data, in Chrome under
-    Site settings, All sites. That deletes everything above. If you added the app to your home screen, remove it from there
-    too. Closing the tab deletes the table you opened. In Maker mode, Clear on the first phone’s sheet empties the log.
-  </p>
+    <h2>How to delete it</h2>
+    <p>
+      Delete the site data for <code>{host}</code> in your browser’s settings: in Safari under Website Data, in Chrome under
+      Site settings, All sites. That deletes everything above. If you added the app to your home screen, remove it from there
+      too. Closing the tab deletes the table you opened. In Maker mode, Clear on the first phone’s sheet empties the log.
+    </p>
 
-  <h2>What there is not</h2>
-  <ul>
-    <li>No accounts and no sign-in.</li>
-    <li>No cookies: neither the site nor the app sets any, and GitHub Pages sends none.</li>
-    <li>No analytics, no counting of visits, no ads.</li>
-    <li>Nothing loaded from another site: the pages and their scripts, pictures and fonts all come from {host}.</li>
-  </ul>
+    <h2>What there is not</h2>
+    <ul>
+      <li>No accounts and no sign-in.</li>
+      <li>No cookies: neither the site nor the app sets any, and GitHub Pages sends none.</li>
+      <li>No analytics, no counting of visits, no ads.</li>
+      <li>Nothing loaded from another site: the pages and their scripts, pictures and fonts all come from {host}.</li>
+    </ul>
 
-  <h2>Who is responsible</h2>
-  <p>
-    The makers of {brand.name}: <Detail of="name" />, <Detail of="contact" />. Their full details are on the <a
-      href={`${import.meta.env.BASE_URL}imprint/`}>imprint</a
-    >. Ask them anything about this page. The source code is public, so every sentence here can be checked against it.
-  </p>
-</Legal>
+    <h2>Who is responsible</h2>
+    <p>
+      The makers of {brand.name}: <Detail of="name" />, <Detail of="contact" />. Their full details are on the <a
+        href={`${import.meta.env.BASE_URL}imprint/`}>imprint</a
+      >. Ask them anything about this page. The source code is public, so every sentence here can be checked against it.
+    </p>
+  </main>
+</Page>

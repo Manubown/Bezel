@@ -97,3 +97,61 @@ input {
 [hidden] {
   display: none !important;
 }
+
+/* Every page but the home page: the name, back to the home page, over the page's own heading. */
+.top {
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+}
+
+.home {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* A page of text (privacy, imprint): a readable measure, each heading spaced from what it follows. */
+.prose {
+  max-width: 40rem;
+  padding-top: clamp(16px, 4vw, 40px);
+}
+
+.prose h1 {
+  margin-bottom: 20px;
+  font-size: clamp(36px, 1.4rem + 4vw, 64px);
+  letter-spacing: -0.01em;
+}
+
+.prose h2 {
+  margin: 48px 0 12px;
+  font-size: clamp(24px, 1.1rem + 1.2vw, 32px);
+}
+
+.prose h3 {
+  margin: 32px 0 8px;
+  font-family: var(--font-ui);
+  font-size: var(--text-l);
+}
+
+.prose p + p,
+.prose p + ul,
+.prose ul + p,
+.prose p + dl,
+.prose dl + p {
+  margin-top: 1em;
+}
+
+.prose ul {
+  padding-left: 1.2em;
+}
+
+.prose li + li {
+  margin-top: 0.5em;
+}
+
+.prose code {
+  overflow-wrap: anywhere;
+}

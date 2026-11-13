@@ -1,23 +1,21 @@
 ---
-import brand from '../../../../../brand.json';
-
 // The `stable` tag's build lived here before the app moved below the site: old links, QR codes and installed icons
 // go to the app for everyone, with their query.
+import brand from '../../../../../brand.json';
+import Page from '../../layouts/Page.astro';
+
 const play = `${import.meta.env.BASE_URL}play/`;
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
+<Page title="Moved" description={`${brand.name} has moved to ${play}.`}>
+  <Fragment slot="first">
     <script is:inline define:vars={{ play }}>
       location.replace(play + location.search);
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="robots" content="noindex" />
-    <title>{brand.name}</title>
-  </head>
-  <body>
+  </Fragment>
+  <meta slot="head" name="robots" content="noindex" />
+
+  <main class="column prose">
     <p>{brand.name} has moved: <a href={play}>open it here</a>.</p>
-  </body>
-</html>
+  </main>
+</Page>

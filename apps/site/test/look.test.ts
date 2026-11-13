@@ -30,6 +30,13 @@ describe('the site wears the app’s look', () => {
     expect(used.filter((u) => !defined.has(u.split(': ')[1]!))).toEqual([]);
   });
 
+  it('sets every page in one layout, Page.astro, the one that carries the look', () => {
+    const pages = sources().filter(([file]) => file.startsWith('pages/'));
+    expect(pages.length).toBeGreaterThan(0);
+    for (const [file, code] of pages) expect(code, file).toMatch(/import Page from '(?:\.\.\/)+layouts\/Page\.astro';/);
+    expect(sources().filter(([file]) => file.startsWith('layouts/')).map(([file]) => file)).toEqual(['layouts/Page.astro']);
+  });
+
   it('takes the tokens and the display face from @mgc/look in the layout every page shares', () => {
     const layout = sources().find(([file]) => file === 'layouts/Page.astro')?.[1] ?? '';
     expect(layout).toMatch(/import '@mgc\/look\/tokens\.css';/);
