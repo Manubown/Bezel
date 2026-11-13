@@ -14,8 +14,8 @@ interface InstallPromptEvent extends Event {
 export interface Installer {
   /** What to offer now (`installOffer`). */
   offer(): InstallOffer;
-  /** A Match this Device ran was finished by its Game: one more on the Device's count. */
-  finished(): void;
+  /** A Match this Device ran was finished by its Game: one more on the Device's count (`Situation.finished`). */
+  matchFinished(): void;
   /** The result card that carried the offer closed: it does not return to a card. */
   dismiss(): void;
   /** Shows the browser's own install, if the browser has offered one and it was not used yet; resolves whether it did. */
@@ -53,7 +53,7 @@ export function watchInstall(): Installer {
   });
   return {
     offer: () => installOffer({ platform, installed, inApp, finished, dismissed }),
-    finished: () => localStorage.setItem(FINISHED_KEY, String(++finished)),
+    matchFinished: () => localStorage.setItem(FINISHED_KEY, String(++finished)),
     dismiss: () => {
       dismissed = true;
       localStorage.setItem(DISMISSED_KEY, 'yes');

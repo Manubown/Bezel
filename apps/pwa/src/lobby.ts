@@ -220,7 +220,7 @@ class HostLobby extends LobbyBase implements Lobby {
   /** The templates the picked Game names (`templatesOf`); every one until a Game is picked. */
   private allowed: readonly TemplateId[] = TEMPLATE_IDS;
   /** Whether the picked Game takes Controllers; until a Game is picked, any phone can be one. */
-  private inHand = true;
+  private takesControllers = true;
   private readonly roles = new Map<DeviceId, Role>();
   /** The Tile order, `setOrder`'s or the saved one: Devices in the Tile role only, present or not. */
   private order: DeviceId[] = [];
@@ -280,17 +280,17 @@ class HostLobby extends LobbyBase implements Lobby {
     if (this.frozen) return;
     const seats = game.seats ?? 'ends';
     this.allowed = templatesOf(game);
-    this.inHand = game.controllers.max > 0;
+    this.takesControllers = game.controllers.max > 0;
     // Picked anew, a Game lays the phones in the first template it names; picked again, in the one the Host chose for it.
     const template = game.id === this.picked && this.allowed.includes(this.template) ? this.template : this.allowed[0]!;
-    // A Game that takes no Controllers has every phone on the table.
-    const held = !this.inHand && this.roles.size > 0;
-    if (game.id === this.picked && seats === this.seats && template === this.template && !held) return;
+    // A Game that takes no Controllers has every phone on the table: the roles the Host set are forgotten.
+    const forgetRoles = !this.takesControllers && this.roles.size > 0;
+    if (game.id === this.picked && seats === this.seats && template === this.template && !forgetRoles) return;
     this.picked = game.id;
     if (seats !== this.seats) this.chosen = undefined;
     this.seats = seats;
     this.template = template;
-    if (held) this.roles.clear();
+    if (forgetRoles) this.roles.clear();
     this.refresh();
   }
 
@@ -301,7 +301,7 @@ class HostLobby extends LobbyBase implements Lobby {
   }
 
   setRole(deviceId: DeviceId, role: Role): void {
-    if (this.frozen || (role === 'controller' && !this.inHand) || this.assigned(deviceId) === role || !this.session.roster().some((e) => e.info.deviceId === deviceId)) return;
+    if (this.frozen || (role === 'controller' && !this.takesControllers) || this.assigned(deviceId) === role || !this.session.roster().some((e) => e.info.deviceId === deviceId)) return;
     this.roles.set(deviceId, role);
     if (role === 'controller') this.order = this.order.filter((id) => id !== deviceId);
     this.refresh();

@@ -231,7 +231,7 @@ async function start(): Promise<void> {
         play.stopped = undefined;
         play.last = { reason: e.reason, detail: said ?? e.detail, players: match.players, ...(result && { result }) };
         // Finished: its Game ended it. The Device's first one brings the install offer (`installOffer`).
-        if (e.reason === 'ended') install.finished();
+        if (e.reason === 'ended') install.matchFinished();
         gameLayer.hidden = true;
         lobby.close(); // the Host's reopens the lobby on every Device; on a Peer, a no-op
         hud.render();
