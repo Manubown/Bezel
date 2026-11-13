@@ -14,15 +14,20 @@ export function platformOf(ua: string, maxTouchPoints: number): Platform {
   return /\bCriOS\//.test(ua) ? 'ios-chrome' : 'ios';
 }
 
-/** The display modes an installed app opens in; the manifest asks for fullscreen, a browser may give less. */
-const INSTALLED_MODES = ['fullscreen', 'standalone', 'minimal-ui'];
+/**
+ * The media query a page opened as the installed app matches: the display modes an installed app opens in (the
+ * manifest asks for fullscreen, a browser may give less). The one test of "installed": the install offer
+ * (`runsInstalled`), the session log's `device` line (`main.ts`) and the site's forward of an installed icon to the app
+ * (`apps/site/src/pages/index.astro`, given it at build time).
+ */
+export const INSTALLED_QUERY = '(display-mode: fullscreen), (display-mode: standalone), (display-mode: minimal-ui)';
 
 /**
- * Whether the page runs as the installed app: its display mode (`matches`, as `matchMedia` answers), or on an iPhone
- * the older `navigator.standalone`.
+ * Whether the page runs as the installed app: its display mode (`INSTALLED_QUERY`, as `matches` (`matchMedia`)
+ * answers it), or on an iPhone the older `navigator.standalone`.
  */
 export function runsInstalled(matches: (query: string) => boolean, standalone: boolean | undefined): boolean {
-  return standalone === true || INSTALLED_MODES.some((mode) => matches(`(display-mode: ${mode})`));
+  return standalone === true || matches(INSTALLED_QUERY);
 }
 
 /**

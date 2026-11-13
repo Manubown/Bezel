@@ -73,8 +73,8 @@ describe('platformOf', () => {
 });
 
 describe('runsInstalled', () => {
-  /** A page whose display mode is `mode`, as `matchMedia` answers. */
-  const shownAs = (mode: string) => (query: string) => query === `(display-mode: ${mode})`;
+  /** A page whose display mode is `mode`, as `matchMedia` answers a list of display-mode queries: any of them. */
+  const shownAs = (mode: string) => (query: string) => query.split(',').some((q) => q.trim() === `(display-mode: ${mode})`);
 
   it('is true in the display modes of an installed app: fullscreen (what the manifest asks for), standalone, minimal-ui', () => {
     expect(runsInstalled(shownAs('fullscreen'), undefined)).toBe(true);

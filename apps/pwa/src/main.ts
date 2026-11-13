@@ -4,6 +4,7 @@ import { claimDeviceId, claimPlayerId, deviceInfo, pageZoom, viewportSettled } f
 import { GAMES } from './games';
 import { LOG_LINES, logLineOf } from './gamelog';
 import { openHud, type Play } from './hud';
+import { INSTALLED_QUERY } from './install';
 import { watchInstall } from './installer';
 import { openLobby, sessionLobbyStore } from './lobby';
 import { describePause, pauseOnDeviceLoss, type PauseNotice } from './pause';
@@ -94,7 +95,7 @@ async function start(): Promise<void> {
     dpr: self.dpr,
     touchPoints: navigator.maxTouchPoints,
     cores: navigator.hardwareConcurrency,
-    standalone: matchMedia('(display-mode: standalone)').matches,
+    installed: matchMedia(INSTALLED_QUERY).matches,
     url: location.href,
     turn: turnServers.length > 0,
     sound: sound.on,

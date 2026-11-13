@@ -1,7 +1,7 @@
 ---
 import brand from '../../../../brand.json';
 import { GAMES } from '@mgc/pwa/games';
-import { installOffer, type Platform } from '@mgc/pwa/install';
+import { INSTALLED_QUERY, installOffer, type Platform } from '@mgc/pwa/install';
 import { HOTSPOT } from '@mgc/pwa/join';
 import Crossing from '../components/Crossing.astro';
 import Phones from '../components/Phones.astro';
@@ -31,9 +31,9 @@ const guide = 'https://github.com/Manubown/Bezel/blob/master/docs/guide/README.m
 
 <Page description={brand.pitch}>
   <Fragment slot="first">
-    <script is:inline define:vars={{ play, next }}>
+    <script is:inline define:vars={{ play, next, installed: INSTALLED_QUERY }}>
       if (new URLSearchParams(location.search).has('room')) location.replace(next + location.search);
-      else if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) location.replace(play + location.search);
+      else if (matchMedia(installed).matches) location.replace(play + location.search);
     </script>
   </Fragment>
 

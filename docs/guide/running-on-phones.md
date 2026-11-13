@@ -141,7 +141,7 @@ Every page keeps a log of what it saw (`apps/pwa/src/recorder.ts`), in IndexedDB
 
 | `k` | When | Fields |
 |---|---|---|
-| `device` | page load | `ua`, `platform`, `pxPerMm`, `viewport`, `screen`, `dpr`, `touchPoints`, `cores`, `standalone`, `url`, `turn` (this page has TURN servers), `sound` (this phone plays the Games' sounds), `turnProblem` (the build's TURN setting is unusable, and why) |
+| `device` | page load | `ua`, `platform`, `pxPerMm`, `viewport`, `screen`, `dpr`, `touchPoints`, `cores`, `installed` (the page opened as the installed app: `INSTALLED_QUERY`, `apps/pwa/src/install.ts`), `url`, `turn` (this page has TURN servers), `sound` (this phone plays the Games' sounds), `turnProblem` (the build's TURN setting is unusable, and why) |
 | `viewport` | load, and every resize / toolbar change | `width`, `height`, `inner`, `dpr` |
 | `tick` | once a second | `fps` (this page's animation frames), `hidden`, `wake` (a screen wake lock is held), `peers` (WebRTC connections this page holds: on the Host one per Peer; on a Peer above 1 means Trystero's Peer↔Peer mesh); `tx` / `rx`: frames `n` and bytes `b` sent / received since the last tick, per channel (`msg` carries Match frames and the lobby, `clk` clock pings, `clkrep` clock reports, `roster`, `hello`, `info`); on a Peer in a Match, `state`: the Host's state frames that arrived this second: `n`, `gap` (the longest time between two consecutive ones, ms; a silence of several seconds is on the line of the second that ends it), `ageMin` / `ageAvg` / `ageMax` (shared time at arrival minus the time the Host published it, ms) |
 | `peer-join`, `peer-leave` | the transport sees a connection come or go | `peer` (transport id), `peers` left, `afterMs` connected |
