@@ -6,10 +6,12 @@
 
 **Status:** ready-for-human
 
-Decide
+Before `outside-view` is merged to `master` (the merge publishes the site at the address the repository's About box already names)
 
-- [ ] The public name. If it is not "Bezel": change the one data file, and rename the repository before the site is linked anywhere (a renamed repository's old Pages address is not forwarded)
-- [ ] Whose name and postal address stand in the imprint, and in which country; fill the blanks of the imprint and privacy pages and read both
+- [ ] Whose name and postal address stand in the imprint, and in which country; fill the blanks in `apps/site/src/makers.ts` (the site's build lists the ones still open) and read the privacy and imprint pages
+- [ ] The public name. If it is not "Bezel": change `brand.json`, and rename the repository before the site is linked anywhere (a renamed repository's old Pages address is not forwarded)
+- [ ] Node 22.23.4 or newer on the machine that builds the site (`pnpm pages`); CI already has it
+- [ ] The first run of the changed publish workflow on GitHub is watched: it was linted and its script run locally, never run there
 
 Check on phones, on the latest build (`next/`), with Maker mode on and every phone's log exported
 
