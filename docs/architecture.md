@@ -6,7 +6,8 @@ How the packages fit together and where a Match's data flows. The code is the so
 
 ```mermaid
 flowchart TB
-  subgraph pwa["apps/pwa"]
+  site["apps/site (@mgc/site)<br/>Astro, static: home page, privacy, imprint"]
+  subgraph pwa["apps/pwa (@mgc/pwa)"]
     main[main.ts<br/>transport → Session → lobby → Match → lobby]
     hud[hud.ts · Host sheet, Peer strip]
     lobby[lobby.ts · Layout, roles, seats, Start]
@@ -16,23 +17,28 @@ flowchart TB
     core["@mgc/core<br/>Transport · ClockSync · Session"]
     layout["@mgc/layout<br/>templates · Surface"]
     sdk["@mgc/sdk<br/>defineGame · runMatch · Link · wire"]
+    look["@mgc/look<br/>tokens.css · display face"]
   end
   games["games/*<br/>import @mgc/sdk only"]
-  main --> core & layout & sdk
-  lobby --> core & layout & sdk
+  site -->|exports only| pwa
+  site --> layout & look
+  pwa --> core & layout & look & sdk
   sdk --> layout
+  sdk -.->|tests only| core
   games --> sdk
 ```
 
-Dependency rules. The arrows are the only ones the `package.json` dependencies allow; every Game's test additionally scans its own sources and fails on any specifier but `@mgc/sdk`:
+Dependency rules. The arrows are the workspace dependencies the `package.json` files declare, and the only ones they allow (the dotted one is a `devDependency`); every Game's test additionally scans its own sources and fails on any specifier but `@mgc/sdk`:
 
 | Package | May import | Never imports |
 |---|---|---|
 | `@mgc/core` | `trystero` | anything in the repo |
 | `@mgc/layout` | – | `core` (ADR-0005: the Layout is pure millimetre math) |
+| `@mgc/look` | – (it is `tokens.css`, the display face in `fonts/`, and `groundOf`, `tokensOf`, `contrast` over the tokens) | anything in the repo |
 | `@mgc/sdk` | `@mgc/layout` (re-exports `Surface`, `Vec2`, `Rect`); `@mgc/core` in its tests only | `core` at runtime: the SDK never sees a transport |
-| `games/*` | `@mgc/sdk` | `core`, `layout`, `apps/pwa` (each Game's "imports nothing but the SDK" test) |
-| `apps/pwa` | all three packages, `games/*` via discovery | – |
+| `games/*` | `@mgc/sdk` | `core`, `layout`, `look`, `apps/pwa` (each Game's "imports nothing but the SDK" test) |
+| `apps/pwa` | `@mgc/core`, `@mgc/layout`, `@mgc/look`, `@mgc/sdk`; `games/*` via discovery (`apps/pwa/src/games.ts` globs their sources; not a dependency) | `apps/site` |
+| `apps/site` | `@mgc/layout` (`gridColumns` for its drawings), `@mgc/look` (tokens, display face, `groundOf`), `@mgc/pwa` (only what its `exports` name, below) | `@mgc/core`, `@mgc/sdk`, `games/*` directly |
 
 The site (`apps/site`) imports from `@mgc/pwa` only the modules that `apps/pwa/package.json`'s `exports` name (`games`, `gamelist`, `install`, `join`, `sessioncode`, the files in `public/`). Each is pure when loaded: no DOM, no storage, no state, nothing that runs on import, so the site renders them at build time and in its own few scripts. The lobby, the HUD and `main.ts` hold state and are never exported.
 

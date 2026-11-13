@@ -25,7 +25,7 @@ Each item says what was found and the decision. "Fix" items are one piece of wor
 - [x] **B3 The table code is read four ways** (one reader, one inline copy, one that only upper-cases, the site's length rule; `maxlength="4"` typed twice; the sheet's join form builds its own address and drops the flags). **Fix:** one reader, one length constant, one address builder, used by the app's two forms, the start-up code and the site.
 - [x] **B4 "Installed" is decided three ways** (the install module, the site's forward script, the app's start-up). **Fix:** one exported query that all three use (the site's inline script gets it at build time).
 - [x] **B5 The site imports the app's stateful lobby module** for one pure function. **Fix:** move that function to the pure Game-list module; the app package exports to the site only modules that are pure when loaded; say so in a comment at the exports and in `docs/architecture.md`.
-- [ ] **B6 `docs/architecture.md` no longer matches the dependencies:** `@mgc/look` and the site have no row or arrow. **Fix:** add them.
+- [x] **B6 `docs/architecture.md` no longer matches the dependencies:** `@mgc/look` and the site have no row or arrow. **Fix:** add them.
 - [x] **B7 Grid columns are derived three times** (the layout package, the placement sentence, the site's pictogram, the last by a different rule). **Fix:** export the rule from `@mgc/layout` and use it in all three.
 - [x] **B8 One shape declared three times:** `{ headline, detail, player? }` in the result, pause and HUD modules. **Fix:** one type.
 - [x] **B9 Names that do not say what they hold:** `inHand` and `held` in the lobby (`held` is true for any stored role), `Installer.finished()` beside `Situation.finished`. **Fix:** rename.
