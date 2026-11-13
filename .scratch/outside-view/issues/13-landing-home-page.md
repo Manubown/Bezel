@@ -48,7 +48,7 @@
 
 **Verified**
 - `pnpm vitest run apps/site/test`: 5 files, 15 tests passed (with ticket 14's two).
-- `pnpm typecheck && pnpm test`: typecheck clean; 44 files, 344 tests passed.
+- `pnpm typecheck && pnpm test`: typecheck clean; 44 files, 344 tests passed. Again after merging `outside-view` (ticket 09 landed): typecheck clean, 44 files, 357 tests passed, and `pnpm pages --here` passed as below.
 - `pnpm pages --here` (Node 22.23.5): `astro check` 0 errors over 22 files; "pages: apps/site/dist holds the site, play/ (this checkout) and next/; every link resolves, every forward keeps its query". `dist/sitemap.xml` lists `/Bezel/`, `/Bezel/imprint/`, `/Bezel/privacy/`.
 - Built `index.html`: the forwards' inline script comes right after `<meta charset>`, as before. Only two other scripts follow, both `type="module"`: the drawing's and the page's (banner, join field).
 - Headless Chrome against `pnpm --filter @mgc/site preview` (the output of `pnpm pages --here`):
