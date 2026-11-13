@@ -14,10 +14,10 @@ export interface Makers {
 }
 
 export const makers: Makers = {
-  name: null,
-  address: null,
-  country: null,
-  contact: null,
+  name: 'Manuel Gut',
+  address: 'Heiligenstädter Straße 92/89/8\n1190 Wien',
+  country: 'Austria',
+  contact: 'manubown@gmail.com',
 };
 
 /** What each detail is called where a blank is shown or listed, in the imprint's order. */
