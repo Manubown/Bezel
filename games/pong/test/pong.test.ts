@@ -129,6 +129,33 @@ function ballDrawn(t: TestMatch<PongState>, deviceId: DeviceId): { x: number; y:
   return { x: arc[1] as number, y: arc[2] as number };
 }
 
+/** The night table's first two Player colours (spec outside-view D10), and its ivory. */
+const CORAL = '#ff6b4a';
+const TEAL = '#2ec4b6';
+const IVORY = '#f2f0ea';
+
+/** A canvas call of a view's last frame with the fill, stroke and opacity it was made with. */
+type Inked = { op: string; args: unknown[]; fill: unknown; stroke: unknown; alpha: number };
+function inked(t: TestMatch<PongState>, deviceId: DeviceId): Inked[] {
+  let pen = { fill: undefined as unknown, stroke: undefined as unknown, alpha: 1 };
+  const saved: (typeof pen)[] = [];
+  return t.drawn(deviceId).flatMap(([op, ...args]): Inked[] => {
+    if (op === 'save') saved.push({ ...pen });
+    else if (op === 'restore') pen = saved.pop() ?? pen;
+    else if (op === 'fillStyle=') pen.fill = args[0];
+    else if (op === 'strokeStyle=') pen.stroke = args[0];
+    else if (op === 'globalAlpha=') pen.alpha = args[0] as number;
+    else return [{ op, args, ...pen }];
+    return [];
+  });
+}
+/** The words `deviceId`'s view wrote in its last frame, but the scores and a bot's label, each with its colour. */
+const prompts = (t: TestMatch<PongState>, deviceId: DeviceId): [unknown, unknown][] =>
+  inked(t, deviceId).flatMap((c) => (c.op === 'fillText' && !/^(\d+|BOT)$/.test(String(c.args[0])) ? [[c.args[0], c.fill]] : []));
+/** The points of the lines `deviceId`'s view drew in its last frame: the ball's trail. */
+const trailOf = (t: TestMatch<PongState>, deviceId: DeviceId) =>
+  inked(t, deviceId).flatMap((c) => (c.op === 'moveTo' || c.op === 'lineTo' ? [{ x: c.args[0] as number, y: c.args[1] as number }] : []));
+
 describe('Pong', () => {
   it('declares 1–4 Tiles, no Controllers, 2 Players, bots, the row template, and imports nothing but the SDK', () => {
     const { tiles, controllers, players, templates, bots } = pong.manifest;
@@ -607,5 +634,87 @@ describe('Pong', () => {
     const fast = await createTestMatch<PongState>({ game: only(rally({ x: 40, y: MID.y, vx: PONG.maxSpeed, vy: 0 })), match: one });
     await fast.tick(300);
     expect(ballDrawn(fast, 'd0').x).toBeCloseTo(annFace, 6);
+  });
+
+  it('draws each side’s paddle, score and a bot’s label in its Player’s colour by their place in the Player list, the score at 70 % or more; the ball ivory', async () => {
+    // Bo is Player 1 and sits at the last Tile, Ann Player 2 at the first: the west side is Ann's, in teal.
+    const bo1: MatchInfo = { ...TWO, players: [TWO.players[1]!, TWO.players[0]!] };
+    const t = await createTestMatch<PongState>({ game: only(rally({ x: 60, y: 70, vx: 150, vy: 20 }, { score: [3, 5] })), match: bo1 });
+    await t.tick(100);
+    for (const id of ['d0', 'd1']) {
+      const calls = inked(t, id);
+      const paddles = calls.filter((c) => c.op === 'fillRect' && c.args[2] === PONG.paddle.w && c.args[3] === PONG.paddle.h);
+      expect(paddles.map((c) => [c.args[0], c.fill]), id).toEqual([
+        [B.x + PONG.paddle.inset, TEAL],
+        [B.x + B.w - PONG.paddle.inset - PONG.paddle.w, CORAL],
+      ]);
+      const scores = calls.filter((c) => c.op === 'fillText' && /^\d+$/.test(String(c.args[0])));
+      expect(scores.map((c) => [c.args[0], c.fill]), id).toEqual([
+        ['3', TEAL],
+        ['5', CORAL],
+      ]);
+      for (const c of scores) expect(c.alpha).toBeGreaterThanOrEqual(0.7);
+      const ball = calls.findIndex((c) => c.op === 'arc' && c.args[2] === R);
+      expect(calls.slice(ball).find((c) => c.op === 'fill' || c.op === 'stroke')!.fill, id).toBe(IVORY);
+    }
+
+    // Ann against a bot, Player 2: the bot's paddle and its label in teal.
+    const vsBot = await createTestMatch<PongState>({ game: only(rally({ x: 60, y: 70, vx: 150, vy: 20 })), match: { ...TWO, players: [TWO.players[0]!, bot(1)] } });
+    await vsBot.tick(100);
+    const label = inked(vsBot, 'd0').find((c) => c.op === 'fillText' && c.args[0] === 'BOT');
+    expect(label?.fill).toBe(TEAL);
+    expect(inked(vsBot, 'd0').filter((c) => c.op === 'fillRect' && c.args[3] === PONG.paddle.h).map((c) => c.fill)).toEqual([CORAL, TEAL]);
+  });
+
+  it('asks on a waited-for Player’s own Tile to touch it, and on every other Tile waits for them by name, in their colour', async () => {
+    // Before the first serve, three phones: Ann's and Bo's each ask their own Player; the middle one names both.
+    const three = rowMatch(3);
+    const centre = { x: three.bounds.w / 2, y: three.bounds.h / 2, vx: 150, vy: 0 };
+    const t = await createTestMatch<PongState>({ game: only(rally(centre, { hold: [0, 1], started: false, wait: PONG.serveWait })), match: three });
+    await t.tick(100);
+    expect(prompts(t, 'd0')).toEqual([['Touch here to start', CORAL]]);
+    expect(prompts(t, 'd2')).toEqual([['Touch here to start', TEAL]]);
+    expect(prompts(t, 'd1')).toEqual([
+      ['Waiting for Ann', CORAL],
+      ['Waiting for Bo', TEAL],
+    ]);
+
+    // Mid-Match, the same state on both phones holds for Bo: his own phone asks him, Ann's names him.
+    const held = await createTestMatch<PongState>({ game: only(rally({ x: 60, y: 70, vx: 150, vy: 20 }, { hold: [1] })), match: TWO });
+    await held.tick(100);
+    expect(prompts(held, 'd1')).toEqual([['Touch here to play on', TEAL]]);
+    expect(prompts(held, 'd0')).toEqual([['Waiting for Bo', TEAL]]);
+
+    // Play runs: no prompt anywhere.
+    const running = await createTestMatch<PongState>({ game: only(rally({ x: 60, y: 70, vx: 150, vy: 20 })), match: TWO });
+    await running.tick(100);
+    for (const id of ['d0', 'd1']) expect(prompts(running, id)).toEqual([]);
+  });
+
+  it('trails the moving ball for a short while, ivory, from the Tile it left across the gap onto the next; none behind a ball at rest', async () => {
+    // East at 150 mm/s from x 60: 100 ms on, the ball is 1 mm onto Bo's phone (74–144), 5 mm past Ann's (0–70).
+    const t = await createTestMatch<PongState>({ game: only(rally({ x: 60, y: 70, vx: 150, vy: 0 })), match: TWO });
+    await t.tick(100);
+    const ball = ballDrawn(t, 'd1');
+    expect(ball.x).toBeCloseTo(75, 6);
+    const trail = trailOf(t, 'd1');
+    const xs = trail.map((p) => p.x);
+    // From the ball back onto Ann's phone, along the ball's way, and no further back than 150 ms of it.
+    expect(Math.max(...xs)).toBeCloseTo(ball.x, 6);
+    expect(Math.min(...xs)).toBeLessThan(70);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(ball.x - 150 * 0.15);
+    for (const p of trail) expect(p.y).toBeCloseTo(70, 6);
+    // Ann's phone draws the same trail: it runs off her phone's edge as it runs onto Bo's.
+    expect(trailOf(t, 'd0')).toEqual(trail);
+    const strokes = inked(t, 'd1').filter((c) => c.op === 'stroke');
+    expect(strokes.length).toBeGreaterThan(0);
+    expect(new Set(strokes.map((c) => c.stroke))).toEqual(new Set([IVORY]));
+
+    const rests = await createTestMatch<PongState>({ game: only(rally({ ...MID, vx: 150, vy: 0 }, { wait: PONG.serveWait })), match: TWO });
+    await rests.tick(300);
+    expect(trailOf(rests, 'd1')).toEqual([]);
+    const held = await createTestMatch<PongState>({ game: only(rally({ x: 60, y: 70, vx: 150, vy: 0 }, { hold: [1] })), match: TWO });
+    await held.tick(300);
+    expect(trailOf(held, 'd1')).toEqual([]);
   });
 });

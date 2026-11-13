@@ -34,26 +34,25 @@ export function pauseOnDeviceLoss(session: Session, match: MatchInfo, handle: Pi
   return () => offs.forEach((off) => off());
 }
 
-/** What the pause overlay says. */
+/** What the pause overlay says; `player`: the place in the Match's Player list of the Player the headline names, whose colour it is shown in. */
 export interface PauseNotice {
   headline: string;
   detail: string;
+  player?: number;
 }
 
 /**
  * The overlay for `reason` in `match` on the Device `self`. A lost Device is named by the Player
- * who sits at it, if any (`seated`: Device → Player name), else by its phone
- * number in Layout order. The lost Device itself, back before the Host resumes, reads that it is back.
+ * who sits at it, if any, else by its phone number in Layout order. The lost Device itself, back
+ * before the Host resumes, reads that it is back.
  */
-export function describePause(match: MatchInfo, reason: PauseReason, seated: ReadonlyMap<DeviceId, string>, self: DeviceId): PauseNotice {
+export function describePause(match: MatchInfo, reason: PauseReason, self: DeviceId): PauseNotice {
   if (reason.kind === 'platform') return { headline: 'Paused', detail: reason.note ?? '' };
   if (reason.deviceId === self) return { headline: 'You’re back', detail: 'the match goes on in a moment' };
   const tile = match.tiles.findIndex((t) => t.deviceId === reason.deviceId);
-  const player = seated.get(reason.deviceId);
+  const player = match.players.findIndex((p) => !p.bot && p.deviceId === reason.deviceId);
   const phone = tile >= 0 ? `phone ${tile + 1}` : 'the controller';
   const Phone = tile >= 0 ? `Phone ${tile + 1}` : 'The controller';
-  return {
-    headline: `Waiting for ${player ?? phone}`,
-    detail: `${player ? Phone : 'It'} lost its connection · the match goes on when it is back`,
-  };
+  if (player < 0) return { headline: `Waiting for ${phone}`, detail: 'It lost its connection · the match goes on when it is back' };
+  return { headline: `Waiting for ${match.players[player]!.name}`, detail: `${Phone} lost its connection · the match goes on when it is back`, player };
 }

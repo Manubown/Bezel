@@ -1,4 +1,4 @@
-import { defineGame, type DeviceId, type MatchInfo, type MatchResult, type Player, type Rect, type Tile, type Vec2 } from '@mgc/sdk';
+import { defineGame, playerColour, type DeviceId, type MatchInfo, type MatchResult, type Player, type Rect, type Tile, type Vec2 } from '@mgc/sdk';
 
 /** Sizes in world mm, speeds in mm/s, angles in radians, times in seconds. */
 export const PONG = {
@@ -34,9 +34,31 @@ export const PONG = {
 /** A view extrapolates a state at most this far ahead, ms: a delivery stall must not hide the ball on a Tile it crosses (a middle one in 0.2 to 0.45 s); a longer one is a visibly weak link. */
 const MAX_AHEAD_MS = 1000;
 const FG = '#f2f0ea';
-const DIM = 'rgba(242, 240, 234, 0.35)';
+/** A score is its Player's colour at this opacity: quieter than play, still 3:1 on the night table's ground (spec outside-view D11). */
+const SCORE_ALPHA = 0.8;
+/** How far back, ms, the ball's trail reaches. */
+const TRAIL_MS = 100;
 /** Behind a hold's message, over whatever it covers. */
 const SHADE = 'rgba(0, 0, 0, 0.6)';
+
+/**
+ * A ball's trail through `points` (world mm, shared time `at`, oldest first), in the ball's ivory: as wide as a ball of
+ * radius `r` and faintly lit at the newest point, narrowing and fading to nothing `TRAIL_MS` back.
+ */
+function drawTrail(g: CanvasRenderingContext2D, points: readonly { x: number; y: number; at: number }[], now: number, r: number): void {
+  g.strokeStyle = FG;
+  g.lineCap = 'round';
+  for (let k = 1; k < points.length; k++) {
+    const fresh = 1 - (now - points[k]!.at) / TRAIL_MS;
+    g.globalAlpha = 0.4 * fresh;
+    g.lineWidth = 2 * r * fresh;
+    g.beginPath();
+    g.moveTo(points[k - 1]!.x, points[k - 1]!.y);
+    g.lineTo(points[k]!.x, points[k]!.y);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+}
 
 type Ball = { x: number; y: number; vx: number; vy: number };
 
@@ -55,7 +77,7 @@ export type PongState = {
    * Empty while play runs; a bot's side is never listed.
    */
   hold: (0 | 1)[];
-  /** Whether play has run yet: until then, a hold is the first serve's "touch to start". */
+  /** Whether play has run yet: until then, a hold is the first serve's "Touch here to start". */
   started: boolean;
 };
 
@@ -134,7 +156,9 @@ const covers = (pad: number, y: number): boolean => Math.abs(y - pad) <= PONG.pa
  * and the ball is served from the centre toward the one who missed; the first
  * to seven wins. A human Player must keep touching: while one is not (they
  * have not touched yet, or their finger has been off their Tile for
- * `PONG.presence.holdMs`) play holds where it is and every Tile asks them to touch.
+ * `PONG.presence.holdMs`) play holds where it is, their own Tile asks them to
+ * touch it and every other Tile says play waits for them. Each side is drawn
+ * in its Player's colour (`playerColour`); the ball is ivory, with a trail.
  */
 export default defineGame<PongState, never>({
   manifest: {
@@ -270,10 +294,14 @@ export default defineGame<PongState, never>({
     /** Each side's score sits near the top, mid-width on its own outer Tile, or of its own half of a lone Tile. */
     const scoreX = [tiles[0]!, tiles[tiles.length - 1]!].map((tile, s) => tile.x + (tiles.length > 1 ? tile.w / 2 : (tile.w * (1 + 2 * s)) / 4));
     const sides = seats(ctx.match);
+    /** Each side's colour: its Player's, by their place in the Match's Player list, as on every phone and in the platform's screens. */
+    const colour = sides.map((p) => playerColour(ctx.match.players.indexOf(p)));
     /** The sides a bot plays: labelled under their scores. */
     const bots = sides.flatMap((p, s) => (p.bot ? [s] : []));
     /** Shared time of the last resume: a state from before it shows the ball where the pause stopped it. */
     let resumedAt = -Infinity;
+    /** Where this view drew the moving ball over the last `TRAIL_MS` (world mm, at shared time `at`), oldest first. */
+    const trail: { x: number; y: number; at: number }[] = [];
     return {
       onResume(now) {
         resumedAt = now;
@@ -287,18 +315,34 @@ export default defineGame<PongState, never>({
         const hit = (face - s.ball.x) / s.ball.vx;
         const x = hit >= 0 && hit < moving && covers(pad, fold(s.ball.y + s.ball.vy * hit, T.top, T.bottom)) ? clamp(2 * face - s.ball.x - s.ball.vx * moving, T.contact[0], T.contact[1]) : s.ball.x + s.ball.vx * moving;
 
-        g.fillStyle = DIM;
         g.font = '600 14px system-ui, sans-serif';
         g.textAlign = 'center';
         g.textBaseline = 'top';
-        g.fillText(String(s.score[0]), scoreX[0]!, T.y + 8);
-        g.fillText(String(s.score[1]), scoreX[1]!, T.y + 8);
+        g.globalAlpha = SCORE_ALPHA;
+        for (const side of [0, 1] as const) {
+          g.fillStyle = colour[side]!;
+          g.fillText(String(s.score[side]), scoreX[side]!, T.y + 8);
+        }
+        g.globalAlpha = 1;
         g.font = '600 4.5px system-ui, sans-serif';
-        for (const side of bots) g.fillText('BOT', scoreX[side]!, T.y + 24);
+        for (const side of bots) {
+          g.fillStyle = colour[side]!;
+          g.fillText('BOT', scoreX[side]!, T.y + 24);
+        }
 
-        g.fillStyle = FG;
-        for (const side of [0, 1] as const) g.fillRect(T.padX[side], s.pads[side] - PONG.paddle.h / 2, PONG.paddle.w, PONG.paddle.h);
+        for (const side of [0, 1] as const) {
+          g.fillStyle = colour[side]!;
+          g.fillRect(T.padX[side], s.pads[side] - PONG.paddle.h / 2, PONG.paddle.w, PONG.paddle.h);
+        }
+        // Behind a moving ball, where every view drew it lately: in world mm, so it runs on across the gap between Tiles.
+        if (s.wait > 0 || s.hold.length > 0) trail.length = 0;
+        else {
+          trail.push({ x, y, at: now });
+          while (now - trail[0]!.at > TRAIL_MS) trail.shift();
+          drawTrail(g, trail, now, PONG.ball);
+        }
         // Resting before a serve: a ring, so nobody mistakes it for play.
+        g.fillStyle = FG;
         g.beginPath();
         g.arc(x, y, PONG.ball, 0, Math.PI * 2);
         if (s.wait > 0) {
@@ -307,19 +351,23 @@ export default defineGame<PongState, never>({
           g.stroke();
         } else g.fill();
 
-        // A hold: every Tile names each human side play waits for, on a shaded band above the ball's rest.
-        if (s.hold.length > 0) {
-          const ask = s.started ? 'touch your screen' : 'touch to start';
+        // A hold, on a shaded band above the ball's rest: this Tile asks a waited-for Player seated at it to touch it;
+        // any other names each Player play waits for.
+        const { tile } = ctx;
+        if (s.hold.length > 0 && tile) {
+          const here = s.hold.filter((side) => sides[side].deviceId === ctx.deviceId);
+          const ask = s.started ? 'Touch here to play on' : 'Touch here to start';
+          const lines = here.length > 0 ? here.map((side) => [ask, side] as const) : s.hold.map((side) => [`Waiting for ${sides[side].name}`, side] as const);
           const top = T.mid.y - 30;
           g.font = '600 5px system-ui, sans-serif';
           g.textAlign = 'center';
           g.textBaseline = 'middle';
-          for (const tile of tiles) {
-            g.fillStyle = SHADE;
-            g.fillRect(tile.x, top - 5, tile.w, 7 * s.hold.length + 3);
-            g.fillStyle = FG;
-            s.hold.forEach((side, k) => g.fillText(`${sides[side].name}, ${ask}`, tile.x + tile.w / 2, top + 7 * k, tile.w - 6));
-          }
+          g.fillStyle = SHADE;
+          g.fillRect(tile.x, top - 5, tile.w, 7 * lines.length + 3);
+          lines.forEach(([text, side], k) => {
+            g.fillStyle = colour[side]!;
+            g.fillText(text, tile.x + tile.w / 2, top + 7 * k, tile.w - 6);
+          });
         }
       },
     };

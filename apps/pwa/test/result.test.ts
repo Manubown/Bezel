@@ -10,8 +10,8 @@ const TRIO = [...PLAYERS, { playerId: 'p-cy', name: 'Cy' }];
 
 describe('the result overlay text', () => {
   it('reads a two-sided result as the winner’s name and both scores in one line, the winner’s first', () => {
-    expect(describeResult(PLAYERS, { scores: { 'p-ann': 4, 'p-bo': 7 }, ranking: ['p-bo', 'p-ann'] })).toEqual({ headline: 'Bo wins 7–4', detail: '' });
-    expect(describeResult(PLAYERS, { scores: { 'p-ann': 7, 'p-bo': 2 } })).toEqual({ headline: 'Ann wins 7–2', detail: '' });
+    expect(describeResult(PLAYERS, { scores: { 'p-ann': 4, 'p-bo': 7 }, ranking: ['p-bo', 'p-ann'] })).toEqual({ headline: 'Bo wins 7–4', detail: '', player: 1 });
+    expect(describeResult(PLAYERS, { scores: { 'p-ann': 7, 'p-bo': 2 } })).toEqual({ headline: 'Ann wins 7–2', detail: '', player: 0 });
   });
 
   it('calls equal top scores a draw, with the score when there are two sides', () => {
@@ -20,11 +20,11 @@ describe('the result overlay text', () => {
   });
 
   it('names the winner of more than two sides, then everyone’s points in ranking order', () => {
-    expect(describeResult(TRIO, { scores: { 'p-ann': 4, 'p-bo': 7, 'p-cy': 1 }, ranking: ['p-bo', 'p-ann', 'p-cy'] })).toEqual({ headline: 'Bo wins', detail: 'Bo 7 · Ann 4 · Cy 1' });
+    expect(describeResult(TRIO, { scores: { 'p-ann': 4, 'p-bo': 7, 'p-cy': 1 }, ranking: ['p-bo', 'p-ann', 'p-cy'] })).toEqual({ headline: 'Bo wins', detail: 'Bo 7 · Ann 4 · Cy 1', player: 1 });
   });
 
   it('reads a result without scores by its ranking alone, and one without either as the Match being over', () => {
-    expect(describeResult(PLAYERS, { ranking: ['p-bo', 'p-ann'] })).toEqual({ headline: 'Bo wins', detail: '' });
+    expect(describeResult(PLAYERS, { ranking: ['p-bo', 'p-ann'] })).toEqual({ headline: 'Bo wins', detail: '', player: 1 });
     expect(describeResult(PLAYERS, {})).toEqual({ headline: 'Match over', detail: '' });
   });
 });

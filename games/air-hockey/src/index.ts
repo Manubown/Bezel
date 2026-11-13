@@ -1,4 +1,4 @@
-import { defineGame, Surface, type MatchInfo, type MatchResult, type Player } from '@mgc/sdk';
+import { defineGame, playerColour, Surface, type MatchInfo, type MatchResult, type Player } from '@mgc/sdk';
 
 /** Sizes in world mm, speeds in mm/s, times in seconds (`…Ms`: ms). */
 export const AIR_HOCKEY = {
@@ -54,6 +54,38 @@ const CIRCLE = 15;
 const GOAL_BAR = 2;
 const FG = '#f2f0ea';
 const DIM = 'rgba(242, 240, 234, 0.35)';
+/** A score is its Player's colour at this opacity: quieter than play, still 3:1 on the night table's ground (spec outside-view D11). */
+const SCORE_ALPHA = 0.8;
+/**
+ * A prompt's text height and line pitch, and how far its last line sits in from its phone's end: past the score (its
+ * 14 mm figures end 52 mm in), and still on a 64 mm wide phone of a row (to 60.5 mm).
+ */
+const PROMPT = 5;
+const PROMPT_LINE = 7;
+const PROMPT_INSET = 58;
+/** Behind a prompt, over the table's lines. */
+const SHADE = 'rgba(0, 0, 0, 0.6)';
+/** How far back, ms, the puck's trail reaches. */
+const TRAIL_MS = 100;
+
+/**
+ * A puck's trail through `points` (world mm, shared time `at`, oldest first), in the puck's ivory: as wide as a puck of
+ * radius `r` and faintly lit at the newest point, narrowing and fading to nothing `TRAIL_MS` back.
+ */
+function drawTrail(g: CanvasRenderingContext2D, points: readonly { x: number; y: number; at: number }[], now: number, r: number): void {
+  g.strokeStyle = FG;
+  g.lineCap = 'round';
+  for (let k = 1; k < points.length; k++) {
+    const fresh = 1 - (now - points[k]!.at) / TRAIL_MS;
+    g.globalAlpha = 0.4 * fresh;
+    g.lineWidth = 2 * r * fresh;
+    g.beginPath();
+    g.moveTo(points[k - 1]!.x, points[k - 1]!.y);
+    g.lineTo(points[k]!.x, points[k]!.y);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+}
 
 type Axis = 'x' | 'y';
 type Side = 0 | 1;
@@ -185,7 +217,10 @@ function table(m: MatchInfo) {
  * striking paddle's speed with it, and a goal at either end scores for the
  * other Player; the puck is then served from the centre toward the one who
  * conceded, as it is when it has crawled for `AIR_HOCKEY.stallFor`. Play
- * starts once every human has touched their Tile. First to seven wins.
+ * starts once every human has touched their Tile: until then their own Tile
+ * asks them to touch it and the other says play waits for them. Each side is
+ * drawn in its Player's colour (`playerColour`); the puck is ivory, with a
+ * trail. First to seven wins.
  *
  * Nothing here reads a Tile's `rot` but `table`: input arrives in world mm
  * and every view draws in world mm, whichever way its phone is turned.
@@ -407,6 +442,14 @@ export default defineGame<AirHockeyState, AirHockeyMessage>({
     const T = table(ctx.match);
     const { axis: A, across: C } = T;
     const sides = seats(ctx.match);
+    /** Each side's colour: its Player's, by their place in the Match's Player list, as on every phone and in the platform's screens. */
+    const colour = sides.map((p) => playerColour(ctx.match.players.indexOf(p)));
+    /**
+     * The side whose end lies on this phone, where it speaks to the person at it: the side of the human seated here,
+     * else the first Tile's side 0 and the last Tile's side 1 (side 0 defends the end nearer the first Tile).
+     */
+    const seated = sides.findIndex((p) => !p.bot && p.deviceId === ctx.deviceId);
+    const home: Side = seated === 1 || (seated === -1 && ctx.deviceId !== ctx.match.tiles[0]!.deviceId) ? 1 : 0;
     /**
      * Each side's "up": from its end toward the other, as its Player reads the
      * table, as the canvas rotation that turns upright text that way. World
@@ -416,17 +459,19 @@ export default defineGame<AirHockeyState, AirHockeyMessage>({
       const u = T.at(dir, 0);
       return Math.atan2(u.x, -u.y);
     });
-    /** `text` centred `inset` in from side `s`'s end, mid-table, upright for its Player. */
-    const say = (g: CanvasRenderingContext2D, s: Side, text: string, inset: number): void => {
+    /** Runs `paint` with the canvas moved `inset` in from side `s`'s end, mid-table, and turned upright for that side's Player. */
+    const facing = (g: CanvasRenderingContext2D, s: Side, inset: number, paint: () => void): void => {
       const p = T.at(T.ends[s] + T.into[s] * inset, T.mid[C]);
       g.save();
       g.translate(p.x, p.y);
       g.rotate(upright[s]!);
-      g.fillText(text, 0, 0);
+      paint();
       g.restore();
     };
     /** Shared time of the last resume: a state from before it shows the puck where the pause stopped it. */
     let resumedAt = -Infinity;
+    /** Where this view drew the moving puck over the last `TRAIL_MS` (world mm, at shared time `at`), oldest first. */
+    const trail: { x: number; y: number; at: number }[] = [];
     return {
       onResume(now) {
         resumedAt = now;
@@ -454,39 +499,63 @@ export default defineGame<AirHockeyState, AirHockeyMessage>({
           g.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
         }
 
-        // Each score in front of its Player's goal, upright for them; a bot's labelled, a held Player asked to touch.
+        // Each score in front of its Player's goal, upright for them; a bot's labelled.
         g.textAlign = 'center';
         g.textBaseline = 'middle';
         for (const side of [0, 1] as const) {
-          g.fillStyle = DIM;
+          g.fillStyle = colour[side]!;
+          g.globalAlpha = SCORE_ALPHA;
           g.font = '600 14px system-ui, sans-serif';
-          say(g, side, String(s.score[side]), SCORE_INSET);
+          facing(g, side, SCORE_INSET, () => g.fillText(String(s.score[side]), 0, 0));
+          g.globalAlpha = 1;
           g.font = '600 4.5px system-ui, sans-serif';
-          if (sides[side].bot) say(g, side, 'BOT', SCORE_INSET - 12);
-          if (s.hold.includes(side)) {
-            g.fillStyle = FG;
-            g.font = '600 5px system-ui, sans-serif';
-            say(g, side, `${sides[side].name}, touch to start`, Math.abs(T.mid[A] - T.ends[side]) / 2 + 10);
-          }
+          if (sides[side].bot) facing(g, side, SCORE_INSET - 12, () => g.fillText('BOT', 0, 0));
+        }
+        // Before play, on this phone's end, on a shaded band clear of its score toward the centre line, upright for the
+        // person at it: a waited-for Player seated here is asked to touch it, else each one play waits for is named.
+        const here = s.hold.filter((side) => side === seated);
+        const lines = here.length > 0 ? here.map((side) => ['Touch here to start', side] as const) : s.hold.map((side) => [`Waiting for ${sides[side].name}`, side] as const);
+        if (lines.length > 0) {
+          const across = T.band[1] - T.band[0];
+          g.font = `600 ${PROMPT}px system-ui, sans-serif`;
+          facing(g, home, PROMPT_INSET, () => {
+            // The last line on the inset, any before it further in.
+            const top = -(lines.length - 1) * PROMPT_LINE;
+            g.fillStyle = SHADE;
+            g.fillRect(-across / 2, top - PROMPT_LINE / 2, across, lines.length * PROMPT_LINE);
+            lines.forEach(([text, side], k) => {
+              g.fillStyle = colour[side]!;
+              g.fillText(text, 0, top + k * PROMPT_LINE, across - 6);
+            });
+          });
         }
 
-        g.fillStyle = FG;
-        for (const p of s.pads) {
+        s.pads.forEach((p, side) => {
+          g.fillStyle = colour[side]!;
           g.beginPath();
           g.arc(p.x, p.y, AIR_HOCKEY.paddle, 0, Math.PI * 2);
           g.fill();
-        }
+        });
         // Extrapolate on the shared clock, off the walls as the host bounces it (friction aside, over at most
         // MAX_AHEAD_MS) but on into a goal's mouth; paddles aside: the next state has any strike.
         const moving = s.hold.length > 0 ? 0 : Math.max(0, Math.min(Math.max(now - Math.max(t, resumedAt), 0), MAX_AHEAD_MS) / 1000 - s.wait);
         const p = { x: s.puck.x + s.puck.vx * moving, y: s.puck.y + s.puck.vy * moving };
         p[C] = fold(p[C], T.lo[C], T.hi[C]);
         if (Math.abs(p[C] - T.mid[C]) >= T.mouth && s.puck[A] >= T.lo[A] && s.puck[A] <= T.hi[A]) p[A] = fold(p[A], T.lo[A], T.hi[A]);
+        // Behind a moving puck, where every view drew it lately: in world mm, so it runs on across the gap between Tiles.
+        if (s.wait > 0 || s.hold.length > 0) trail.length = 0;
+        else {
+          trail.push({ ...p, at: now });
+          while (now - trail[0]!.at > TRAIL_MS) trail.shift();
+          drawTrail(g, trail, now, AIR_HOCKEY.puck);
+        }
         // Resting before a serve, or held: a ring, so nobody mistakes it for play.
+        g.fillStyle = FG;
         g.beginPath();
         g.arc(p.x, p.y, AIR_HOCKEY.puck, 0, Math.PI * 2);
         if (s.wait > 0 || s.hold.length > 0) {
           g.strokeStyle = FG;
+          g.lineWidth = 1;
           g.stroke();
         } else g.fill();
       },

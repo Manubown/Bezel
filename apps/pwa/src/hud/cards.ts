@@ -1,6 +1,6 @@
 import type { HudOptions, LastMatch, Play, Sheet } from '../hud';
 import type { PauseNotice } from '../pause';
-import { describeLast, esc } from './shared';
+import { describeLast, esc, inColour } from './shared';
 
 /**
  * How the last Match ended, over the lobby on every Device that ran it: the winner, or why it closed. Gone while a
@@ -28,9 +28,9 @@ export function lastCard({ play, lobby }: Pick<HudOptions, 'play' | 'lobby'>, sh
     if (last !== shown) {
       shown = last;
       refusal = '';
-      const { headline, detail } = describeLast(last);
+      const { headline, detail, player } = describeLast(last);
       card.innerHTML =
-        `<div role="status"><p class="result-head">${esc(headline)}</p>` +
+        `<div role="status"><p class="result-head"${inColour(player)}>${esc(headline)}</p>` +
         (detail ? `<p class="result-detail">${esc(detail)}</p>` : '') +
         (sheet ? '' : `<p class="result-next">The first phone starts the next game</p>`) +
         `</div>` +
@@ -73,6 +73,6 @@ export function pauseCard(play: Readonly<Play>): () => void {
     card.hidden = !notice;
     if (!notice || notice === shown) return;
     shown = notice;
-    card.innerHTML = `<p class="pause-head">${esc(notice.headline)}</p><p class="pause-detail">${esc(notice.detail)}</p>`;
+    card.innerHTML = `<p class="pause-head"${inColour(notice.player)}>${esc(notice.headline)}</p><p class="pause-detail">${esc(notice.detail)}</p>`;
   };
 }

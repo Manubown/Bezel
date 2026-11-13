@@ -11,7 +11,7 @@ import { MAKER_FLAG } from '../maker';
 import { otherTable, tableCode } from '../othertable';
 import { placementHint } from '../placement';
 import { fadeCorner } from './corner';
-import { describeLast, esc, statusDot, syncStats } from './shared';
+import { describeLast, esc, inColour, statusDot, syncStats } from './shared';
 
 /**
  * The Host's bottom sheet, top to bottom the steps of getting a table going (spec D4): the QR with a sentence for the
@@ -294,7 +294,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
           ({ n, player: p, where, bot }) =>
             `<li><span class="n">P${n}</span>` +
             (p
-              ? `<input type="text" data-player="${esc(p.playerId)}" value="${esc(p.name)}" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Player ${n} name"${match ? ' disabled' : ''}><span class="meta">${where}</span>`
+              ? `<input type="text" data-player="${esc(p.playerId)}" value="${esc(p.name)}"${inColour((match?.players ?? lobby.players).findIndex((x) => x.playerId === p.playerId))} maxlength="24" autocomplete="off" spellcheck="false" aria-label="Player ${n} name"${match ? ' disabled' : ''}><span class="meta">${where}</span>`
               : `<span class="empty">${where}</span><span class="meta"></span>`) +
             (bot ? `<button type="button" class="chip bot" data-slot="${bot.slot}" aria-pressed="${bot.on}" aria-label="Player ${n} is a bot">Bot</button>` : '') +
             `</li>`,
@@ -343,8 +343,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     const rows = tiles.map((d, i) => {
       const e = byId.get(d.id);
       const self = d.id === session.self.deviceId;
-      const seated = lobby.players.find((p) => p.deviceId === d.id);
-      const meta = [placementHint(layout!, i), seated && esc(seated.name), late(d.id)].filter(Boolean).join(' · ');
+      const seat = lobby.players.findIndex((p) => p.deviceId === d.id);
+      const meta = [placementHint(layout!, i), seat >= 0 && `<span${inColour(seat)}>${esc(lobby.players[seat]!.name)}</span>`, late(d.id)].filter(Boolean).join(' · ');
       return {
         html:
           `<li><span class="n">${i + 1}</span><span class="who">${self ? 'This phone' : esc(e?.info.name ?? d.id.slice(0, 6))}</span>` +
