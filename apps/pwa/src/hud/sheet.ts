@@ -8,7 +8,7 @@ import type { HudOptions, Play, Sheet } from '../hud';
 import { arrangements } from '../lobby';
 import { look } from '../look';
 import { MAKER_FLAG } from '../maker';
-import { otherTable, tableCode } from '../othertable';
+import { otherSession, sessionCode } from '../sessioncode';
 import { placementHint } from '../placement';
 import { fadeCorner } from './corner';
 import { offerHtml, wireOffer } from './install';
@@ -18,18 +18,18 @@ import { describeLast, esc, inColour, soundSwitch, statusDot, syncStats } from '
 const PRIVACY = new URL('privacy/', brand.address).href;
 
 /**
- * The Host's bottom sheet, top to bottom the steps of getting a table going (spec D4): the QR with a sentence for the
+ * The Host's bottom sheet, top to bottom the steps of getting a Session going (spec D4): the QR with a sentence for the
  * other phones, the phones in the order they lie (roster, ◀ ▶), a card per Game, the arrangement when the Game names
  * more than one, Controllers when it takes them, Player slots, Start; then the game log, the install offer's row,
  * Export log (Maker mode), this phone's sound switch, "Join a different table", folded, and the link to the privacy page
- * (in a new tab: this page holds the table). `onToggle`: the Host folded or unfolded it (the bar, `unfold`).
+ * (in a new tab: this page holds the Session). `onToggle`: the Host folded or unfolded it (the bar, `unfold`).
  */
 export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () => void): Promise<Sheet> {
   const { session, lobby, code, games, play, maker } = o;
   /** The Games this phone offers (`gamelist.ts`): Pong and Air Hockey, in Maker mode every Game. */
   const shown = gameList(games, maker);
   const joinUrl = new URL(location.href);
-  // Peers join the same room with the same connectivity flags (`noturn`), so a Match never mixes paths, and in Maker mode with its flag, so one scan sets the whole table.
+  // Peers join the same room with the same connectivity flags (`noturn`), so a Match never mixes paths, and in Maker mode with its flag, so one scan sets every Peer of the Session.
   joinUrl.search = `?room=${code}${new URLSearchParams(location.search).has('noturn') ? '&noturn' : ''}${maker ? `&${MAKER_FLAG}` : ''}`;
   /** The address to type: host plus the app's path, without the trailing slash (`manubown.github.io/Bezel`); in Maker mode with its flag (`manubown.github.io/Bezel/?maker`). */
   const address = (joinUrl.host + joinUrl.pathname).replace(/\/$/, '') + (maker ? `/?${MAKER_FLAG}` : '');
@@ -75,7 +75,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
         <button type="button" class="clear-log">Clear</button>
         <span class="diag-meta"></span>
       </div>
-      <details class="other-table">
+      <details class="other-session">
         <summary>Join a different table</summary>
         <form class="enter" aria-label="Join a different table">
           <input name="room" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="4" placeholder="Code" aria-label="Table code" />
@@ -117,10 +117,10 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
   // The session log records in both modes; its export and clear are a maker's.
   if (maker) wireDiagnostics(root, o.log);
   // This phone's sound: the bar unfolds the sheet over a running Game, so it is at hand during a Match too.
-  root.querySelector('.other-table')!.before(soundSwitch(o.sound));
-  // Joining a different table means leaving this one: the page reopens as a Peer of that Session. This table's own
-  // code is refused in words (`otherTable`): the page stays, and so does every phone joined to it.
-  const other = root.querySelector<HTMLDetailsElement>('.other-table')!;
+  root.querySelector('.other-session')!.before(soundSwitch(o.sound));
+  // Joining a different Session means leaving this one: the page reopens as a Peer of that Session. This Session's own
+  // code is refused in words (`otherSession`): the page stays, and so does every Peer of it.
+  const other = root.querySelector<HTMLDetailsElement>('.other-session')!;
   const enter = root.querySelector<HTMLFormElement>('.enter')!;
   const roomInput = enter.elements.namedItem('room') as HTMLInputElement;
   const otherRefusal = root.querySelector<HTMLElement>('.other-refusal')!;
@@ -128,12 +128,12 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     if (other.open) roomInput.focus();
   });
   roomInput.addEventListener('input', () => {
-    roomInput.value = tableCode(roomInput.value);
+    roomInput.value = sessionCode(roomInput.value);
     otherRefusal.textContent = '';
   });
   enter.addEventListener('submit', (e) => {
     e.preventDefault();
-    const to = otherTable(roomInput.value, code);
+    const to = otherSession(roomInput.value, code);
     if (to === undefined) return;
     if ('refusal' in to) otherRefusal.textContent = to.refusal;
     else location.assign(`?room=${to.code}`);

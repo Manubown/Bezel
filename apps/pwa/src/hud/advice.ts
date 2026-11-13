@@ -2,7 +2,7 @@ import type { HudOptions } from '../hud';
 import { Dropouts, describeDropping } from '../join';
 
 /**
- * The first phone's advice line, once one phone's connection ended three times in a row without lasting (`Dropouts`),
+ * The Host's advice line, once one Device's connection ended three times in a row without lasting (`Dropouts`),
  * until that phone's connection lasts; in Maker mode with the count. It heads the sheet (`sheet`, the HUD's root), so
  * it shows above the bar folded or open and never covers it; not while a Match runs. Returns its render; it reads the
  * roster on every call, so call it on every change of it.

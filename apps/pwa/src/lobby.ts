@@ -88,8 +88,8 @@ export interface Lobby {
    */
   start(game: Manifest): MatchInfo;
   /**
-   * Host only: Play again. Starts the last Match's Game through `start`, on the condition that the table is
-   * still the last Match's, so the new Match has the same Players, Layout and bots and differs only in its id
+   * Host only: Play again. Starts the last Match's Game through `start`, on the condition that the Session's Devices,
+   * Players and Tiles are still the last Match's, so the new Match has the same Players, Layout and bots and differs only in its id
    * and seed. Throws an Error whose message is the reason when it cannot (on a Peer, always).
    */
   startAgain(): MatchInfo;
@@ -395,10 +395,10 @@ class HostLobby extends LobbyBase implements Lobby {
       throw new Error(`${i >= 0 ? `Phone ${i + 1}` : joined.info.name} joined the table after the last game`);
     }
     // The same Devices, but the Host decided otherwise since (an arrangement, an order, a bot, a name): that is Start.
-    const table = (players: readonly Player[], tiles: readonly Tile[]): string =>
+    const lineup = (players: readonly Player[], tiles: readonly Tile[]): string =>
       JSON.stringify([players.map((p) => [p.playerId, p.name, p.deviceId, p.bot]), tiles.map((t) => [t.deviceId, t.x, t.y, t.w, t.h, t.rot])]);
     const tiles = (this.layout?.devices ?? []).map((r): Tile => ({ deviceId: r.id, x: r.x, y: r.y, w: r.w, h: r.h, rot: r.rot }));
-    if (table(this.players, tiles) !== table(match.players, match.tiles)) throw new Error('The table changed since the last game');
+    if (lineup(this.players, tiles) !== lineup(match.players, match.tiles)) throw new Error('The table changed since the last game');
     return this.start(game);
   }
 

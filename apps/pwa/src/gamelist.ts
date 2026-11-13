@@ -3,12 +3,12 @@ import type { Manifest, Range } from '@mgc/sdk';
 import { arrangements } from './lobby';
 
 /**
- * The Games players see on the first phone, in the order they see them (spec D2): Pong, then Air Hockey.
+ * The Games players see on the Host, in the order they see them (spec D2): Pong, then Air Hockey.
  * The platform's choice, not a Manifest field; the other Games show in Maker mode only.
  */
 export const FEATURED: readonly string[] = ['mgc.pong', 'mgc.air-hockey'];
 
-/** The Games the first phone offers: in Maker mode every discovered Game as given, else the featured ones in their order. */
+/** The Games the Host offers: in Maker mode every discovered Game as given, else the featured ones in their order. */
 export function gameList(discovered: readonly Manifest[], maker: boolean): Manifest[] {
   if (maker) return [...discovered];
   return FEATURED.flatMap((id) => discovered.filter((g) => g.id === id));

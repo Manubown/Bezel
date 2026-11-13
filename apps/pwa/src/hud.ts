@@ -65,7 +65,7 @@ export interface Hud {
   render(): void;
 }
 
-/** The first phone's sheet: folded or not, and unfolded by the result card's Change game. */
+/** The Host's sheet: folded or not, and unfolded by the result card's Change game. */
 export interface Sheet extends Hud {
   readonly open: boolean;
   unfold(): void;

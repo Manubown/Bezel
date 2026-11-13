@@ -90,7 +90,7 @@ export interface Lobby {
   setBot(slot: number, on: boolean): void;             // seats-and-bots 01: Player slot 0 or 1 becomes a bot, or its human again
   setPlayers(players: Player[]): void;                 // until the Tiles or a bot change; names stay with their Player id
   start(game: Manifest): MatchInfo;                    // validates, freezes, broadcasts; throws the reason (always on a Peer)
-  startAgain(): MatchInfo;                             // outside-view 06: Play again: the last Match's Game through start; refused unless the table is still that Match's
+  startAgain(): MatchInfo;                             // outside-view 06: Play again: the last Match's Game through start; refused unless the Session's Devices, Players and Tiles are still that Match's
   close(): void }                                      // the Match is over: `match` clears on every Device
 export function openLobby(session: Session, pxPerMm: number, playerId: PlayerId, store?: LobbyStore): Lobby;  // playerId: who sits here (persisted); store: the Host's only
 export function sessionLobbyStore(code: string): LobbyStore;  // connectivity-1 04: sessionStorage `mgc.lobby.<code>`

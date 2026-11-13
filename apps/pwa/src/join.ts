@@ -4,19 +4,19 @@ import { RELAY_STABLE_MS, type DeviceId, type SessionStatus } from '@mgc/core';
 export const HELP_AFTER_MS = 15000;
 
 /**
- * What usually helps when the connections of a table do not hold: the help card's advice, the first phone's, and the
+ * What usually helps when the connections of a Session do not hold: the help card's advice, the first phone's, and the
  * site's known limits.
  */
 export const HOTSPOT = 'An iPhone hotspot often fails: use the same Wi-Fi on every phone, or mobile data on every phone.';
 
-/** A Peer's page at one moment of joining its table. */
+/** A Peer's page at one moment of joining its Session. */
 export interface Joining {
-  /** The table's code, from the page's address. */
+  /** The Session's code, from the page's address. */
   code: string;
   status: SessionStatus;
-  /** How long (ms) this phone has been trying to get in: since the page began to join, or, once it was in, since it lost the table. */
+  /** How long (ms) this phone has been trying to get in: since the page began to join, or, once it was in, since it lost its Session. */
   waited: number;
-  /** It was in the table (`ready`) at least once since the page loaded. */
+  /** It was in its Session (`ready`) at least once since the page loaded. */
   wasIn: boolean;
 }
 
@@ -26,7 +26,7 @@ export interface HelpCard {
   advice: readonly string[];
 }
 
-/** The strip's words while a phone is not in its table. */
+/** The strip's words while a phone is not in its Session. */
 export interface JoinView {
   /** The status line, in the words players read. */
   line: string;
@@ -86,31 +86,31 @@ export function joinAddress(href: string, typed: string): string | undefined {
   return url.toString();
 }
 
-/** Connections of one phone in a row that ended without lasting, after which the first phone shows its advice (spec D7). */
+/** Connections of one phone in a row that ended without lasting, after which the Host shows its advice (spec D7). */
 export const DROPS_FOR_ADVICE = 3;
 
-/** The phone the first phone's advice names. */
+/** The Device the Host's advice names. */
 export interface Dropping {
   deviceId: DeviceId;
   /** Its connections in a row that ended without lasting. */
   drops: number;
-  /** While it is in the table again: when that connection will have lasted, and the advice goes. */
+  /** While it is in the Session again: when that connection will have lasted, and the advice goes. */
   until: number | undefined;
 }
 
 /**
- * The first phone's count, per phone, of connections in a row that ended within `RELAY_STABLE_MS` of coming in: the
+ * The Host's count, per Device, of connections in a row that ended within `RELAY_STABLE_MS` of coming in: the
  * transport's measure of a connection that did not work (its own-address fail-safe and its relay escalation). The
  * transport's own count cannot serve: it counts every connection together, by the transport's ids, and stops at the
- * first. Fed the phones in the table at each change of the Host's roster; pure and timer-free, every call takes the
+ * first. Fed the Devices in the Session at each change of the Host's roster; pure and timer-free, every call takes the
  * time (ms, any monotonic clock).
  */
 export class Dropouts {
-  /** When each phone in the table came in. */
+  /** When each Device in the Session came in. */
   private readonly since = new Map<DeviceId, number>();
   private readonly streak = new Map<DeviceId, number>();
 
-  /** The phones in the table at `now`: one missing since the last call lost its connection, one new to it came in. */
+  /** The Devices in the Session at `now`: one missing since the last call lost its connection, one new to it came in. */
   see(present: Iterable<DeviceId>, now: number): void {
     const here = new Set(present);
     for (const [id, at] of this.since) {
@@ -133,7 +133,7 @@ export class Dropouts {
   }
 }
 
-/** The first phone's advice line about the phone `name` (as its roster names it), and the count beside it in Maker mode. */
+/** The Host's advice line about the Device `name` (as its roster names it), and the count beside it in Maker mode. */
 export function describeDropping(name: string, drops: number): { line: string; makers: string } {
   return { line: `${name} keeps losing its connection. ${HOTSPOT}`, makers: `${drops} connections in a row ended within ${RELAY_STABLE_MS / 1000} s` };
 }

@@ -11,7 +11,7 @@ export function isNear(box: { left: number; top: number; right: number; bottom: 
 }
 
 /**
- * The corner control while a Match runs: the first phone's folded bar, a pill in the corner of its Tile (`index.html`,
+ * The corner control while a Match runs: the Host's folded bar, a pill in the corner of its Tile (`index.html`,
  * `.sheet[data-playing]`). In full view for `SHOWN_MS` (`data-awake`), then faded back so the Tile is the Game's; a
  * touch near it brings it back. While faded it is inactive: a touch on it only brings it back, and it opens the sheet
  * once it is in view, so a thumb in the corner mid-rally does not open the sheet. Touches still reach the Game.

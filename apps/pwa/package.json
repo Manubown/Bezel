@@ -10,7 +10,7 @@
     "./install": "./src/install.ts",
     "./join": "./src/join.ts",
     "./lobby": "./src/lobby.ts",
-    "./othertable": "./src/othertable.ts",
+    "./sessioncode": "./src/sessioncode.ts",
     "./public/*": "./public/*"
   },
   "scripts": {

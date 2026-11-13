@@ -98,7 +98,7 @@ function brokenLinks() {
 
 /**
  * Pages of the site the app links to from its script, which `brokenLinks` cannot read: the privacy page, from the
- * first phone's sheet (`apps/pwa/src/hud/sheet.ts`, spec D18).
+ * Host's sheet (`apps/pwa/src/hud/sheet.ts`, spec D18).
  */
 function missingAppLinks() {
   return ['privacy/']

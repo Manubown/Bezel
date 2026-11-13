@@ -5,8 +5,8 @@ import { describeLast, esc, inColour } from './shared';
 
 /**
  * How the last Match ended, over the lobby on every Device that ran it: the winner, or why it closed. Gone while a
- * Match runs. The first phone's (`sheet` given) offers Play again (the lobby's `startAgain`, a refusal in words) and
- * Change game (the sheet unfolded), and is done once the sheet is unfolded; the others' say the first phone starts
+ * Match runs. The Host's (`sheet` given) offers Play again (the lobby's `startAgain`, a refusal in words) and
+ * Change game (the sheet unfolded), and is done once the sheet is unfolded; the Peers' say the first phone starts
  * the next game, until tapped. Below that, the install offer (`installOffer`'s card) on the first card it is due; once
  * that card closes the offer is dismissed and does not return to a card.
  */

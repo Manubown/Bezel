@@ -9,7 +9,7 @@ import { openLobby, sessionLobbyStore } from './lobby';
 import { describePause, pauseOnDeviceLoss, type PauseNotice } from './pause';
 import { claimMakerMode } from './maker';
 import { drawMetronome, startCanvasLoop } from './metronome';
-import { CODE_LENGTH } from './othertable';
+import { CODE_LENGTH } from './sessioncode';
 import { createRecorder } from './recorder';
 import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
 import { describeClose } from './result';

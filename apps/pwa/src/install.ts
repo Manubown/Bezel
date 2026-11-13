@@ -100,7 +100,7 @@ export interface InstallOffer {
   banner: Banner | undefined;
   /** On the result card, below its buttons. */
   card: Pitch | undefined;
-  /** On the first phone's sheet, as a row of its own. */
+  /** On the Host's sheet, as a row of its own. */
   row: Pitch | undefined;
 }
 

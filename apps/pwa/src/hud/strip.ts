@@ -20,7 +20,7 @@ export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
   const state = root.querySelector('.state')!;
   const meta = root.querySelector('.meta')!;
   const help = helpCard(code);
-  /** Since when this phone has been trying to get in: the page's start, then each time it lost the table. */
+  /** Since when this phone has been trying to get in: the page's start, then each time it lost its Session. */
   let since = performance.now();
   let inside = false;
   let wasIn = false;
@@ -44,7 +44,7 @@ export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
     const { layout, match } = lobby;
     const index = layout?.devices.findIndex((d) => d.id === me) ?? -1;
     if (joining) {
-      // Lost the table is a warning (amber); finding it and connecting are on their way.
+      // A lost Session is a warning (amber); finding it and connecting are on their way.
       state.innerHTML = `${statusDot(wasIn ? 'warn' : session.status === 'searching' ? 'off' : 'wait')} ${esc(joining.line)}`;
       meta.textContent = (maker ? [joining.makers, clock] : [joining.detail]).filter(Boolean).join(' · ');
     } else if (match && !match.devices.some((d) => d.deviceId === me)) {
@@ -67,7 +67,7 @@ export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
 
 /**
  * The help card, over the lobby until this phone gets in: what to check, Try again (the page joins the same code
- * afresh) and the code, to correct it (the page opens that table instead). Returns `show`: the card's words, or
+ * afresh) and the code, to correct it (the page opens that Session instead). Returns `show`: the card's words, or
  * undefined to hide it.
  */
 function helpCard(code: string): (help: HelpCard | undefined) => void {

@@ -9,13 +9,13 @@ import { homeGames } from '../games';
 import Page from '../layouts/Page.astro';
 
 // Before the page renders, the root forwards with its query: a join link (`?room=`) to the latest build, since the
-// first phone that showed it ran a build from when the app lived here; a launch from an icon installed from here to
+// Host that showed it ran a build from when the app lived here; a launch from an icon installed from here to
 // the app for everyone.
 const play = `${import.meta.env.BASE_URL}play/`;
 const next = `${import.meta.env.BASE_URL}next/`;
 
 // The home page (spec D17). Everything a player reads about the app is the app's own: the Games and their lines from
-// the Games' Manifests as the first phone lists them, the install words the app offers after a first Match, the
+// the Games' Manifests as the Host lists them, the install words the app offers after a first Match, the
 // in-app browser's banner, the hotspot advice of the help card.
 const games = homeGames(GAMES.map((g) => g.manifest));
 const examples = GAMES.length - games.length;
@@ -176,7 +176,7 @@ const guide = 'https://github.com/Manubown/Bezel/blob/master/docs/guide/README.m
   // their markers), and the join field's code rule, the app's. With scripts off the form opens the app with the code
   // as typed, and the app reads it the same way.
   import { inAppBrowser } from '@mgc/pwa/install';
-  import { joinTable } from '../join';
+  import { joinByCode } from '../join';
 
   const banner = document.querySelector<HTMLElement>('[data-in-app]');
   if (banner && inAppBrowser(navigator.userAgent)) banner.hidden = false;
@@ -187,7 +187,7 @@ const guide = 'https://github.com/Manubown/Bezel/blob/master/docs/guide/README.m
   if (form && input && refusal) {
     form.addEventListener('submit', (event) => {
       event.preventDefault();
-      const to = joinTable(input.value, form.getAttribute('action') ?? '');
+      const to = joinByCode(input.value, form.getAttribute('action') ?? '');
       if ('href' in to) {
         location.assign(to.href);
         return;
