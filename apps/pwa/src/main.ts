@@ -9,6 +9,7 @@ import { openLobby, sessionLobbyStore } from './lobby';
 import { describePause, pauseOnDeviceLoss, type PauseNotice } from './pause';
 import { claimMakerMode } from './maker';
 import { drawMetronome, startCanvasLoop } from './metronome';
+import { CODE_LENGTH } from './othertable';
 import { createRecorder } from './recorder';
 import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
 import { describeClose } from './result';
@@ -44,7 +45,7 @@ const gameLayer = document.getElementById('game') as HTMLElement;
 const hudRoot = document.getElementById('hud') as HTMLElement;
 
 function newRoomCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
 }
 

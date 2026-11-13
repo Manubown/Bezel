@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import brand from '../../brand.json';
+import { sitemap } from './sitemap';
 import { makers, openBlanks } from './src/makers';
 
 // The site is the public address's root (`brand.json`'s `address`); the app's two builds sit below it at `play/` and
@@ -11,6 +12,7 @@ export default defineConfig({
   base: address.pathname,
   trailingSlash: 'always',
   integrations: [
+    sitemap(),
     {
       // The imprint's blanks still open (`src/makers.ts`): listed on every build, never failing it (spec D18).
       name: 'makers-blanks',

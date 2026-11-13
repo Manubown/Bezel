@@ -1,32 +1,550 @@
 ---
 import brand from '../../../../brand.json';
-import Footer from '../components/Footer.astro';
+import { GAMES } from '@mgc/pwa/games';
+import { installOffer, type Platform } from '@mgc/pwa/install';
+import { HOTSPOT } from '@mgc/pwa/join';
+import Crossing from '../components/Crossing.astro';
+import Phones from '../components/Phones.astro';
+import { homeGames } from '../games';
+import Page from '../layouts/Page.astro';
 
 // Before the page renders, the root forwards with its query: a join link (`?room=`) to the latest build, since the
 // first phone that showed it ran a build from when the app lived here; a launch from an icon installed from here to
 // the app for everyone.
 const play = `${import.meta.env.BASE_URL}play/`;
 const next = `${import.meta.env.BASE_URL}next/`;
+
+// The home page (spec D17). Everything a player reads about the app is the app's own: the Games and their lines from
+// the Games' Manifests as the first phone lists them, the install words the app offers after a first Match, the
+// in-app browser's banner, the hotspot advice of the help card.
+const games = homeGames(GAMES.map((g) => g.manifest));
+const examples = GAMES.length - games.length;
+const offer = (platform: Platform) => installOffer({ platform, installed: false, inApp: false, finished: 1, dismissed: false }).row!;
+const install = [
+  { who: 'iPhone or iPad, in Safari', pitch: offer('ios') },
+  { who: 'iPhone or iPad, in Chrome', pitch: offer('ios-chrome') },
+  { who: 'Android', pitch: offer('android') },
+];
+const banner = installOffer({ platform: 'other', installed: false, inApp: true, finished: 0, dismissed: false }).banner!;
+const guide = 'https://github.com/Manubown/Bezel/blob/master/docs/guide/README.md';
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
+<Page description={brand.pitch}>
+  <Fragment slot="first">
     <script is:inline define:vars={{ play, next }}>
       if (new URLSearchParams(location.search).has('room')) location.replace(next + location.search);
       else if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) location.replace(play + location.search);
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{brand.name}</title>
-    <meta name="description" content={brand.pitch} />
-  </head>
-  <body>
-    <main>
-      <h1>{brand.name}</h1>
-      <p>{brand.pitch}</p>
-      <p><a href={play}>Start a table</a></p>
-    </main>
-    <Footer />
-  </body>
-</html>
+  </Fragment>
+
+  <aside class="in-app" data-in-app hidden>
+    <p class="column"><strong>{banner.headline}.</strong> {banner.detail}</p>
+  </aside>
+
+  <main class="column">
+    <section class="hero" aria-labelledby="name">
+      <div class="lede">
+        <h1 id="name">{brand.name}</h1>
+        <p class="pitch">{brand.pitch}</p>
+      </div>
+      <div class="art">
+        <Crossing />
+      </div>
+      <div class="actions">
+        <a class="start" href={play}>Start a table</a>
+        <form class="join" action={play} method="get" novalidate data-join>
+          <label for="room">Or join a table with its code</label>
+          <div class="field">
+            <input
+              id="room"
+              name="room"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              enterkeyhint="go"
+              placeholder="Code"
+              aria-describedby="room-refusal"
+            />
+            <button type="submit">Join</button>
+          </div>
+          <p class="refusal" id="room-refusal" aria-live="polite" data-refusal></p>
+        </form>
+      </div>
+    </section>
+
+    <section class="how" aria-labelledby="how">
+      <h2 id="how">How a table starts</h2>
+      <ol class="steps">
+        <li>
+          <Phones arrangement="row" phones={1} qr />
+          <div>
+            <h3>One phone starts a table</h3>
+            <p>Tap Start a table on it. That phone is the first phone: it shows a QR code and the table’s code.</p>
+          </div>
+        </li>
+        <li>
+          <Phones arrangement="row" phones={2} qr scan />
+          <div>
+            <h3>The other phones join</h3>
+            <p>Scan the first phone’s QR code with the camera, or open this page and type the table’s code.</p>
+          </div>
+        </li>
+        <li>
+          <Phones arrangement="row" phones={3} ends ball />
+          <div>
+            <h3>Lay them down</h3>
+            <p>On the first phone, pick a game. Lay the phones the way it shows, then tap Start on it.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="games" aria-labelledby="games">
+      <h2 id="games">What you can play</h2>
+      <ul>
+        {
+          games.map((game) => (
+            <li>
+              <Phones arrangement={game.drawn.arrangement} phones={game.drawn.phones} ends ball />
+              <div>
+                <h3>{game.name}</h3>
+                <p class="line">{game.line}</p>
+                <p class="meta">
+                  {game.table}.{game.bot && ' A bot can stand in for a player.'}
+                </p>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="install" aria-labelledby="install">
+      <h2 id="install">{install[0]!.pitch.headline}</h2>
+      <p class="lead">{install[0]!.pitch.reason} Nothing covers the edge of a screen where the ball crosses to the next phone.</p>
+      <p>Open the app with <a href={play}>Start a table</a>, then:</p>
+      <div class="platforms">
+        {
+          install.map(({ who, pitch }) => (
+            <div>
+              <h3 class="who">{who}</h3>
+              <ol>
+                {pitch.steps.map((step) => (
+                  <li>{step}</li>
+                ))}
+              </ol>
+            </div>
+          ))
+        }
+      </div>
+      <p class="meta">After a phone’s first game the app offers this itself.</p>
+      <p class="meta">Opened in another app’s browser, the way Instagram or a chat app opens a link? {banner.headline}. {banner.detail}</p>
+    </section>
+
+    <div class="facts">
+      <section aria-labelledby="works">
+        <h2 id="works">Works on</h2>
+        <p class="lead">iPhone and Android phones, in a current Safari or Chrome.</p>
+        <p class="meta">At our own table so far: iPhone 12, iPhone 14 and iPhone 15 Pro Max in Safari, and Android phones, one of them in Firefox.</p>
+      </section>
+      <section aria-labelledby="limits">
+        <h2 id="limits">Known limits</h2>
+        <ul>
+          <li>{HOTSPOT}</li>
+          <li>Every phone needs the internet to join a table: the phones find each other through servers on the internet. There is no offline play yet.</li>
+          <li>Each phone’s screen size is estimated by its browser, so the picture may not line up exactly across a gap.</li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="build" aria-labelledby="build">
+      <h2 id="build">Build a game</h2>
+      <p>
+        {brand.name} is open source, under the MIT licence. A game is a TypeScript package: a manifest, the logic the first
+        phone runs and the view every phone draws. The platform does the rest: the table, one clock for every phone, the
+        picture laid across the gaps, pausing and the result. Besides the games above, the repository holds {examples} more
+        as examples. <a href={guide}>Read the developer guide</a>.
+      </p>
+    </section>
+  </main>
+</Page>
+
+<script>
+  // The two parts of the page that need script: the banner inside another app's browser (by the app's own list of
+  // their markers), and the join field's code rule, the app's. With scripts off the form opens the app with the code
+  // as typed, and the app reads it the same way.
+  import { inAppBrowser } from '@mgc/pwa/install';
+  import { joinTable } from '../join';
+
+  const banner = document.querySelector<HTMLElement>('[data-in-app]');
+  if (banner && inAppBrowser(navigator.userAgent)) banner.hidden = false;
+
+  const form = document.querySelector<HTMLFormElement>('[data-join]');
+  const input = form?.querySelector<HTMLInputElement>('input[name="room"]');
+  const refusal = form?.querySelector<HTMLElement>('[data-refusal]');
+  if (form && input && refusal) {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const to = joinTable(input.value, form.getAttribute('action') ?? '');
+      if ('href' in to) {
+        location.assign(to.href);
+        return;
+      }
+      refusal.textContent = to.refusal;
+      input.setAttribute('aria-invalid', 'true');
+      input.focus();
+    });
+    input.addEventListener('input', () => {
+      if (!input.hasAttribute('aria-invalid')) return;
+      input.removeAttribute('aria-invalid');
+      refusal.textContent = '';
+    });
+  }
+</script>
+
+<style>
+  .in-app {
+    padding-block: 14px;
+    background: var(--raise);
+    border-bottom: 1px solid var(--rule);
+    color: var(--fg-2);
+  }
+
+  .in-app strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  main > * + * {
+    margin-top: clamp(72px, 12vw, 144px);
+  }
+
+  h2 {
+    margin-bottom: 24px;
+    font-size: clamp(26px, 1.2rem + 1.6vw, 40px);
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-size: var(--text-l);
+  }
+
+  .lead {
+    max-width: 34ch;
+    font-size: var(--text-l);
+    line-height: 1.45;
+  }
+
+  .meta {
+    max-width: 65ch;
+    color: var(--fg-2);
+  }
+
+  /* The first screen: the name and the sentence, the drawing, the two ways in. */
+  .hero {
+    display: grid;
+    grid-template-areas: 'lede' 'art' 'actions';
+    gap: 20px;
+    padding-top: clamp(24px, 5vw, 48px);
+  }
+
+  .lede {
+    grid-area: lede;
+  }
+
+  .art {
+    grid-area: art;
+    width: 100%;
+    max-width: 440px;
+    justify-self: center;
+  }
+
+  .actions {
+    grid-area: actions;
+    width: 100%;
+    max-width: 440px;
+    justify-self: center;
+  }
+
+  h1 {
+    font-size: clamp(44px, 1.6rem + 6vw, 96px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .pitch {
+    max-width: 32ch;
+    margin-top: 14px;
+    font-size: var(--text-l);
+    line-height: 1.4;
+    text-wrap: balance;
+  }
+
+  .start {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--tap-main);
+    padding: 0 28px;
+    border-radius: var(--radius);
+    background: var(--fg);
+    color: var(--bg);
+    font-size: var(--text-l);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .start:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+  }
+
+  .start:active {
+    background: var(--fg-2);
+  }
+
+  .join {
+    display: grid;
+    gap: 8px;
+    margin-top: 22px;
+  }
+
+  .join label {
+    color: var(--fg-2);
+  }
+
+  .field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .field input {
+    min-width: 0;
+    min-height: var(--tap);
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .field input::placeholder {
+    color: var(--fg-2);
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+    opacity: 1;
+  }
+
+  .field input[aria-invalid] {
+    border-color: var(--warn);
+  }
+
+  .field button {
+    min-height: var(--tap);
+    padding: 0 22px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--raise);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .field button:hover {
+    border-color: var(--fg-2);
+  }
+
+  .field button:active {
+    border-color: var(--fg);
+  }
+
+  .refusal {
+    color: var(--warn);
+  }
+
+  @media (min-width: 900px) {
+    .hero {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+      grid-template-rows: 1fr auto;
+      grid-template-areas: 'lede art' 'actions art';
+      column-gap: clamp(40px, 6vw, 96px);
+      row-gap: 36px;
+      min-height: min(100svh - 96px, 760px);
+      align-content: center;
+    }
+
+    .lede {
+      align-self: end;
+    }
+
+    .art {
+      max-width: 560px;
+      align-self: center;
+    }
+
+    .actions {
+      justify-self: start;
+      align-self: start;
+      max-width: 400px;
+    }
+
+    .pitch {
+      margin-top: 20px;
+      font-size: clamp(var(--text-l), 0.9rem + 0.8vw, var(--text-xl));
+    }
+  }
+
+  /* Three steps: a small drawing beside each on a phone, above each on a wide screen. */
+  .steps {
+    display: grid;
+    gap: 28px;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+
+  .steps li,
+  .games li {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+  }
+
+  .steps li > :global(svg),
+  .games li > :global(svg) {
+    justify-self: center;
+    height: auto;
+  }
+
+  .steps h3::before {
+    counter-increment: step;
+    content: counter(step) '  ';
+    color: var(--fg-2);
+  }
+
+  .steps p,
+  .games .line {
+    margin-top: 6px;
+  }
+
+  .steps p {
+    max-width: 40ch;
+    color: var(--fg-2);
+  }
+
+  .games ul {
+    display: grid;
+    gap: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .games li {
+    padding-block: 24px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .games h3 {
+    font-size: var(--text-xl);
+  }
+
+  .games .meta {
+    margin-top: 4px;
+  }
+
+  .install > p + p,
+  .install .platforms + .meta,
+  .install .meta + .meta {
+    margin-top: 16px;
+  }
+
+  .install .lead {
+    max-width: 44ch;
+  }
+
+  .platforms {
+    display: grid;
+    gap: 24px;
+    margin-top: 20px;
+  }
+
+  .platforms > div {
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .who {
+    font-family: var(--font-ui);
+    font-size: var(--text-m);
+    font-weight: 600;
+  }
+
+  .platforms ol {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+    padding-left: 1.4em;
+    color: var(--fg-2);
+  }
+
+  .facts {
+    display: grid;
+    gap: 56px;
+  }
+
+  .facts .meta {
+    margin-top: 12px;
+  }
+
+  .facts ul {
+    display: grid;
+    gap: 14px;
+    max-width: 60ch;
+    padding-left: 1.2em;
+  }
+
+  .build p {
+    max-width: 65ch;
+    font-size: var(--text-l);
+    line-height: 1.5;
+  }
+
+  @media (min-width: 900px) {
+    .steps {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 40px;
+    }
+
+    .steps li {
+      grid-template-columns: none;
+      grid-template-rows: 96px auto;
+      gap: 20px;
+    }
+
+    .steps li > :global(svg) {
+      justify-self: start;
+      align-self: end;
+    }
+
+    .games ul {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 40px;
+    }
+
+    .platforms {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 40px;
+    }
+
+    .facts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 64px;
+    }
+  }
+</style>

@@ -45,6 +45,12 @@ importers:
 
   apps/site:
     dependencies:
+      '@mgc/look':
+        specifier: workspace:*
+        version: link:../../packages/look
+      '@mgc/pwa':
+        specifier: workspace:*
+        version: link:../pwa
       astro:
         specifier: ^7.4.11
         version: 7.4.11(@types/node@26.6.6)(esbuild@0.28.2)(yaml@2.9.1)

@@ -1,0 +1,99 @@
+/*
+ * The site's elements on the night table, the app's look (@mgc/look/tokens.css, loaded before this sheet by the
+ * page layout): every colour, face and size below is one of its tokens. Each page styles its own parts on top.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* The page's column: the space at each side, and its widest. */
+:root {
+  --gutter: 20px;
+  --column: 1120px;
+}
+
+@media (min-width: 720px) {
+  :root {
+    --gutter: 40px;
+  }
+}
+
+html {
+  background: var(--bg);
+  color: var(--fg);
+  scrollbar-color: var(--line) var(--bg);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  font: var(--text-m) / 1.55 var(--font-ui);
+}
+
+/* A tap shows each control's own pressed state, not the browser's grey flash. */
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A page's parts, the footer too, line up in one column. */
+.column {
+  width: min(100% - 2 * var(--gutter), var(--column));
+  margin-inline: auto;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+p,
+ol,
+ul {
+  margin: 0;
+}
+
+a {
+  color: var(--fg);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* 16 px in every field: an iPhone zooms into a smaller one when it gets focus. */
+input,
+button {
+  font: inherit;
+  font-size: var(--text-m);
+  color: inherit;
+}
+
+input {
+  caret-color: var(--fg);
+}
+
+::selection {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 3px;
+}
+
+[hidden] {
+  display: none !important;
+}

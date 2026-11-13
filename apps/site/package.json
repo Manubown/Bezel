@@ -10,6 +10,8 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@mgc/look": "workspace:*",
+    "@mgc/pwa": "workspace:*",
     "astro": "^7.4.11"
   },
   "devDependencies": {
