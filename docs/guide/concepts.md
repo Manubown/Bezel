@@ -34,17 +34,17 @@ Each factory is the init: its handlers run only after it returned, so async setu
 
 Where the Players come from is the Game's choice, `Manifest.seats`:
 
-- `'ends'` (default): the lobby seats at most **two** Players, slot 0 at the first Tile and slot 1 at the last Tile in Tile order (`SLOTS = 2`, `apps/pwa/src/lobby.ts:9-10`). Pong, Air Hockey, Tap Race, Snake, Breakout.
+- `'ends'` (default): the lobby seats at most **two** Players, slot 0 at the first Tile and slot 1 at the last Tile in Tile order (`SLOTS = 2`, `apps/pwa/src/lobby.ts:10-11`). Pong, Air Hockey, Tap Race, Snake, Breakout.
 - `'tiles'`: one Player per phone on the table, in Tile order, seated at it; the Bot chip adds a bot after them when the manifest has `bots`. Tap Race, Breakout.
-- `'controllers'`: one Player per phone the Host marks as a Controller (the "Players' phones" chips), the person holding it, seated at that Controller (`Player.deviceId`); no bots (`apps/pwa/src/lobby.ts:421-430`). Quiz. The Game's host hands each Controller to the Player seated at it (`setHolder`).
+- `'controllers'`: one Player per phone the Host marks as a Controller (the "Players' phones" chips), the person holding it, seated at that Controller (`Player.deviceId`); no bots (`apps/pwa/src/lobby.ts:478-487`). Quiz. The Game's host hands each Controller to the Player seated at it (`setHolder`).
 
 For `'ends'`:
 
-- `match.players` lists the slots' Players, Player 1 first. A human is `{ playerId, name, deviceId }`, seated at that Tile; a bot is `{ playerId: 'bot:<slot>', name: 'Bot', bot: true }` with no `deviceId` (`apps/pwa/src/lobby.ts:399-409`, `528-531`).
+- `match.players` lists the slots' Players, Player 1 first. A human is `{ playerId, name, deviceId }`, seated at that Tile; a bot is `{ playerId: 'bot:<slot>', name: 'Bot', bot: true }` with no `deviceId` (`apps/pwa/src/lobby.ts:456-466`, `584-587`).
 - Middle Tiles of a row of three or more seat nobody. Controllers are never seated. With one Tile, slot 1 can only be a bot.
 - Read who sits where from `Player.deviceId`, never from a Player's index, and map an `Input.deviceId` to its Player the same way (template: `games/_template/src/index.ts:51-52`).
 - A Manifest's `players` range counts bots, and the lobby never produces more than two Players, whatever the range says.
-- Bots exist only if the manifest says `bots: true`; the host game then plays every `Player.bot` itself (Pong: `games/pong/src/index.ts:90-98` assigns sides, its `tick` moves bot paddles).
+- Bots exist only if the manifest says `bots: true`; the host game then plays every `Player.bot` itself (Pong: `games/pong/src/index.ts:112-120` assigns sides, its `tick` moves bot paddles).
 - A Player id is issued once per Device id and kept across reloads and Matches (`apps/pwa/src/device.ts:59-71`).
 - Holders: every Controller starts with nobody holding it. The host game calls `ctx.setHolder(controller, playerId | null)`; input and messages from that Controller then carry the Holder as `playerId`, stamped when they reach the Host. See [Holders](#holders).
 
@@ -93,7 +93,7 @@ A browser lets a page sound only from a touch on it, so `speaker` makes its `Aud
 The **World** is one coordinate space in millimetres shared by all Tiles (ADR-0005): x right, y down. Every `Tile` is a rectangle in it: `x, y` is where the screen's top-left corner lies, `w, h` its size, and `rot` turns the screen's own axes **clockwise, in radians, about that corner** (`packages/sdk/src/types.ts:14-18`, `packages/layout/src/types.ts:16-25`).
 
 - `match.tiles` is the Layout in Tile order (Layout order; the HUD numbers phones 1, 2, …). `match.bounds` is the axis-aligned box around every Tile.
-- The lobby's templates (row, column, grid) put a 4 mm gap between phones and always produce `rot: 0` (`packages/layout/src/templates.ts:4-5`, `16`, `27`, `54`). A rotated Tile exists today only in a hand-built `MatchInfo` in a test ([testing](testing.md#rotated-tiles)).
+- The lobby's templates (row, column, grid) put a 4 mm gap between phones and always produce `rot: 0` (`packages/layout/src/templates.ts:4-5`, `16`, `27`, `62`). A rotated Tile exists today only in a hand-built `MatchInfo` in a test ([testing](testing.md#rotated-tiles)).
 - The **Surface** maps one Device's screen to the World (`packages/layout/src/surface.ts`). Before every `draw` the SDK applies it to the canvas, so a Tile's view draws in world mm and shows only its own part. Every view can simply draw the whole World.
 
 Where a rotated Tile's screen lies in the World:
@@ -105,7 +105,7 @@ Where a rotated Tile's screen lies in the World:
 | `Math.PI` | `[x − w, x] × [y − h, y]` |
 | `-Math.PI / 2` | `[x, x + h] × [y − w, y]` |
 
-The canvas is in world axes, so text drawn on a rotated Tile is rotated with the World. To draw it upright for the person holding that phone, turn the context by the Tile's `rot` at the text's origin, as the lobby preview does (`apps/pwa/src/scene.ts:46-54`):
+The canvas is in world axes, so text drawn on a rotated Tile is rotated with the World. To draw it upright for the person holding that phone, turn the context by the Tile's `rot` at the text's origin, as the lobby preview does for each phone's number in its drawing of the table (`apps/pwa/src/scene.ts:109-127`):
 
 ```ts
 g.save(); g.translate(x, y); g.rotate(tile.rot); g.fillText('Your turn', 0, 0); g.restore();
@@ -133,19 +133,19 @@ The host game runs the Match once, on the Host, and **publishes** state; views d
 - `ctx.publish(state, to?)` sends `state` to every view, or to Device `to` alone. One call is one frame on the wire: never coalesced, never rate-limited, so the Game owns the wire rate. Host upload ≈ (number of Peers) × state size × publish rate (ADR-0002); Pong's ~200 B at 60 Hz to 3 Peers is about 36 KB/s (`docs/sdk-design.md` §5).
 - State is plain JSON. `publish`, `send` and `end` throw a `TypeError` at the call site for anything else: `undefined`, `NaN`/`Infinity`, functions, `Map`/`Date`/class instances, cycles (`packages/sdk/src/json.ts`).
 - Each state is stamped with a host time: the step's `now` inside `tick`, else `ctx.now()`. A view reads it as `onState(state, t)`, `ctx.latest()`, or `Frame.state` / `Frame.t` in `draw`.
-- A view holds **one** latest state: a state published to it alone replaces the last broadcast one and the other way round (`packages/sdk/src/game-side.ts:292-294`).
+- A view holds **one** latest state: a state published to it alone replaces the last broadcast one and the other way round (`packages/sdk/src/game-side.ts:299-301`).
 - Before the first `publish` a view has no state (`Frame.state` is `undefined`) and most views draw nothing. Publish a first state in the host factory (`games/_template/src/index.ts:56-57`).
-- Extrapolation and prediction are the Game's. `Frame.now - Frame.t` is how old the state is. States arrive over a reliable, ordered channel, so one lost packet delays every state behind it: a view that draws the last state as it is shows a frozen picture for that long, then a jump. Pong moves the ball on along its path by up to a second of that age, bouncing it off the table's edges and off a paddle that covers it where it reaches the paddle's face (`games/pong/src/index.ts:35`, `284-288`), so a stall does not hide the ball on a Tile it crosses. A view's `onInput` echoes this Device's own input as it leaves, for local prediction.
-- Randomness: seed it from `ctx.match.seed` (the same on every Device) so tests are deterministic. Pong's mulberry32 is at `games/pong/src/index.ts:72-82`.
+- Extrapolation and prediction are the Game's. `Frame.now - Frame.t` is how old the state is. States arrive over a reliable, ordered channel, so one lost packet delays every state behind it: a view that draws the last state as it is shows a frozen picture for that long, then a jump. Pong moves the ball on along its path by up to a second of that age, bouncing it off the table's edges and off a paddle that covers it where it reaches the paddle's face (`games/pong/src/index.ts:35`, `409-413`), so a stall does not hide the ball on a Tile it crosses. A view's `onInput` echoes this Device's own input as it leaves, for local prediction.
+- Randomness: seed it from `ctx.match.seed` (the same on every Device) so tests are deterministic. Pong's mulberry32 is at `games/pong/src/index.ts:94-104`.
 
 ### Ticking or event-driven
 
 | Host | When it runs | Choose it for |
 |---|---|---|
-| ticking: has `tick`, manifest `tickHz` > 0 (default 60, `apps/pwa/src/lobby.ts:7-8`) | `tick(dt, now)` every `1 / tickHz` s; input, messages and due timers arrive just before the step's `tick` | continuous motion (Pong) |
+| ticking: has `tick`, manifest `tickHz` > 0 (default 60, `apps/pwa/src/lobby.ts:8-9`) | `tick(dt, now)` every `1 / tickHz` s; input, messages and due timers arrive just before the step's `tick` | continuous motion (Pong) |
 | event-driven: no `tick`, or `tickHz: 0` | each input, message and timer as it arrives; no steps at all | turns, taps, timers (template, Pass) |
 
-The fixed step runs on the Host tab's animation frames, at most 5 catch-up steps per frame; the rest of a longer stall is dropped (`MAX_CATCH_UP_STEPS`, `packages/sdk/src/match.ts:86`, `366-381`). A Host tab that is hidden gets no animation frames, so its steps stop.
+The fixed step runs on the Host tab's animation frames, at most 5 catch-up steps per frame; the rest of a longer stall is dropped (`MAX_CATCH_UP_STEPS`, `packages/sdk/src/match.ts:90`, `371-386`). A Host tab that is hidden gets no animation frames, so its steps stop.
 
 ### Input
 
@@ -163,7 +163,7 @@ The fixed step runs on the Host tab's animation frames, at most 5 catch-up steps
 
 ## Timers
 
-`ctx.timer(tag, delayMs)` calls `onTimer(tag, now)` after `delayMs`, where `now` is the shared time it was due (`packages/sdk/src/match.ts:331-346`).
+`ctx.timer(tag, delayMs)` calls `onTimer(tag, now)` after `delayMs`, where `now` is the shared time it was due (`packages/sdk/src/match.ts:336-351`).
 
 - The same tag replaces the earlier timer; `null` cancels it.
 - Paused time does not count: a pause freezes the delay left, the resume runs it on. A timer set while paused starts counting at the resume.
@@ -175,9 +175,9 @@ Use `ctx.timer` on the host, never `setTimeout`: it is pause-aware and runs on t
 
 ## Pause and resume
 
-The platform pauses a Match when the Host loses one of the Match's Devices, naming it (`{ kind: 'device-lost', deviceId }`), and resumes once every lost Device is back **and** has synced its clock (`apps/pwa/src/pause.ts:12-35`). The Host notices a lost phone after 5 s of silence on its connection (`LOST_MS`, `packages/core/src/session.ts`; the 1 Hz clock pings are the heartbeat, and a phone silent for 2.5 s already shows a weak link in the roster), no longer only when the transport reports it gone 10–13 s later (observed 10.2–12.8 s before, `.scratch/m2-pong-sdk/issues/06-pause-resume.md:158`). Every phone shows "Waiting for <Player>" (or "phone N", "the controller").
+The platform pauses a Match when the Host loses one of the Match's Devices, naming it (`{ kind: 'device-lost', deviceId }`), and resumes once every lost Device is back **and** has synced its clock (`apps/pwa/src/pause.ts:13-36`). The Host notices a lost phone after 5 s of silence on its connection (`LOST_MS`, `packages/core/src/session.ts`; the 1 Hz clock pings are the heartbeat, and a phone silent for 2.5 s already shows a weak link in the roster), no longer only when the transport reports it gone 10–13 s later (observed 10.2–12.8 s before, `.scratch/m2-pong-sdk/issues/06-pause-resume.md:158`). Every phone shows "Waiting for <Player>" (or "phone N", "the controller").
 
-While paused (`packages/sdk/src/match.ts:458-498`):
+While paused (`packages/sdk/src/match.ts:463-503`):
 
 | | Host game | Views |
 |---|---|---|
@@ -186,21 +186,21 @@ While paused (`packages/sdk/src/match.ts:458-498`):
 | on resume | `onResume(now, pausedMs)` first; steps restart at `now` | the kept states arrive (`latest()` is current), then `onResume(now, pausedMs)` |
 
 - `pausedMs` is how long the Match stood still on the shared clock, from the first pause (a reason that changes mid-pause does not restart it), the same on the host and every view. Shift a deadline you keep yourself by it (`turnEndsAt += pausedMs`), or use `ctx.timer`, which is pause-aware already.
-- A game that publishes only on change re-publishes in `onResume` (Pong's host: `games/pong/src/index.ts:214-217`).
-- A state stamped before the resume describes the paused moment: extrapolate from `max(t, now)`, not from `t` (Pong's view: `games/pong/src/index.ts:276-284`).
-- A finger held across a pause is cancelled at the host; its later moves are dropped until it lifts and touches again (`packages/sdk/src/match.ts:304-315`).
+- A game that publishes only on change re-publishes in `onResume` (Pong's host: `games/pong/src/index.ts:324-327`).
+- A state stamped before the resume describes the paused moment: extrapolate from `max(t, now)`, not from `t` (Pong's view: `games/pong/src/index.ts:387-388`, `400-409`).
+- A finger held across a pause is cancelled at the host; its later moves are dropped until it lifts and touches again (`packages/sdk/src/match.ts:309-320`).
 - A phone that reloads mid-Match, paused or not, asks the Host for the current picture as its view opens (its runtime's `hello`): the Holders, the kept states for it, and the pause while paused, so it draws the current state at once and a change-only state is not blank until the next change. During a pause it gets `onPause`, then `onResume` with the same `pausedMs` as everyone; if the resume reached it before that answer, `onResume` alone. A state may arrive twice (from the answer and from the resume); apply it as you would once.
 
 ## Ending
 
 - `ctx.end({ scores?, ranking? })` closes the Match on every Device. Views get `onEnd({ reason: 'ended', result })`, then `dispose`; every phone shows the result card and returns to the lobby.
-- The card names the winner from `ranking`, else from the highest score; equal top scores without a ranking are a draw (`apps/pwa/src/result.ts:3-17`).
+- The card names the winner from `ranking`, else from the highest score; equal top scores without a ranking are a draw (`apps/pwa/src/result.ts:14-33`).
 - Publish the final state **before** `end`: a `publish`, `setHolder`, `timer` or second `end` in the same turn after `end` is refused with a log line (`publish rejected: the Match has ended`), and after the close it is dropped.
 - The Host's "End game" closes the Match with `reason: 'aborted'` ("Game ended on the first phone").
 
 ## Faults and the close ladder
 
-Nothing a Game throws crosses into the platform; it becomes a `fault` event on that Device and goes to the Host's game log (shown in Maker mode, `?maker`) and console. Repeated or fatal faults close a side (`packages/sdk/src/game.ts:10-14`, constants at `packages/sdk/src/match.ts:86-93`, `packages/sdk/src/game-side.ts:18`):
+Nothing a Game throws crosses into the platform; it becomes a `fault` event on that Device and goes to the Host's game log (shown in Maker mode, `?maker`) and console. Repeated or fatal faults close a side (`packages/sdk/src/game.ts:10-14`, constants at `packages/sdk/src/match.ts:90-97`, `packages/sdk/src/game-side.ts:18`):
 
 | What happens | Result |
 |---|---|
@@ -215,7 +215,7 @@ Which side closes decides what the players see:
 
 | Side that closes | Effect |
 |---|---|
-| host | the Match closes on every Device; every phone shows "The game crashed" with the detail (`apps/pwa/src/result.ts:20-27`) |
+| host | the Match closes on every Device; every phone shows "The game crashed", in Maker mode with the runtime's detail under it (`apps/pwa/src/result.ts:46-63`) |
 | a Peer's view | only that phone leaves the Match |
 | the Host's own view | the Host shows "The game stopped on this phone"; the Match goes on for the others |
 

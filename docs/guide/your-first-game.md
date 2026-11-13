@@ -44,7 +44,7 @@ tickHz: 0,                       // event-driven: no `tick`; inputs and timers w
 
 The lobby refuses Start outside these ranges and quotes the reason ([troubleshooting](troubleshooting.md#start-is-refused)). `tickHz: 0` means the host has no fixed-step loop: `onInput` and `onTimer` are the only things that run. `bots: true` puts a Bot chip on each Player slot in the Host's sheet; the host game then has to play those Players itself (§4).
 
-Tap Race leaves `seats` out, so it gets `seats: 'ends'`: the lobby seats at most two Players, at the first and the last Tile (`apps/pwa/src/lobby.ts:9-10`; the other mode, `'controllers'`, is in [Concepts](concepts.md#seats-and-bots)). A Game that allows `players: { max: 4 }` is ready for more; under `'ends'` it never gets more from the lobby yet.
+Tap Race leaves `seats` out, so it gets `seats: 'ends'`: the lobby seats at most two Players, at the first and the last Tile (`apps/pwa/src/lobby.ts:10-11`; the other mode, `'controllers'`, is in [Concepts](concepts.md#seats-and-bots)). A Game that allows `players: { max: 4 }` is ready for more; under `'ends'` it never gets more from the lobby yet.
 
 ## 3. The host factory (`host(ctx)`)
 

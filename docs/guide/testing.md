@@ -115,13 +115,13 @@ for (const id of ['d0', 'd1']) expect(t.events(id).filter((e) => e.t === 'fault'
 
 ## Hand-building a `MatchInfo`
 
-Build it the way the lobby does (`apps/pwa/src/lobby.ts:317-342`), or the test proves something the app never runs:
+Build it the way the lobby does (`apps/pwa/src/lobby.ts:348-376`), or the test proves something the app never runs:
 
 | Field | The lobby's rule |
 |---|---|
 | `matchId` | any string |
 | `seed` | a 32-bit unsigned integer; fix it in a test |
-| `tickHz` | the manifest's `tickHz`, or 60 when it has none (`apps/pwa/src/lobby.ts:7-8`). Keep the two equal |
+| `tickHz` | the manifest's `tickHz`, or 60 when it has none (`apps/pwa/src/lobby.ts:8-9`). Keep the two equal |
 | `players` | `seats: 'ends'` (the default): at most two, slot 0 the human at the first Tile (`deviceId` set) or the bot `{ playerId: 'bot:0', name: 'Bot', bot: true }`; slot 1 the same for the last Tile (`bot:1`). `seats: 'controllers'`: one human per Controller, `deviceId` that Controller's, in roster order, no bots ([seats](concepts.md#seats-and-bots)) |
 | `devices` | every Device, the Host first. A Tile: `{ deviceId, role: 'tile', name, tile, screenMm: { x: tile.w, y: tile.h } }`. A Controller: `{ deviceId, role: 'controller', name, screenMm }`, no `tile` |
 | `tiles` | the Tile Devices' `tile`s, in Tile order |
@@ -201,7 +201,7 @@ it('imports nothing but the SDK', () => {
 });
 ```
 
-It needs `@types/node` (the template's `devDependencies`). Pong's version also pins `package.json`'s `dependencies` to `['@mgc/sdk']` (`games/pong/test/pong.test.ts:133-144`).
+It needs `@types/node` (the template's `devDependencies`). Pong's version also pins `package.json`'s `dependencies` to `['@mgc/sdk']` (`games/pong/test/pong.test.ts:160-171`).
 
 ## What the headless screen can and cannot do
 

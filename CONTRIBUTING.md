@@ -46,7 +46,7 @@ Anything a Game can see is a contract: `packages/sdk/src/{types,game,wire}.ts`. 
 
 ## Docs
 
-- `docs/guide/` is the developer-facing documentation and is versioned with the code. Where a page cites a file as `path:line`, the citation is a claim about that line: when you move code, fix the citation; when you change behaviour, fix the sentence. `.scratch/dev-onboarding/issues/02-developer-guide.md` describes the script that verifies every citation resolves.
+- `docs/guide/` is the developer-facing documentation and is versioned with the code. Where a page cites a file as `path:line`, the citation is a claim about that line: when you move code, fix the citation; when you change behaviour, fix the sentence. `pnpm citations` (`scripts/citations.mjs`) checks that every cited file exists, every line range lies inside its file and every link in the guide resolves; `pnpm citations --lines` lists each line citation with the first line it cites. Whether that line is the one the sentence is about, only reading tells.
 - Use the terms in `GLOSSARY.md` exactly (Session, Device, Host, Peer, Tile, Layout, Surface, World, Game, Match, Player, Controller, Holder, Input) and avoid the synonyms it lists.
 - A decision that constrains future work gets an ADR in `docs/adr/NNNN-<slug>.md`; contradicting an existing ADR is a conversation, not a silent override (`docs/agents/domain.md`).
 
