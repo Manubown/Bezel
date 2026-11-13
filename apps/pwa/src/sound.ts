@@ -1,4 +1,6 @@
-/** localStorage: this Device's sound setting (`'on'` or `'off'`), once its person switched it. */
+import { keptSwitch, switchValue } from './switches';
+
+/** localStorage: this Device's sound setting, a switch (`switches.ts`), once its person switched it. */
 const SOUND_KEY = 'mgc.sound';
 
 /**
@@ -14,7 +16,7 @@ export interface SoundSetting {
 }
 
 export function soundSetting(): SoundSetting {
-  let on = localStorage.getItem(SOUND_KEY) !== 'off';
+  let on = keptSwitch(localStorage.getItem(SOUND_KEY)) ?? true;
   const listeners: ((on: boolean) => void)[] = [];
   return {
     get on() {
@@ -23,7 +25,7 @@ export function soundSetting(): SoundSetting {
     set(next) {
       if (next === on) return;
       on = next;
-      localStorage.setItem(SOUND_KEY, on ? 'on' : 'off');
+      localStorage.setItem(SOUND_KEY, switchValue(on));
       for (const fn of listeners) fn(on);
     },
     onChange: (fn) => void listeners.push(fn),

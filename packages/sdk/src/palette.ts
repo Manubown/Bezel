@@ -4,7 +4,7 @@
  * Match's Player list, `match.players`, which every Device gets in the same order: the platform's screens and the
  * Games agree on it with nothing more on the wire (spec outside-view D10).
  */
-export const PLAYER_COLOURS: readonly string[] = ['#ff6b4a', '#2ec4b6', '#a98bff', '#c2e05a'];
+const PLAYER_COLOURS: readonly string[] = ['#ff6b4a', '#2ec4b6', '#a98bff', '#c2e05a'];
 
 /** The colour of the Player at `position` in `match.players` (0: the first); past the fourth they repeat. */
 export function playerColour(position: number): string {

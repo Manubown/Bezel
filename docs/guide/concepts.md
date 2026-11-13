@@ -50,10 +50,10 @@ For `'ends'`:
 
 ## Players' colours and the own Tile
 
-Each Player has a colour, the same on every phone and in the platform's own screens (the sheet, the pause and the result card): the one of their place in `match.players`. Nothing on the wire says it; `MatchInfo` is identical on every Device, so the SDK exports the palette and the rule (`packages/sdk/src/palette.ts`):
+Each Player has a colour, the same on every phone and in the platform's own screens (the sheet, the pause and the result card): the one of their place in `match.players`. Nothing on the wire says it; `MatchInfo` is identical on every Device, so the SDK exports the rule, `playerColour` (`packages/sdk/src/palette.ts`):
 
 ```ts
-import { PLAYER_COLOURS, playerColour } from '@mgc/sdk';
+import { playerColour } from '@mgc/sdk';
 // coral, teal, violet, lime: the night table's --player-1 … --player-4 (packages/look/tokens.css); past the fourth they repeat
 const colour = playerColour(ctx.match.players.indexOf(player));
 ```

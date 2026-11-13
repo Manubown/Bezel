@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PLAYER_COLOURS, Surface, defineGame, playerColour, type JsonValue, type Tile } from '../src';
+import { Surface, defineGame, playerColour, type JsonValue, type Tile } from '../src';
 import type { CanvasOp, Matrix, RecordingContext2D } from '../src/headless';
 import { createTestMatch, type TestMatch } from '../src/testing';
 import { matchFromTiles, matchOf, probeGame, settle, startMatch, step } from './harness';
@@ -175,7 +175,7 @@ describe('the Players’ colours (spec outside-view D10)', () => {
   it('are the night table’s four Player colours, coral and teal first; a Player’s is the one of their position in the Match’s Player list', () => {
     const tokens = readFileSync(new URL('../../look/tokens.css', import.meta.url), 'utf8');
     const night = [1, 2, 3, 4].map((n) => new RegExp(`--player-${n}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(tokens)?.[1]);
-    expect(PLAYER_COLOURS).toEqual(night);
+    expect([0, 1, 2, 3].map(playerColour)).toEqual(night);
     expect([0, 1, 2, 3, 4, 5].map(playerColour)).toEqual(['#ff6b4a', '#2ec4b6', night[2], night[3], '#ff6b4a', '#2ec4b6']);
     expect(() => playerColour(-1)).toThrow(RangeError);
     expect(() => playerColour(1.5)).toThrow(RangeError);

@@ -273,11 +273,10 @@ export type CloseReason = 'ended' | 'aborted' | 'version' | 'protocol' | 'fault'
 | `PauseReason` | why the Match paused; `apps/pwa` pauses with `device-lost` |
 | `CloseReason` | why a Match or view closed: the host ended it, the Host aborted it, a wire version mismatch, a protocol error, the fault ladder, or a lost link |
 
-### `PLAYER_COLOURS`, `playerColour`
+### `playerColour`
 
 ```ts
-export const PLAYER_COLOURS: readonly string[];          // '#ff6b4a' coral, '#2ec4b6' teal, '#a98bff' violet, '#c2e05a' lime
-export function playerColour(position: number): string;   // the colour of match.players[position]; past the fourth they repeat
+export function playerColour(position: number): string;   // the colour of match.players[position]: '#ff6b4a' coral, '#2ec4b6' teal, '#a98bff' violet, '#c2e05a' lime; past the fourth they repeat
 ```
 
 A Player's colour is the one of their place in `match.players`, the same on every Device and in the platform's screens; nothing on the wire carries it. The four are the night table's `--player-1` … `--player-4` (`packages/look/tokens.css`), and a test keeps them equal. `playerColour` throws a `RangeError` for a position that is not a whole number from 0 ([concepts](concepts.md#players-colours-and-the-own-tile)).

@@ -1,7 +1,7 @@
 /** How far from the corner control a touch may land and still bring it back, in CSS px: about a thumb's width. */
 export const REACH_PX = 48;
 /** How long the corner control stays in full view after play starts, the sheet folds, or a touch brought it back. */
-export const SHOWN_MS = 3000;
+const SHOWN_MS = 3000;
 
 /** Whether a touch at (`x`, `y`) lands on the box or within `REACH_PX` of its edge. */
 export function isNear(box: { left: number; top: number; right: number; bottom: number }, x: number, y: number): boolean {

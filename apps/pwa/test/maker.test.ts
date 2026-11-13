@@ -13,8 +13,12 @@ describe('makerMode', () => {
   it('is off when the flag says no, whatever this Device remembered', () => {
     expect(makerMode(at('?maker=no'), true)).toBe(false);
     expect(makerMode(at('?room=REZV&maker=NO'), true)).toBe(false);
-    expect(makerMode(at('?maker=off'), true)).toBe(false);
-    expect(makerMode(at('?maker=0'), true)).toBe(false);
+  });
+
+  it('takes no as the one value that switches it off (spec D3): any other value is the flag', () => {
+    expect(makerMode(at('?maker=off'), false)).toBe(true);
+    expect(makerMode(at('?maker=0'), false)).toBe(true);
+    expect(makerMode(at('?maker=false'), false)).toBe(true);
   });
 
   it('is what this Device remembered when the address has no flag', () => {

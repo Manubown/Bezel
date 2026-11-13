@@ -1,8 +1,9 @@
 import { inAppBrowser, installOffer, platformOf, runsInstalled, type InstallOffer } from './install';
+import { keptSwitch, switchValue } from './switches';
 
 /** localStorage: how many Matches this Device has finished (closed by their Game, with a result). */
 const FINISHED_KEY = 'mgc.matchesFinished';
-/** localStorage: set once a result card that carried the install offer closed; the offer does not return there. */
+/** localStorage: a switch (`switches.ts`), on once a result card that carried the install offer closed; the offer does not return there. */
 const DISMISSED_KEY = 'mgc.installDismissed';
 
 /** Chrome's `beforeinstallprompt` event (Android, and Chromium browsers built on it); the DOM typings lack it. */
@@ -37,7 +38,7 @@ export function watchInstall(): Installer {
   const inApp = inAppBrowser(ua) !== undefined;
   let installed = runsInstalled((query) => matchMedia(query).matches, (navigator as Navigator & { standalone?: boolean }).standalone);
   let finished = Number(localStorage.getItem(FINISHED_KEY)) || 0;
-  let dismissed = localStorage.getItem(DISMISSED_KEY) !== null;
+  let dismissed = keptSwitch(localStorage.getItem(DISMISSED_KEY)) ?? false;
   let offered: InstallPromptEvent | undefined;
   const listeners: (() => void)[] = [];
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -56,7 +57,7 @@ export function watchInstall(): Installer {
     matchFinished: () => localStorage.setItem(FINISHED_KEY, String(++finished)),
     dismiss: () => {
       dismissed = true;
-      localStorage.setItem(DISMISSED_KEY, 'yes');
+      localStorage.setItem(DISMISSED_KEY, switchValue(true));
     },
     async prompt() {
       const event = offered;

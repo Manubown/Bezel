@@ -34,7 +34,7 @@ export function runsInstalled(matches: (query: string) => boolean, standalone: b
  * Other apps' browsers, by what their user agent carries, in the order they are checked: an app's own marker before
  * the Android WebView's, which those apps carry too.
  */
-export const IN_APP_BROWSERS: readonly { name: string; marker: RegExp }[] = [
+const IN_APP_BROWSERS: readonly { name: string; marker: RegExp }[] = [
   { name: 'Instagram', marker: /\bInstagram\b/ },
   // FBAN/FBAV on iOS, FB_IAB on Android; Messenger's browser is the same.
   { name: 'Facebook', marker: /\bFBAN\/|\bFBAV\/|\bFB_IAB\// },
