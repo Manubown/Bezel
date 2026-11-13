@@ -37,7 +37,7 @@ export const KEPT: Kept[] = [
   {
     what: 'The offer to add the app to your home screen',
     detail:
-      'How many games this phone has finished, and whether you closed a result card that carried the offer, so that the offer comes after your first finished game and does not keep coming back on the cards. It stays until you delete it.',
+      'How many games this phone has finished, and whether you closed a result card that carried the offer or used it there, so that the offer comes after your first finished game and does not keep coming back on the cards. It stays until you delete it.',
     sources: ['installer.ts'],
   },
   {

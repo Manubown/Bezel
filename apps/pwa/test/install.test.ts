@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import brand from '../../../brand.json';
-import { inAppBrowser, installOffer, platformOf, runsInstalled, type Situation } from '../src/install';
+import { inAppBrowser, installOffer, platformOf, runsInstalled, spendsOffer, type Situation } from '../src/install';
 
 /** User agents as the browsers and apps send them (versions vary; the markers do not). */
 const UA = {
@@ -155,5 +155,14 @@ describe('installOffer', () => {
       expect(card).toBeUndefined();
       expect(row).toEqual(installOffer(after({ platform })).row);
     }
+  });
+
+  it('is spent when its person closes the card that carried it, or uses the offer on it (story 29)', () => {
+    expect(installOffer(after({ finished: 2, dismissed: spendsOffer('closed') })).card).toBeUndefined();
+    expect(installOffer(after({ finished: 2, dismissed: spendsOffer('used') })).card).toBeUndefined();
+  });
+
+  it('comes back on the next result card when the next Match took its card’s place before anyone closed it', () => {
+    expect(installOffer(after({ finished: 2, dismissed: spendsOffer('replaced') })).card?.headline).toBe(`Add ${brand.name} to your home screen`);
   });
 });

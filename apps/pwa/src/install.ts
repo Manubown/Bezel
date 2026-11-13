@@ -78,8 +78,23 @@ export interface Situation {
   inApp: boolean;
   /** Matches this Device has finished: closed by their Game, with a result. */
   finished: number;
-  /** The result card's offer was dismissed: the card carried it and has closed. */
+  /** The result card's offer was spent (`spendsOffer`): a card carried it, and its person closed that card or used it. */
   dismissed: boolean;
+}
+
+/**
+ * How a result card that carried the offer went: its person closed it (a tap on a Peer's card; Play again, Change game
+ * or the sheet on the Host's), its person tapped Install on it, or the next Match, started on the Host, took its place.
+ */
+export type CardEnd = 'closed' | 'used' | 'replaced';
+
+/**
+ * Whether the offer is spent as a card that carried it goes (spec D13, story 29): yes when its person closed that card
+ * or used the offer; no when the next Match took its place, maybe before anyone read it, so the next result card brings
+ * it back.
+ */
+export function spendsOffer(end: CardEnd): boolean {
+  return end !== 'replaced';
 }
 
 /** The offer: why, and how. */
@@ -111,7 +126,7 @@ export interface InstallOffer {
 
 /**
  * What to offer for the home screen (spec D13): the installed app, nothing; inside another app's browser, the banner
- * at once; otherwise nothing before the first finished Match, then the offer on the result card until it was dismissed
+ * at once; otherwise nothing before the first finished Match, then the offer on the result card until it was spent
  * and as a row on the sheet for good.
  */
 export function installOffer(s: Situation): InstallOffer {

@@ -1,4 +1,5 @@
 import type { HudOptions, LastMatch, Play, Sheet } from '../hud';
+import { spendsOffer, type CardEnd } from '../install';
 import type { Notice } from '../result';
 import { offerHtml, wireOffer } from './install';
 import { describeLast, esc, inColour } from './shared';
@@ -8,8 +9,9 @@ import { describeLast, esc, inColour } from './shared';
  * Match runs. The Host's (`sheet` given) offers Play again (the lobby's `startAgain`, a refusal in words) and
  * Change game (the sheet unfolded), and is done once the sheet is unfolded; the Peers' say the first phone starts
  * the next game, until tapped. Below that, the install offer (`installOffer`'s card) on the first card it is due; once
- * that card closes the offer is dismissed and does not return to a card. `closed`: a tap closed a Peer's card, for the
- * HUD to render again (the help card waits for the result card, `describeJoin`).
+ * its person closes that card or taps Install on it, the offer is spent and does not return to a card; a Peer's card
+ * the next Match replaced leaves it for the next one (`spendsOffer`). `closed`: a tap closed a Peer's card, for the HUD
+ * to render again (the help card waits for the result card, `describeJoin`).
  */
 export function lastCard({ play, lobby, install, maker }: Pick<HudOptions, 'play' | 'lobby' | 'install' | 'maker'>, sheet: Sheet | undefined, closed: () => void): LastCard {
   const card = document.createElement('section');
@@ -18,8 +20,14 @@ export function lastCard({ play, lobby, install, maker }: Pick<HudOptions, 'play
   document.body.append(card);
   let shown: LastMatch | undefined;
   let dismissed: LastMatch | undefined;
-  /** The card on show carries the install offer. */
+  /** The card on show carries the install offer, not spent yet. */
   let offering = false;
+  /** The card that carried the offer went (`spendsOffer`). */
+  const went = (end: CardEnd): void => {
+    if (!offering) return;
+    offering = false;
+    if (spendsOffer(end)) install.dismiss();
+  };
   wireOffer(card, install);
   /** Why the last Play again was refused; stale as soon as the lobby changes. */
   let refusal = '';
@@ -30,11 +38,9 @@ export function lastCard({ play, lobby, install, maker }: Pick<HudOptions, 'play
     // The unfolded sheet carries the last Match in its line, and Start: the card has done its part.
     if (sheet?.open) dismissed = last;
     card.hidden = play.running || !last || last === dismissed;
-    // The card that carried the offer closed, or gave way to the next Match's.
-    if (offering && (card.hidden || last !== shown)) {
-      offering = false;
-      install.dismiss();
-    }
+    // The card that carried the offer went: the Host's only by its person's hand (Play again, Change game, the sheet); a
+    // Peer's by a tap, or replaced by the next Match the Host started.
+    if (offering && (card.hidden || last !== shown)) went(!sheet && (play.running || last !== shown) ? 'replaced' : 'closed');
     if (card.hidden || !last) return;
     if (last !== shown) {
       shown = last;
@@ -53,17 +59,20 @@ export function lastCard({ play, lobby, install, maker }: Pick<HudOptions, 'play
         (offer ? offerHtml(offer) : '') +
         (sheet ? '' : `<p class="result-hint">Tap to close</p>`);
     }
-    // Installed from this card: the offer goes.
+    // Installed from this card: the offer goes (the row with it; a spent offer keeps its row, and stays on this card).
     const offer = card.querySelector<HTMLElement>('.offer');
-    if (offer) offer.hidden = !install.offer().card;
+    if (offer) offer.hidden = !install.offer().row;
     const said = card.querySelector('.result-refusal');
     if (said) said.textContent = refusal;
   };
 
   card.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
-    // The offer's own taps (`wireOffer`) leave the card where it is.
-    if (target.closest('.offer')) return;
+    // The offer's own taps (`wireOffer`) leave the card where it is; Install uses the offer.
+    if (target.closest('.offer')) {
+      if (target.closest('.offer-install')) went('used');
+      return;
+    }
     const button = target.closest('button');
     if (!sheet) {
       dismissed = play.last;
