@@ -51,7 +51,7 @@ export function peerStrip(root: HTMLElement, o: HudOptions, card: Pick<LastCard,
       state.innerHTML = `${statusDot(wasIn ? 'warn' : session.status === 'searching' ? 'off' : 'wait')} ${esc(joining.line)}`;
       meta.textContent = (maker ? [joining.makers, clock] : [joining.detail]).filter(Boolean).join(' · ');
     } else if (match && !match.devices.some((d) => d.deviceId === me)) {
-      state.innerHTML = `${statusDot('wait')} A match is on`;
+      state.innerHTML = `${statusDot('wait')} A game is on`;
       meta.textContent = ['you join the next one', clock].filter(Boolean).join(' · ');
     } else if (lobby.roleOf(me) === 'controller') {
       state.innerHTML = `${statusDot('ok')} Controller`;

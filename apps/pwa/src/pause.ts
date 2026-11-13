@@ -42,11 +42,11 @@ export function pauseOnDeviceLoss(session: Session, match: MatchInfo, handle: Pi
  */
 export function describePause(match: MatchInfo, reason: PauseReason, self: DeviceId): Notice {
   if (reason.kind === 'platform') return { headline: 'Paused', detail: reason.note ?? '' };
-  if (reason.deviceId === self) return { headline: 'You’re back', detail: 'the match goes on in a moment' };
+  if (reason.deviceId === self) return { headline: 'You’re back', detail: 'the game goes on in a moment' };
   const tile = match.tiles.findIndex((t) => t.deviceId === reason.deviceId);
   const player = match.players.findIndex((p) => !p.bot && p.deviceId === reason.deviceId);
   const phone = tile >= 0 ? `phone ${tile + 1}` : 'the controller';
   const Phone = tile >= 0 ? `Phone ${tile + 1}` : 'The controller';
-  if (player < 0) return { headline: `Waiting for ${phone}`, detail: 'It lost its connection · the match goes on when it is back' };
-  return { headline: `Waiting for ${match.players[player]!.name}`, detail: `${Phone} lost its connection · the match goes on when it is back`, player };
+  if (player < 0) return { headline: `Waiting for ${phone}`, detail: 'It lost its connection · the game goes on when it is back' };
+  return { headline: `Waiting for ${match.players[player]!.name}`, detail: `${Phone} lost its connection · the game goes on when it is back`, player };
 }

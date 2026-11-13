@@ -5,7 +5,7 @@ import { HOST_RESTARTED, type Notice } from './result';
 export const REJOIN_GRACE_MS = 30000;
 
 /** Over a Peer's running Match while it rides out a reconnect; the Host's own pause notice cannot reach it meanwhile. */
-export const RECONNECTING: Notice = { headline: 'Lost the table. Reconnecting…', detail: 'the match goes on when the connection is back' };
+export const RECONNECTING: Notice = { headline: 'Lost the table. Reconnecting…', detail: 'the game goes on when the connection is back' };
 
 /**
  * What a Peer does about the Match it runs: `keep` it through a reconnect (show `RECONNECTING`, run the grace timer),

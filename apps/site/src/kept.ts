@@ -52,9 +52,9 @@ export const KEPT: Kept[] = [
     sources: ['main.ts', 'lobby.ts'],
   },
   {
-    what: 'The session log',
+    what: 'A log of what happened on this phone',
     detail:
-      'A record of what the app did on this phone, so that a problem at a table can be looked into: when phones joined and left, what kind of connection each one used (never its address), timings, errors, your screen’s size, your browser’s name and version, the page’s address with the table code, and the games played with the Players’ names. It keeps the newest 20,000 lines, about 3 MB, and drops older ones.',
+      'So that a problem at a table can be looked into: when phones joined and left, what kind of connection each one used (never its address), timings, errors, your screen’s size, your browser’s name and version, the page’s address with the table code, and the games played with the Players’ names. It keeps the newest 20,000 lines, about 3 MB, and drops older ones.',
     sources: ['recorder.ts'],
   },
 ];

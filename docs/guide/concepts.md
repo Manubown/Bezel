@@ -196,7 +196,7 @@ While paused (`packages/sdk/src/match.ts:458-498`):
 - `ctx.end({ scores?, ranking? })` closes the Match on every Device. Views get `onEnd({ reason: 'ended', result })`, then `dispose`; every phone shows the result card and returns to the lobby.
 - The card names the winner from `ranking`, else from the highest score; equal top scores without a ranking are a draw (`apps/pwa/src/result.ts:3-17`).
 - Publish the final state **before** `end`: a `publish`, `setHolder`, `timer` or second `end` in the same turn after `end` is refused with a log line (`publish rejected: the Match has ended`), and after the close it is dropped.
-- The Host's "End match" closes the Match with `reason: 'aborted'` ("Game ended on the first phone").
+- The Host's "End game" closes the Match with `reason: 'aborted'` ("Game ended on the first phone").
 
 ## Faults and the close ladder
 

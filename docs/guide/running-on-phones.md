@@ -31,7 +31,7 @@ A Peer's top strip says where it is (`apps/pwa/src/hud.ts:443-481`):
 | You’re in · waiting for the first phone | in; the Host's lobby state has not arrived yet |
 | Phone N of M · <Player> | a Tile, its place in the Tile order, and the Player who sits there, in their colour; where it lies is the placement cue on the screen below |
 | Controller · hold this phone in hand | the Host marked it a Controller |
-| A match is on · you join the next one | a Match started without this phone; no joins mid-Match |
+| A game is on · you join the next one | a Match started without this phone; no joins mid-Match |
 
 The status line and the line under it wrap rather than lose words; at the strip's right is this phone's Sound switch, the speaker alone (the first phone's sheet labels it Sound).
 
@@ -54,15 +54,15 @@ Top to bottom, the steps of getting a Session going, then the rest (`apps/pwa/sr
 | Arrangement: In a row / End to end / In a grid | the template; picking a Game selects the first its manifest's `templates` names (any, when it names none). Shown only when the Game names more than one, offering only those (Air Hockey: end to end, in a row) |
 | Controllers, or "Players’ phones" when the Game has `seats: 'controllers'` (`apps/pwa/src/hud.ts:289-292`): one chip per phone; shown only when the Game takes Controllers, and picking one that takes none puts every phone back on the table | pressed = Controller (held in hand, out of the Layout and the Tile order); press again to make it a Tile. Under "Players’ phones" each pressed phone is one Player's |
 | Players: P1, P2 (`seats: 'ends'`), or one row per Controller phone (`seats: 'controllers'`) | each Player's name (editable, up to 24 characters), where it sits ("phone 1", or "Controller"), and, with `'ends'`, a **Bot** chip when the Game's manifest has `bots: true` (`apps/pwa/src/hud.ts:316-335`) |
-| Start <Game> / End match | Start freezes the Match; End match stops it on every phone ("Game ended on the first phone") |
-| reason line | why Start was refused ([messages](troubleshooting.md#start-is-refused)), in amber; else "Last match: …", in grey |
+| Start <Game> / End game | Start freezes the Match; End game stops it on every phone ("Game ended on the first phone") |
+| reason line | why Start was refused ([messages](troubleshooting.md#start-is-refused)), in amber; else "Last game: …", in grey |
 | game log (Maker mode only) | the running (or last) Match's faults, `ctx.log` lines and close, newest first; the last 50 (`apps/pwa/src/gamelog.ts:10`) |
 | install row (after this phone's first finished Match, unless installed) | the app for the home screen: Install (Android) or the steps (iPhone, iPad) ([Installing as a PWA](#installing-as-a-pwa)) |
 | Export log · Clear · "N lines" (Maker mode only) | the session log ([below](#the-session-log-what-each-phone-records-and-how-to-get-it-off-the-phone)) |
 | "Join a different table", folded | opened: a code field and Join, which leave this table for that one (the page reloads as `?room=CODE`). This table's own code, in any letter case, is refused in words and nothing else happens |
 | Privacy | the site's privacy page (`privacy/` at `brand.json`'s address; `apps/site/src/pages/privacy.astro`), in a new tab, so this page and its table stay. `pnpm pages` fails if the output lacks it |
 
-When a Match ends with the sheet folded, the Host's result card ("Ana wins 7–5") offers **Play again**, the same Game with the same Players, arrangement and bots (`apps/pwa/src/lobby.ts` `startAgain`), and **Change game**, which opens the sheet. Play again is refused in words when a phone of that Match is no longer at the table ("Phone 2 is no longer at the table"), when a phone joined since (it has to be placed: use Change game), or when the Host changed the Players or the Tiles since. A Match that ends while the sheet is open shows no card on the Host, only the "Last match" line.
+When a Match ends with the sheet folded, the Host's result card ("Ana wins 7–5") offers **Play again**, the same Game with the same Players, arrangement and bots (`apps/pwa/src/lobby.ts` `startAgain`), and **Change game**, which opens the sheet. Play again is refused in words when a phone of that Match is no longer at the table ("Phone 2 is no longer at the table"), when a phone joined since (it has to be placed: use Change game), or when the Host changed the Players or the Tiles since. A Match that ends while the sheet is open shows no card on the Host, only the "Last game" line.
 
 ### Templates
 
@@ -113,8 +113,8 @@ The Host notices a silent phone after 2.5 s (its roster row reads "weak connecti
 ## What a Peer sees
 
 1. The lobby: the strip above and the placement preview.
-2. On Start: the strip folds away and the Game's view fills the screen. A Peer that is not in the Match stays in the lobby ("A match is on · you join the next one").
-3. During a pause: a card "Waiting for …" over the frozen view. While this phone's own connection is down: "Lost the table. Reconnecting… · the match goes on when the connection is back", for up to 30 s; back before the Match resumes: "You’re back · the match goes on in a moment".
+2. On Start: the strip folds away and the Game's view fills the screen. A Peer that is not in the Match stays in the lobby ("A game is on · you join the next one").
+3. During a pause: a card "Waiting for …" over the frozen view. While this phone's own connection is down: "Lost the table. Reconnecting… · the game goes on when the connection is back", for up to 30 s; back before the Match resumes: "You’re back · the game goes on in a moment".
 4. When the Match closes: the result card on every phone that played (two sides in one line, "Ana wins 7–5" or "Draw, 3–3"; more sides "<name> wins" or "Draw" with everyone's points; without a result, why it closed: "Game ended on the first phone", "The game crashed", "Connection lost", "Connection lost · The first phone restarted", … from `apps/pwa/src/result.ts`; in Maker mode the runtime's own words after them), with "The first phone starts the next game", until tapped or the next Match starts, then the lobby. After this phone's first finished Match the card also offers the app for the home screen, once ([Installing as a PWA](#installing-as-a-pwa)); a tap on the offer leaves the card open.
 
 ## Installing as a PWA

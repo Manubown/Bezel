@@ -65,7 +65,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
       <ol class="players" aria-label="Players"></ol>
       <div class="go">
         <button class="start" type="button"></button>
-        <button class="end" type="button">End match</button>
+        <button class="end" type="button">End game</button>
         <p class="reason" role="status"></p>
       </div>
       <ol class="log" aria-label="Game log, newest first" hidden></ol>
@@ -253,7 +253,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     end.hidden = !play.running;
     const described = play.last && describeLast(play.last, maker);
     const lastLine = described && [described.headline, described.detail].filter(Boolean).join(' · ');
-    reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
+    reason.textContent = refusal || (lastLine && !match ? `Last game: ${lastLine}` : '');
     // A refusal is a warning; the last Match is news.
     reason.classList.toggle('last', !refusal);
     // The install offer's row (`installOffer`): for good after this Device's first finished Match, unless installed.
@@ -352,7 +352,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
       if (!maker) return `${statusDot(synced ? 'ok' : 'wait')}${synced ? '' : ' connecting'}`;
       return `${statusDot(synced ? 'ok' : 'wait')} ${synced ? syncStats(e.sync) : 'syncing'}`;
     };
-    const late = (id: string) => match !== undefined && !match.devices.some((m) => m.deviceId === id) && 'joins the next match';
+    const late = (id: string) => match !== undefined && !match.devices.some((m) => m.deviceId === id) && 'joins the next game';
     // ◀ ▶ move a Tile along the Tile order; never past the ends, never a Controller, never while a Match runs.
     const moves = (id: string, label: string, earlier: boolean, later: boolean): string =>
       `<span class="order">` +

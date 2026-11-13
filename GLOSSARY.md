@@ -80,6 +80,10 @@ _Avoid_: Room, lobby, party
 What the app and the site call the Host when they speak to players: the phone that opened the table.
 _Avoid_: Host phone, main phone, server
 
+**game**:
+What the app and the site call a Match when they speak to players, in lower case ("Play again", "the first phone starts the next game"). Code and developer docs say Match; a Game is the bundle a Match runs.
+_Avoid_: match, round
+
 **Maker mode**:
 The app as its makers see it: every Game, the clock figures, the session log and its export. Off for players.
 _Avoid_: Debug mode, dev mode, developer console

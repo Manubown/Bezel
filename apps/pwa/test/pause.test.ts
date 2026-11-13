@@ -62,14 +62,14 @@ describe('The Host’s pause policy over a Session on MemoryHub', () => {
   });
 
   it('names a lost Device by the Player who sits at it, with their place in the Player list for their colour, else by its phone number', () => {
-    expect(describePause(MATCH, lost('d2'), 'd0')).toEqual({ headline: 'Waiting for Bo', detail: 'Phone 3 lost its connection · the match goes on when it is back', player: 1 });
-    expect(describePause(MATCH, lost('d1'), 'd0')).toEqual({ headline: 'Waiting for phone 2', detail: 'It lost its connection · the match goes on when it is back' });
+    expect(describePause(MATCH, lost('d2'), 'd0')).toEqual({ headline: 'Waiting for Bo', detail: 'Phone 3 lost its connection · the game goes on when it is back', player: 1 });
+    expect(describePause(MATCH, lost('d1'), 'd0')).toEqual({ headline: 'Waiting for phone 2', detail: 'It lost its connection · the game goes on when it is back' });
     expect(describePause(MATCH, { kind: 'platform', note: 'Host paused' }, 'd0')).toEqual({ headline: 'Paused', detail: 'Host paused' });
   });
 
   it('the lost Device itself, back and waiting for the resume, reads that it is back (spec D9)', () => {
-    expect(describePause(MATCH, lost('d2'), 'd2')).toEqual({ headline: 'You’re back', detail: 'the match goes on in a moment' });
+    expect(describePause(MATCH, lost('d2'), 'd2')).toEqual({ headline: 'You’re back', detail: 'the game goes on in a moment' });
     // Another phone it waits for is still named on this one.
-    expect(describePause(MATCH, lost('d1'), 'd2')).toEqual({ headline: 'Waiting for phone 2', detail: 'It lost its connection · the match goes on when it is back' });
+    expect(describePause(MATCH, lost('d1'), 'd2')).toEqual({ headline: 'Waiting for phone 2', detail: 'It lost its connection · the game goes on when it is back' });
   });
 });
