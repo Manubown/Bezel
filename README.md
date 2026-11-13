@@ -49,7 +49,7 @@ Run on real phones by the makers ([live runs 1–6](.scratch/live-test-1/finding
 | an Android 15 phone | Firefox 159 | first phone |
 | two Android phones, one more iPhone | not recorded | joining phones (live run 1) |
 
-Untested: Chrome and every other Android browser but Firefox (the logs do not say which one the two Android phones of live run 1 used), other browsers on iPhone, iPads and other tablets. Each run used the build of its day; nothing built after live run 6 has been run on phones yet.
+Tried on phones so far: an iPhone 12, an iPhone 14 and an iPhone 15 Pro Max in Safari, and Android phones, one of them in Firefox; not yet in Chrome, on an iPad or with a build newer than 10 November 2026. The logs do not say which browser the two Android phones of live run 1 used.
 
 ## Known limits
 
