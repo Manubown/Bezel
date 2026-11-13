@@ -25,11 +25,11 @@ export interface Slot {
 
 /**
  * The lobby of one Session, one interface for Host and Peer: the live
- * arrangement preview, who would play, and, once the Host starts, the frozen
+ * Layout preview, who would play, and, once the Host starts, the frozen
  * Match that every Device runs. The Host's lobby decides; a Peer's mirrors it.
  */
 export interface Lobby {
-  /** The arrangement of the present Tile Devices in Tile order; undefined while there are none. */
+  /** The Layout of the present Tile Devices in Tile order; undefined while there are none. */
   readonly layout: Layout | undefined;
   /** This Device's Tile in `layout`, at its px/mm; undefined when it has none. */
   readonly surface: Surface | undefined;
@@ -57,12 +57,12 @@ export interface Lobby {
 
   // Host only: no-ops on a Peer, and ignored while `match` is set.
   /**
-   * The Game the Host is about to start: its manifest decides the seats (`Manifest.seats`) and the arrangement.
-   * Picked anew, it lays the phones in the first arrangement it names (`arrangements`); picked again, in the one
+   * The Game the Host is about to start: its manifest decides the seats (`Manifest.seats`) and the template.
+   * Picked anew, it lays the phones in the first template it names (`templatesOf`); picked again, in the one
    * the Host chose for it. A Game that takes no Controllers puts every phone on the table.
    */
   setGame(game: Manifest): void;
-  /** An arrangement the picked Game does not name is ignored. */
+  /** A template the picked Game does not name is ignored. */
   setTemplate(template: TemplateId): void;
   /**
    * A Controller is not part of the Layout, nor of the Tile order. Devices not in the roster are ignored, and
@@ -82,7 +82,7 @@ export interface Lobby {
   /** Replaces the default Players until the Tiles or a bot change; a name stays with its Player id. */
   setPlayers(players: readonly Player[]): void;
   /**
-   * Host only: picks `game` (`setGame`), so it is never refused for the arrangement, checks the present
+   * Host only: picks `game` (`setGame`), so it is never refused for the template, checks the present
    * Devices against it, then freezes the Match and sends it to every Device. Throws an Error whose message
    * is the reason when it cannot (on a Peer, always).
    */
@@ -108,8 +108,8 @@ export function openLobby(session: Session, pxPerMm: number, playerId: PlayerId,
   return session.role === 'host' ? new HostLobby(session, pxPerMm, playerId, store) : new PeerLobby(session, pxPerMm, playerId);
 }
 
-/** The arrangements `game` can be played in, the one picking it selects first (spec D6): its Manifest's `templates`, else every template. */
-export function arrangements(game: Manifest): readonly TemplateId[] {
+/** The templates `game` can be played in, the one picking it selects first (spec D6): its Manifest's `templates`, else every template. */
+export function templatesOf(game: Manifest): readonly TemplateId[] {
   return game.templates?.length ? game.templates : TEMPLATE_IDS;
 }
 
@@ -221,7 +221,7 @@ abstract class LobbyBase {
 /** Builds the Layout from the present Tile Devices in Tile order and decides everything a Peer shows. */
 class HostLobby extends LobbyBase implements Lobby {
   private template: TemplateId = 'row';
-  /** The arrangements the picked Game names (`arrangements`); every one until a Game is picked. */
+  /** The templates the picked Game names (`templatesOf`); every one until a Game is picked. */
   private allowed: readonly TemplateId[] = TEMPLATE_IDS;
   /** Whether the picked Game takes Controllers; until a Game is picked, any phone can be one. */
   private inHand = true;
@@ -283,9 +283,9 @@ class HostLobby extends LobbyBase implements Lobby {
   setGame(game: Manifest): void {
     if (this.frozen) return;
     const seats = game.seats ?? 'ends';
-    this.allowed = arrangements(game);
+    this.allowed = templatesOf(game);
     this.inHand = game.controllers.max > 0;
-    // Picked anew, a Game lays the phones in the first arrangement it names; picked again, in the one the Host chose for it.
+    // Picked anew, a Game lays the phones in the first template it names; picked again, in the one the Host chose for it.
     const template = game.id === this.picked && this.allowed.includes(this.template) ? this.template : this.allowed[0]!;
     // A Game that takes no Controllers has every phone on the table.
     const held = !this.inHand && this.roles.size > 0;
@@ -351,7 +351,7 @@ class HostLobby extends LobbyBase implements Lobby {
 
   start(game: Manifest): MatchInfo {
     if (this.frozen) throw new Error('A Match is already running');
-    // Starting a Game picks it: the phones lie in an arrangement it names before anything is checked.
+    // Starting a Game picks it: the phones lie in a template it names before anything is checked.
     this.setGame(game);
     const present = this.session.roster().filter((e) => e.present);
     const tiles = this.layout?.devices ?? [];
@@ -394,7 +394,7 @@ class HostLobby extends LobbyBase implements Lobby {
       const i = this.layout?.devices.findIndex((d) => d.id === joined.info.deviceId) ?? -1;
       throw new Error(`${i >= 0 ? `Phone ${i + 1}` : joined.info.name} joined the table after the last game`);
     }
-    // The same Devices, but the Host decided otherwise since (an arrangement, an order, a bot, a name): that is Start.
+    // The same Devices, but the Host decided otherwise since (a template, an order, a bot, a name): that is Start.
     const lineup = (players: readonly Player[], tiles: readonly Tile[]): string =>
       JSON.stringify([players.map((p) => [p.playerId, p.name, p.deviceId, p.bot]), tiles.map((t) => [t.deviceId, t.x, t.y, t.w, t.h, t.rot])]);
     const tiles = (this.layout?.devices ?? []).map((r): Tile => ({ deviceId: r.id, x: r.x, y: r.y, w: r.w, h: r.h, rot: r.rot }));

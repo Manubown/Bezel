@@ -73,7 +73,7 @@ export interface Sheet extends Hud {
 
 /**
  * The platform overlay, rendered from the lobby, the Session, and `play`: the
- * Host's bottom sheet (join code, Game, arrangement, Controllers, Player slots
+ * Host's bottom sheet (join code, Game, template, Controllers, Player slots
  * with names and bots, Start, game log, and the roster in Tile order with its
  * move buttons) or a Peer's top strip with its help card, plus the last Match's close (its result,
  * or why it stopped; on the Host with Play again and Change game; the install offer under it) and a paused Match's notice on

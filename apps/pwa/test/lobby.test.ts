@@ -152,7 +152,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect(host.start(DUEL).matchId).not.toBe(undefined);
   });
 
-  it('picking a Game lays the phones in the first arrangement its Manifest names, on every Device, and offers only those it names', () => {
+  it('picking a Game lays the phones in the first template its Manifest names, on every Device, and offers only those it names', () => {
     const { host, lobby } = table(['d1']);
     const peer = lobby('d1');
     const templates = () => {
@@ -167,7 +167,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect(templates()).toEqual(['column', 'column']);
     host.setTemplate('row');
     expect(templates()).toEqual(['row', 'row']);
-    // Picked again, a Game keeps the arrangement the Host chose for it.
+    // Picked again, a Game keeps the template the Host chose for it.
     host.setGame(HOCKEY);
     expect(templates()).toEqual(['row', 'row']);
     // A Game that names none can be played in any, the first by default.
@@ -179,7 +179,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect(templates()).toEqual(['row', 'row']);
   });
 
-  it('is never refused for the arrangement: a Game starts in the first it names when the phones lay in another', () => {
+  it('is never refused for the template: a Game starts in the first it names when the phones lay in another', () => {
     const { host, lobby } = table(['d1']);
     host.setTemplate('grid');
     const match = host.start({ ...DUEL, templates: ['column'] });
@@ -250,7 +250,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect(host.startAgain().players).toEqual(host.players);
     host.close();
 
-    // The Host changed the arrangement since: that is Start, not Play again.
+    // The Host changed the template since: that is Start, not Play again.
     host.setTemplate('column');
     expect(() => host.startAgain()).toThrow('The table changed since the last game');
     expect(lobby('d2').match).toBeUndefined();

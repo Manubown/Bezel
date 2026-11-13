@@ -2,7 +2,7 @@ import { buildLayout, type TemplateId } from '@mgc/layout';
 import { describe, expect, it } from 'vitest';
 import { placementSentence } from '../src/placement';
 
-/** `n` phones of one size in the arrangement `template`. */
+/** `n` phones of one size in the template `template`. */
 const table = (template: TemplateId, n: number) =>
   buildLayout(
     template,

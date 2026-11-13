@@ -1,10 +1,10 @@
 import type { Layout, TemplateId } from '@mgc/layout';
 
-/** Where Tile 1 lies: the end of the arrangement the others are laid from. */
+/** Where Tile 1 lies: the end of the template the others are laid from. */
 const FIRST: Record<TemplateId, string> = { row: 'on the left', column: 'at the top', grid: 'top left' };
 
 /**
- * Where phone `index` (0-based) lies: phone 1 at its end of the arrangement, every other phone relative to a
+ * Where phone `index` (0-based) lies: phone 1 at its end of the template, every other phone relative to a
  * neighbour placed before it (the one before it, or in a grid the one above the first of its row).
  */
 export function placementHint(layout: Layout, index: number): string {

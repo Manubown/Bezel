@@ -78,21 +78,21 @@ const guide = 'https://github.com/Manubown/Bezel/blob/master/docs/guide/README.m
       <h2 id="how">How a table starts</h2>
       <ol class="steps">
         <li>
-          <Phones arrangement="row" phones={1} qr />
+          <Phones template="row" phones={1} qr />
           <div>
             <h3>One phone starts a table</h3>
             <p>Tap Start a table on it. That phone is the first phone: it shows a QR code and the table’s code.</p>
           </div>
         </li>
         <li>
-          <Phones arrangement="row" phones={2} qr scan />
+          <Phones template="row" phones={2} qr scan />
           <div>
             <h3>The other phones join</h3>
             <p>Scan the first phone’s QR code with the camera, or open this page and type the table’s code.</p>
           </div>
         </li>
         <li>
-          <Phones arrangement="row" phones={3} ends ball />
+          <Phones template="row" phones={3} ends ball />
           <div>
             <h3>Lay them down</h3>
             <p>On the first phone, pick a game. Lay the phones the way it shows, then tap Start on it.</p>
@@ -107,7 +107,7 @@ const guide = 'https://github.com/Manubown/Bezel/blob/master/docs/guide/README.m
         {
           games.map((game) => (
             <li>
-              <Phones arrangement={game.drawn.arrangement} phones={game.drawn.phones} ends ball />
+              <Phones template={game.drawn.template} phones={game.drawn.phones} ends ball />
               <div>
                 <h3>{game.name}</h3>
                 <p class="line">{game.line}</p>

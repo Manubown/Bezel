@@ -42,12 +42,12 @@ describe('the home page’s Games', () => {
     expect(hockey?.bot).toBe(false);
   });
 
-  it('are drawn as their phones lie when picked: the first arrangement, at most three phones', () => {
+  it('are drawn as their phones lie when picked: the first template, at most three phones', () => {
     const [pong, hockey] = homeGames([
       game('mgc.pong', 'Pong', { tiles: { min: 1, max: 4 }, templates: ['row'] }),
       game('mgc.air-hockey', 'Air Hockey', { tiles: { min: 1, max: 2 }, templates: ['column', 'row'] }),
     ]);
-    expect(pong?.drawn).toEqual({ arrangement: 'row', phones: 3 });
-    expect(hockey?.drawn).toEqual({ arrangement: 'column', phones: 2 });
+    expect(pong?.drawn).toEqual({ template: 'row', phones: 3 });
+    expect(hockey?.drawn).toEqual({ template: 'column', phones: 2 });
   });
 });

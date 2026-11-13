@@ -69,7 +69,7 @@
       .sheet .bar-action { font-weight: 600; }
       /* The sheet's body scrolls on its own when the phone is shorter than the sheet (QR, Games, roster). */
       .sheet .body { display: none; padding: 0 16px 16px; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; min-height: 0; scrollbar-color: var(--line) transparent; }
-      /* `max-content` rows: a body shorter than its content (it scrolls) must not shrink the Game and arrangement rows (overflow items have a 0 minimum). */
+      /* `max-content` rows: a body shorter than its content (it scrolls) must not shrink the Game and template rows (overflow items have a 0 minimum). */
       .sheet[data-open] .body { display: grid; grid-auto-rows: max-content; gap: 18px; align-content: start; }
       .join { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
       .qr { background: var(--fg); padding: 8px; border-radius: var(--radius); line-height: 0; }

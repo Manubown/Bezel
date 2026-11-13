@@ -3,9 +3,9 @@ import type { TemplateId } from '@mgc/layout';
 import type { Player } from '@mgc/sdk';
 import QRCode from 'qrcode';
 import brand from '../../../../brand.json';
-import { ARRANGEMENT, cardLine, firstPick, gameList } from '../gamelist';
+import { TEMPLATE_WORDS, cardLine, firstPick, gameList } from '../gamelist';
 import type { HudOptions, Play, Sheet } from '../hud';
-import { arrangements } from '../lobby';
+import { templatesOf } from '../lobby';
 import { look } from '../look';
 import { MAKER_FLAG } from '../maker';
 import { otherSession, sessionCode } from '../sessioncode';
@@ -19,7 +19,7 @@ const PRIVACY = new URL('privacy/', brand.address).href;
 
 /**
  * The Host's bottom sheet, top to bottom the steps of getting a Session going (spec D4): the QR with a sentence for the
- * other phones, the phones in the order they lie (roster, ◀ ▶), a card per Game, the arrangement when the Game names
+ * other phones, the phones in the order they lie (roster, ◀ ▶), a card per Game, the template picker when the Game names
  * more than one, Controllers when it takes them, Player slots, Start; then the game log, the install offer's row,
  * Export log (Maker mode), this phone's sound switch, "Join a different table", folded, and the link to the privacy page
  * (in a new tab: this page holds the Session). `onToggle`: the Host folded or unfolded it (the bar, `unfold`).
@@ -57,7 +57,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
       <div class="cards games" role="radiogroup" aria-label="Game">
         ${shown.map((g) => `<button type="button" role="radio" class="card" data-g="${esc(g.id)}"><span class="card-name">${esc(g.name)}</span><span class="card-line">${esc(cardLine(g))}</span></button>`).join('')}
       </div>
-      <div class="seg arrangement" role="radiogroup" aria-label="How the phones lie" hidden></div>
+      <div class="seg templates" role="radiogroup" aria-label="How the phones lie" hidden></div>
       <div class="roles">
         <p class="roles-label"></p>
         <div class="chips" role="group" aria-label="Controllers"></div>
@@ -91,7 +91,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
   const barMeta = root.querySelector('.bar-meta')!;
   const barAction = root.querySelector('.bar-action')!;
   const gameSeg = root.querySelector<HTMLElement>('.games')!;
-  const seg = root.querySelector<HTMLElement>('.arrangement')!;
+  const seg = root.querySelector<HTMLElement>('.templates')!;
   const chips = root.querySelector<HTMLElement>('.chips')!;
   const roles = root.querySelector<HTMLElement>('.roles')!;
   const players = root.querySelector<HTMLOListElement>('.players')!;
@@ -189,7 +189,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
   let rosterHtml = '';
   let rosterSync: string[] = [];
   let wasRunning = false;
-  /** The Game whose arrangements the picker offers. */
+  /** The Game whose templates the picker offers. */
   let segGame = '';
   let shownLog: Play['log'] | undefined;
   /** Whether another phone was ready at the last render, and whether one becoming ready has folded the sheet yet. */
@@ -221,16 +221,16 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     const running = games.find((g) => g.id === lobby.game) ?? game;
     barMeta.textContent = play.running
       ? `${running.name} · ${play.paused ? 'paused' : 'playing'}${faults ? ` · ${faults} fault${faults === 1 ? '' : 's'}` : ''}`
-      : `${placed} phone${placed === 1 ? '' : 's'}${layout ? ` · ${ARRANGEMENT[layout.template]}` : ''}`;
+      : `${placed} phone${placed === 1 ? '' : 's'}${layout ? ` · ${TEMPLATE_WORDS[layout.template]}` : ''}`;
     gameSeg.querySelectorAll<HTMLButtonElement>('button[data-g]').forEach((b) => {
       b.setAttribute('aria-checked', String(b.dataset['g'] === (match ? running : game).id));
       b.disabled = match !== undefined;
     });
-    // The arrangements the Game names (the lobby lays the phones in the first), offered only when there is a choice.
-    const offered = arrangements(game);
+    // The templates the Game names (the lobby lays the phones in the first), offered only when there is a choice.
+    const offered = templatesOf(game);
     if (game.id !== segGame) {
       segGame = game.id;
-      seg.innerHTML = offered.map((t) => `<button type="button" role="radio" data-t="${t}">${ARRANGEMENT[t][0]!.toUpperCase()}${ARRANGEMENT[t].slice(1)}</button>`).join('');
+      seg.innerHTML = offered.map((t) => `<button type="button" role="radio" data-t="${t}">${TEMPLATE_WORDS[t][0]!.toUpperCase()}${TEMPLATE_WORDS[t].slice(1)}</button>`).join('');
     }
     seg.hidden = offered.length < 2;
     seg.querySelectorAll<HTMLButtonElement>('button[data-t]').forEach((b) => {

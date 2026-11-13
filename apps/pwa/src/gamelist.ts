@@ -1,6 +1,6 @@
 import type { TemplateId } from '@mgc/layout';
 import type { Manifest, Range } from '@mgc/sdk';
-import { arrangements } from './lobby';
+import { templatesOf } from './lobby';
 
 /**
  * The Games players see on the Host, in the order they see them (spec D2): Pong, then Air Hockey.
@@ -22,16 +22,16 @@ export function firstPick(shown: readonly Manifest[], remembered: string | undef
   return shown.find((g) => g.id === remembered) ?? gameList(shown, false)[0] ?? shown[0];
 }
 
-/** How the phones on the table lie in each arrangement, in words a stranger reads. */
-export const ARRANGEMENT: Readonly<Record<TemplateId, string>> = { row: 'in a row', column: 'end to end', grid: 'in a grid' };
+/** How the phones on the table lie in each template, in words a stranger reads. */
+export const TEMPLATE_WORDS: Readonly<Record<TemplateId, string>> = { row: 'in a row', column: 'end to end', grid: 'in a grid' };
 
 /**
- * A Game card's line: how many play and how the phones lie once it is picked, in its first arrangement
+ * A Game card's line: how many play and how the phones lie once it is picked, in its first template
  * ("2 players · phones in a row"), and the phones held in hand when it takes any.
  */
 export function cardLine(game: Manifest): string {
   const { players, tiles, controllers } = game;
-  const table = tiles.max === 1 ? 'one phone on the table' : `phones ${ARRANGEMENT[arrangements(game)[0]!]}`;
+  const table = tiles.max === 1 ? 'one phone on the table' : `phones ${TEMPLATE_WORDS[templatesOf(game)[0]!]}`;
   const hand = controllers.max > 0 ? `, ${controllers.max === 1 && controllers.min === 1 ? 'one' : count(controllers)} in hand` : '';
   return `${count(players)} player${players.max === 1 ? '' : 's'} · ${table}${hand}`;
 }
