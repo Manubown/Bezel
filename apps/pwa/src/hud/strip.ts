@@ -2,12 +2,12 @@ import brand from '../../../../brand.json';
 import type { Hud, HudOptions } from '../hud';
 import { HELP_AFTER_MS, describeJoin, joinAddress, type HelpCard } from '../join';
 import { placementHint } from '../placement';
-import { esc, statusDot, syncStats } from './shared';
+import { esc, soundSwitch, statusDot, syncStats } from './shared';
 
 /**
- * A Peer's top strip: the code, where this phone is in joining (`describeJoin`) and in the lobby, and in Maker mode
- * the makers' words, its clock and the session log's export; under it, after `HELP_AFTER_MS` without getting in,
- * the help card.
+ * A Peer's top strip: the code, where this phone is in joining (`describeJoin`) and in the lobby, this phone's sound
+ * switch, and in Maker mode the makers' words, its clock and the session log's export; under it, after
+ * `HELP_AFTER_MS` without getting in, the help card.
  */
 export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
   const { session, lobby, code, play, maker } = o;
@@ -16,6 +16,7 @@ export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
     `<span class="brand">${esc(brand.name)}</span><span class="code">${esc(code)}</span><span class="state"></span><span class="meta"></span>` +
     (maker ? `<button type="button" class="export" aria-label="Export the session log">Log</button>` : '');
   root.querySelector<HTMLButtonElement>('.export')?.addEventListener('click', () => void o.log.export());
+  root.append(soundSwitch(o.sound));
   const state = root.querySelector('.state')!;
   const meta = root.querySelector('.meta')!;
   const help = helpCard(code);

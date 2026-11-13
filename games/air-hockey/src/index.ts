@@ -1,4 +1,4 @@
-import { defineGame, playerColour, Surface, type MatchInfo, type MatchResult, type Player } from '@mgc/sdk';
+import { defineGame, playerColour, Surface, type MatchInfo, type MatchResult, type Player, type Tile } from '@mgc/sdk';
 
 /** Sizes in world mm, speeds in mm/s, times in seconds (`…Ms`: ms). */
 export const AIR_HOCKEY = {
@@ -210,6 +210,100 @@ function table(m: MatchInfo) {
   };
 }
 
+/** What a view plays (spec outside-view D12): a paddle meeting the puck, a bounce off a wall, a goal, the goal that wins. */
+export type Tone = 'hit' | 'wall' | 'goal' | 'win';
+
+/**
+ * The tone the view on `tile` asks for as its state goes from `prev` to `next`, read off the two states (the host
+ * publishes states, not events: ADR-0003). A goal is the score going up, the win the goal that reaches
+ * `AIR_HOCKEY.win`: both on every Tile. A hit is the puck coming to lie against a paddle (the host leaves a struck
+ * puck exactly a puck and a paddle apart), once while the paddle keeps against it; a bounce is the puck turning along
+ * either axis without a paddle; each on the Tile the puck is on, on both while it straddles the gap between them. Not
+ * at a serve (the puck back at rest), nor while play holds, nor without an earlier state, nor with the sound off.
+ */
+export function toneOf(prev: AirHockeyState | undefined, next: AirHockeyState, tile: Tile | undefined, sound: boolean): Tone | undefined {
+  if (!sound || !prev) return undefined;
+  if (next.score[0] + next.score[1] > prev.score[0] + prev.score[1]) return Math.max(...next.score) >= AIR_HOCKEY.win ? 'win' : 'goal';
+  if (!tile || next.hold.length > 0 || next.wait > prev.wait) return undefined;
+  // Where the puck lies on this Tile's screen: on it while any of the puck is.
+  const r = AIR_HOCKEY.puck;
+  const p = new Surface({ id: tile.deviceId, x: tile.x, y: tile.y, w: tile.w, h: tile.h, rot: tile.rot }, 1).worldToLocal(next.puck);
+  if (p.x <= -r || p.x >= tile.w + r || p.y <= -r || p.y >= tile.h + r) return undefined;
+  const against = (s: AirHockeyState): boolean => s.pads.some((pad) => Math.hypot(s.puck.x - pad.x, s.puck.y - pad.y) <= r + AIR_HOCKEY.paddle + 1e-6);
+  if (against(next)) return against(prev) ? undefined : 'hit';
+  if (prev.puck.vx * next.puck.vx < 0 || prev.puck.vy * next.puck.vy < 0) return 'wall';
+  return undefined;
+}
+
+/** Each tone's notes: frequency (Hz), and start and length (s) from when it sounds. */
+const NOTES: Record<Tone, readonly (readonly [hz: number, at: number, len: number])[]> = {
+  hit: [[196, 0, 0.07]],
+  wall: [[294, 0, 0.05]],
+  goal: [
+    [523, 0, 0.1],
+    [784, 0.1, 0.25],
+  ],
+  win: [
+    [523, 0, 0.1],
+    [659, 0.1, 0.1],
+    [784, 0.2, 0.1],
+    [1047, 0.3, 0.35],
+  ],
+};
+/** How long a goal shakes a phone that vibrates, ms. */
+const BUZZ_MS = 60;
+
+/**
+ * This view's speaker. A browser lets a page sound only from a touch on it, so the audio is made on the first touch of
+ * this Tile (`root`): its Player's "Touch here to start". A Tile nobody touches stays silent and never vibrates.
+ * `play` sounds a tone's notes, each a triangle wave fading out so it does not click, while the audio runs, and on a
+ * goal buzzes a phone that vibrates. `close` lets the last tone ring out (the win sounds as the Match closes).
+ */
+function speaker(root: HTMLElement): { play(tone: Tone): void; close(): void } {
+  const win = root.ownerDocument.defaultView;
+  let audio: AudioContext | undefined;
+  let touched = false;
+  const wake = (): void => {
+    touched = true;
+    if (!audio && typeof win?.AudioContext === 'function') {
+      // An iPhone's silent switch mutes Web Audio unless the page says it plays media (developer reports; a phone decides).
+      const session = (win.navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+      if (session) session.type = 'playback';
+      try {
+        audio = new win.AudioContext();
+      } catch {
+        return; // no audio here: silence
+      }
+    }
+    // The touch's end is what lets a phone start it; until then it waits suspended.
+    if (audio?.state === 'suspended') audio.resume().catch(() => {});
+  };
+  for (const type of ['pointerdown', 'pointerup', 'touchend']) root.addEventListener(type, wake);
+  return {
+    play(tone) {
+      if (audio?.state === 'running') {
+        const start = audio.currentTime;
+        for (const [hz, at, len] of NOTES[tone]) {
+          const osc = audio.createOscillator();
+          const gain = audio.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = hz;
+          gain.gain.setValueAtTime(0.3, start + at);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + at + len);
+          osc.connect(gain).connect(audio.destination);
+          osc.start(start + at);
+          osc.stop(start + at + len);
+        }
+      }
+      if (touched && (tone === 'goal' || tone === 'win')) win?.navigator?.vibrate?.(BUZZ_MS);
+    },
+    close() {
+      const done = audio;
+      if (done) win?.setTimeout(() => void done.close(), 1000);
+    },
+  };
+}
+
 /**
  * Air Hockey on two phones laid end to end. Each Player's paddle follows their
  * finger on their own Tile, within their half; the host moves a bot's. The
@@ -220,10 +314,13 @@ function table(m: MatchInfo) {
  * starts once every human has touched their Tile: until then their own Tile
  * asks them to touch it and the other says play waits for them. Each side is
  * drawn in its Player's colour (`playerColour`); the puck is ivory, with a
- * trail. First to seven wins.
+ * trail. First to seven wins. A view sounds a hit and a bounce on the Tile
+ * the puck is on and a goal on every Tile (`toneOf`), unless its Device's
+ * sound is off.
  *
- * Nothing here reads a Tile's `rot` but `table`: input arrives in world mm
- * and every view draws in world mm, whichever way its phone is turned.
+ * Nothing here reads a Tile's `rot` but `table` and `toneOf`, both through the
+ * SDK's `Surface`: input arrives in world mm and every view draws in world mm,
+ * whichever way its phone is turned.
  */
 export default defineGame<AirHockeyState, AirHockeyMessage>({
   manifest: {
@@ -472,9 +569,20 @@ export default defineGame<AirHockeyState, AirHockeyMessage>({
     let resumedAt = -Infinity;
     /** Where this view drew the moving puck over the last `TRAIL_MS` (world mm, at shared time `at`), oldest first. */
     const trail: { x: number; y: number; at: number }[] = [];
+    /** The state before the one just in: what a tone is read off (`toneOf`). */
+    let last: AirHockeyState | undefined;
+    const speak = speaker(ctx.root);
     return {
+      onState(s) {
+        const tone = toneOf(last, s, ctx.tile, ctx.sound);
+        last = s;
+        if (tone) speak.play(tone);
+      },
       onResume(now) {
         resumedAt = now;
+      },
+      dispose() {
+        speak.close();
       },
       draw({ ctx: g, state: s, now, t }) {
         if (!s) return;

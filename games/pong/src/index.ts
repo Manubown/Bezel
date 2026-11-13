@@ -1,4 +1,4 @@
-import { defineGame, playerColour, type DeviceId, type MatchInfo, type MatchResult, type Player, type Rect, type Tile, type Vec2 } from '@mgc/sdk';
+import { defineGame, playerColour, Surface, type DeviceId, type MatchInfo, type MatchResult, type Player, type Rect, type Tile, type Vec2 } from '@mgc/sdk';
 
 /** Sizes in world mm, speeds in mm/s, angles in radians, times in seconds. */
 export const PONG = {
@@ -149,6 +149,93 @@ function table(m: { bounds: Rect; tiles: readonly Tile[] }) {
 /** Whether a paddle centred at `pad` meets a ball at height `y`. */
 const covers = (pad: number, y: number): boolean => Math.abs(y - pad) <= PONG.paddle.h / 2 + PONG.ball;
 
+/** What a view plays (spec outside-view D12): a return off a paddle, a bounce off the table's top or bottom, a point, the point that wins. */
+export type Tone = 'hit' | 'wall' | 'goal' | 'win';
+
+/**
+ * The tone the view on `tile` asks for as its state goes from `prev` to `next`, read off the two states (the host
+ * publishes states, not events: ADR-0003). A point is the score going up, the win the point that reaches `PONG.win`:
+ * both on every Tile. A return is the ball turning across (only a paddle turns it without a point), a bounce the ball
+ * turning up or down: each on the Tile the ball is on, on both while it straddles the gap between two. Nothing without
+ * an earlier state or with the sound off.
+ */
+export function toneOf(prev: PongState | undefined, next: PongState, tile: Tile | undefined, sound: boolean): Tone | undefined {
+  if (!sound || !prev) return undefined;
+  if (next.score[0] + next.score[1] > prev.score[0] + prev.score[1]) return Math.max(...next.score) >= PONG.win ? 'win' : 'goal';
+  if (!tile) return undefined;
+  // Where the ball lies on this Tile's screen: on it while any of the ball is.
+  const p = new Surface({ id: tile.deviceId, x: tile.x, y: tile.y, w: tile.w, h: tile.h, rot: tile.rot }, 1).worldToLocal(next.ball);
+  if (p.x <= -PONG.ball || p.x >= tile.w + PONG.ball || p.y <= -PONG.ball || p.y >= tile.h + PONG.ball) return undefined;
+  if (prev.ball.vx * next.ball.vx < 0) return 'hit';
+  if (prev.ball.vy * next.ball.vy < 0) return 'wall';
+  return undefined;
+}
+
+/** Each tone's notes: frequency (Hz), and start and length (s) from when it sounds. The first three are the arcade's. */
+const NOTES: Record<Tone, readonly (readonly [hz: number, at: number, len: number])[]> = {
+  hit: [[459, 0, 0.05]],
+  wall: [[226, 0, 0.04]],
+  goal: [[490, 0, 0.25]],
+  win: [
+    [490, 0, 0.12],
+    [617, 0.12, 0.12],
+    [735, 0.24, 0.35],
+  ],
+};
+/** How long a goal shakes a phone that vibrates, ms. */
+const BUZZ_MS = 60;
+
+/**
+ * This view's speaker. A browser lets a page sound only from a touch on it, so the audio is made on the first touch of
+ * this Tile (`root`): its Player's "Touch here to start". A Tile nobody touches stays silent and never vibrates.
+ * `play` sounds a tone's notes, each a triangle wave fading out so it does not click, while the audio runs, and on a
+ * point buzzes a phone that vibrates. `close` lets the last tone ring out (the win sounds as the Match closes).
+ */
+function speaker(root: HTMLElement): { play(tone: Tone): void; close(): void } {
+  const win = root.ownerDocument.defaultView;
+  let audio: AudioContext | undefined;
+  let touched = false;
+  const wake = (): void => {
+    touched = true;
+    if (!audio && typeof win?.AudioContext === 'function') {
+      // An iPhone's silent switch mutes Web Audio unless the page says it plays media (developer reports; a phone decides).
+      const session = (win.navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+      if (session) session.type = 'playback';
+      try {
+        audio = new win.AudioContext();
+      } catch {
+        return; // no audio here: silence
+      }
+    }
+    // The touch's end is what lets a phone start it; until then it waits suspended.
+    if (audio?.state === 'suspended') audio.resume().catch(() => {});
+  };
+  for (const type of ['pointerdown', 'pointerup', 'touchend']) root.addEventListener(type, wake);
+  return {
+    play(tone) {
+      if (audio?.state === 'running') {
+        const start = audio.currentTime;
+        for (const [hz, at, len] of NOTES[tone]) {
+          const osc = audio.createOscillator();
+          const gain = audio.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = hz;
+          gain.gain.setValueAtTime(0.3, start + at);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + at + len);
+          osc.connect(gain).connect(audio.destination);
+          osc.start(start + at);
+          osc.stop(start + at + len);
+        }
+      }
+      if (touched && (tone === 'goal' || tone === 'win')) win?.navigator?.vibrate?.(BUZZ_MS);
+    },
+    close() {
+      const done = audio;
+      if (done) win?.setTimeout(() => void done.close(), 1000);
+    },
+  };
+}
+
 /**
  * Pong across the table. The Players seated at the outer Tiles move their
  * paddles with a finger, and the host moves a bot's; the ball bounces off the
@@ -159,6 +246,8 @@ const covers = (pad: number, y: number): boolean => Math.abs(y - pad) <= PONG.pa
  * `PONG.presence.holdMs`) play holds where it is, their own Tile asks them to
  * touch it and every other Tile says play waits for them. Each side is drawn
  * in its Player's colour (`playerColour`); the ball is ivory, with a trail.
+ * A view sounds a return and a bounce on the Tile the ball is on and a point
+ * on every Tile (`toneOf`), unless its Device's sound is off.
  */
 export default defineGame<PongState, never>({
   manifest: {
@@ -302,9 +391,20 @@ export default defineGame<PongState, never>({
     let resumedAt = -Infinity;
     /** Where this view drew the moving ball over the last `TRAIL_MS` (world mm, at shared time `at`), oldest first. */
     const trail: { x: number; y: number; at: number }[] = [];
+    /** The state before the one just in: what a tone is read off (`toneOf`). */
+    let last: PongState | undefined;
+    const speak = speaker(ctx.root);
     return {
+      onState(s) {
+        const tone = toneOf(last, s, ctx.tile, ctx.sound);
+        last = s;
+        if (tone) speak.play(tone);
+      },
       onResume(now) {
         resumedAt = now;
+      },
+      dispose() {
+        speak.close();
       },
       draw({ ctx: g, state: s, now, t }) {
         if (!s) return;

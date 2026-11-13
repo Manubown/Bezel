@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { DeviceId, Game, MatchInfo, Player, Tile, Vec2 } from '@mgc/sdk';
 import { createTestMatch, type TestMatch } from '@mgc/sdk/test';
-import airHockey, { AIR_HOCKEY, type AirHockeyState } from '../src';
+import airHockey, { AIR_HOCKEY, toneOf, type AirHockeyState, type Tone } from '../src';
 
 const STEP_MS = 1000 / 60;
 /** `createTestMatch`'s CSS px per mm, at dpr 1. */
@@ -628,5 +628,71 @@ describe('Air Hockey', () => {
       await rests.tick(300);
       expect(trailOf(rests, 'd1')).toEqual([]);
     }
+  });
+});
+
+describe.each(FAR)('Air Hockey’s sound, $name: which phone asks for which tone (spec outside-view D12)', ({ rot }) => {
+  const TWO = rowMatch(rot);
+  /** The tone each phone asks for as its state goes from `prev` to `next`: Ann's (0–70) first, then Bo's (74–144). */
+  const heard = (prev: AirHockeyState | undefined, next: AirHockeyState, sound = true): (Tone | undefined)[] => TWO.tiles.map((tile) => toneOf(prev, next, tile, sound));
+  /** Ann's paddle `x` mm along the table, mid-table across; Bo's home. */
+  const annAt = (x: number): AirHockeyState['pads'] => [
+    { x, y: 75 },
+    { x: 122, y: 75 },
+  ];
+
+  it('sounds a bounce off a wall on the phone the puck is on, and on no other', () => {
+    // Off the side wall on Ann's phone; off Bo's end beside his goal.
+    expect(heard(playing({ x: 30, y: 7, vx: 50, vy: -80 }), playing({ x: 31, y: 6, vx: 50, vy: 68 }))).toEqual(['wall', undefined]);
+    expect(heard(playing({ x: 138, y: 120, vx: 90, vy: 10 }), playing({ x: 138, y: 120, vx: -76, vy: 10 }))).toEqual([undefined, 'wall']);
+  });
+
+  it('sounds a paddle meeting the puck on the phone the puck is on, once while the paddle keeps against it', () => {
+    // The puck comes at Ann's paddle and ends the step against it; then her paddle pushes it on.
+    const struck = playing({ x: 36, y: 75, vx: 85, vy: 0 }, { pads: annAt(22) });
+    expect(heard(playing({ x: 40, y: 75, vx: -100, vy: 0 }, { pads: annAt(22) }), struck)).toEqual(['hit', undefined]);
+    expect(heard(struck, playing({ x: 38, y: 75, vx: 90, vy: 0 }, { pads: annAt(24) }))).toEqual([undefined, undefined]);
+    // Bo's paddle at home meets one coming at it.
+    expect(heard(playing({ x: 100, y: 75, vx: 100, vy: 0 }), playing({ x: 108, y: 75, vx: -85, vy: 0 }))).toEqual([undefined, 'hit']);
+  });
+
+  it('sounds a bounce on both phones while the puck straddles the gap between them', () => {
+    expect(heard(playing({ x: 72, y: 7, vx: 0, vy: -80 }), playing({ x: 72, y: 6, vx: 0, vy: 68 }))).toEqual(['wall', 'wall']);
+  });
+
+  it('sounds a goal and the win on both phones', () => {
+    const served = playing({ ...MID, vx: 90, vy: 0 }, { score: [1, 0], wait: AIR_HOCKEY.serveWait });
+    expect(heard(playing({ x: 141, y: 75, vx: 200, vy: 0 }), served)).toEqual(['goal', 'goal']);
+    expect(heard(playing({ x: 141, y: 75, vx: 200, vy: 0 }, { score: [6, 2] }), playing({ ...MID, vx: 0, vy: 0 }, { score: [7, 2] }))).toEqual(['win', 'win']);
+  });
+
+  it('asks for no tone with the sound off, nor without an earlier state, nor at a serve after a crawl, nor while play holds', () => {
+    const wall = [playing({ x: 30, y: 7, vx: 50, vy: -80 }), playing({ x: 31, y: 6, vx: 50, vy: 68 })] as const;
+    const hit = [playing({ x: 40, y: 75, vx: -100, vy: 0 }, { pads: annAt(22) }), playing({ x: 36, y: 75, vx: 85, vy: 0 }, { pads: annAt(22) })] as const;
+    const goal = [playing({ x: 141, y: 75, vx: 200, vy: 0 }), playing({ ...MID, vx: 90, vy: 0 }, { score: [1, 0], wait: 1 })] as const;
+    for (const [prev, next] of [wall, hit, goal]) expect(heard(prev, next, false)).toEqual([undefined, undefined]);
+    expect(heard(undefined, wall[1])).toEqual([undefined, undefined]);
+    // A crawling puck served again from the centre turns round: no bounce.
+    expect(heard(playing({ x: 100, y: 60, vx: 5, vy: -3 }), playing({ ...MID, vx: -80, vy: 20 }, { wait: AIR_HOCKEY.serveWait }))).toEqual([undefined, undefined]);
+    // Ann's paddle runs onto the puck resting while play waits for Bo: nothing strikes it.
+    const waiting = playing({ ...MID, vx: 90, vy: 0 }, { wait: AIR_HOCKEY.serveWait, hold: [1] });
+    expect(heard(waiting, { ...waiting, pads: annAt(60) })).toEqual([undefined, undefined]);
+  });
+
+  it('over a Match played to its end, sounds each of Ann’s shots, and every goal and the win on both phones', async () => {
+    const t = await createTestMatch<AirHockeyState>({ game: airHockey, match: TWO });
+    const ann = finger(t, 'd0');
+    await finger(t, 'd1').to(BO_CORNER);
+    const states: AirHockeyState[] = [];
+    while (!t.result() && states.length < 2000) {
+      const goals = t.state('d0')?.score[0] ?? 0;
+      states.push(...(await annShoots(t, ann)), ...(await run(t, 2000, (s) => s.score[0] !== goals)));
+    }
+    expect(t.result()?.scores).toEqual({ 'p-ann': 7, 'p-bo': 0 });
+    const tones = states.slice(1).map((s, i) => heard(states[i], s));
+    const both = (tone: Tone) => tones.filter((phones) => phones.every((p) => p === tone)).length;
+    expect(both('goal')).toBe(6);
+    expect(both('win')).toBe(1);
+    expect(tones.filter((phones) => phones.includes('hit')).length).toBeGreaterThanOrEqual(7);
   });
 });

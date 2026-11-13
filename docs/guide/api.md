@@ -132,6 +132,7 @@ export interface ViewContext<S extends JsonValue, M extends JsonValue> {
   readonly pxPerMm: number;
   readonly dpr: number;
   readonly root: HTMLElement;
+  readonly sound: boolean;
   now(): number;
   latest(): { state: S; t: number } | undefined;
   holder(controller?: DeviceId): PlayerId | null;
@@ -149,6 +150,7 @@ export interface ViewContext<S extends JsonValue, M extends JsonValue> {
 | `pxPerMm` | CSS px per mm on this Device, for DOM sized in mm (CSS `mm` units are not physical on phones): the user-agent guess times the page's zoom (`apps/pwa/src/device.ts:73-83`, `141`) |
 | `dpr` | the device pixel ratio, read live |
 | `root` | an SDK-owned element (`position:absolute; inset:0`) the view may fill; `mount` gets the same element |
+| `sound` | whether this Device plays sound: its person's setting on it (the Host's sheet, a Peer's strip), on by default. Read live: it can change during a Match. While `false` play no tone and no vibration ([Concepts: sound](concepts.md#sound)) |
 | `now()` | shared clock, ms |
 | `latest()` | the last state this view applied, of either kind (broadcast or published to this Device alone), and its host time; a view that needs both keeps its own from `onState` |
 | `holder(controller?)` | who holds that Controller (default: this Device) as the platform last said; `null` for nobody or a Tile |
@@ -324,11 +326,13 @@ export interface MatchOptions {
   send(frame: NetFrame, to?: DeviceId): void;
   onEvent(e: MatchEvent): void;
   authority?: boolean;
+  sound?: boolean;
 }
 export interface MatchHandle {
   deliver(frame: NetFrame, from: DeviceId): void;
   setPaused(reason: PauseReason | null): void;
   hello(): void;
+  setSound(on: boolean): void;
   stop(reason: 'aborted' | 'link-lost'): void;
 }
 ```
@@ -344,9 +348,11 @@ Runs one Device's part of a Match: its view, plus the host side with `authority`
 | `send(frame, to?)` | forwards a frame over the Transport. Host: `to` omitted = every other Device. Peer: always for the Host |
 | `onEvent(e)` | every `MatchEvent` on this Device |
 | `authority` | `true` on the Host: also runs the host side |
+| `sound` | this Device's sound setting as the Match starts, what its view reads as `ctx.sound`; default `true` |
 | `deliver(frame, from)` | a frame off the Transport; `from` is the Device whose channel carried it |
 | `setPaused(reason \| null)` | Host only: pause everywhere, or resume with `null` (the `resume` frame carries `pausedMs`) |
 | `hello()` | Peer only (a no-op on the Host): asks the Host again for every Holder (if any is set), this Device's retained states, and the pause while paused. The view link sends it by itself when it opens, so a page that starts mid-Match draws the current state; the platform calls it on re-attach with the runtime still running. The Host ignores it from a Device outside the Match |
+| `setSound(on)` | this Device's sound setting changed: its view reads the new one as `ctx.sound` at once, and a view that opens later starts with it. Nothing crosses to other Devices |
 | `stop(reason)` | closes this Device's part; on the Host, the Match on every Device |
 
 ### `MatchEvent`
@@ -421,7 +427,7 @@ export type RejectOf = 'publish' | 'set-holder' | 'timer' | 'end';
 | `ClockWire` | `epochOffset = shared.now() − Date.now()` at send; `sentAt` the shared time at send |
 | `Shared` | Down frames both sides get: `holders`, `clock`, `pause`, `resume`, `close` |
 | `HostDown` | platform → host game: `Shared`, `init`, `tick`, `input`, `msg`, `timer`, `reject` |
-| `ViewDown` | platform → view: `Shared`, `init`, `state` |
+| `ViewDown` | platform → view: `Shared`, `init` (with this Device's `sound`), `state`, `sound` (the setting changed) |
 | `HostUp` | host game → platform: `fault`, `log`, `ready`, `handlers`, `publish`, `set-holder`, `timer`, `end` |
 | `ViewUp` | view → platform: `fault`, `log`, `ready`, `input`, `send`, `hello` (sent by a Peer's runtime, not a game) |
 | `Down`, `Up` | `HostDown \| ViewDown`, `HostUp \| ViewUp` |
@@ -442,6 +448,7 @@ export interface TestMatchOptions {
   match: MatchInfo;
   host?: DeviceId;
   pxPerMm?: number;
+  sound?: boolean;
 }
 export interface TestMatch<S extends JsonValue = JsonValue> {
   now(): number;
@@ -451,6 +458,7 @@ export interface TestMatch<S extends JsonValue = JsonValue> {
   drawn(deviceId: DeviceId): readonly CanvasOp[];
   setPaused(reason: PauseReason | null): Promise<void>;
   reload(deviceId: DeviceId): Promise<void>;
+  setSound(deviceId: DeviceId, on: boolean): Promise<void>;
   state(deviceId: DeviceId): S | undefined;
   latest(deviceId: DeviceId): { state: S; t: number } | undefined;
   result(): MatchResult | undefined;
@@ -459,7 +467,7 @@ export interface TestMatch<S extends JsonValue = JsonValue> {
 }
 ```
 
-A whole Match in one process: `runMatch` on every Device over the in-process link, a headless screen per Device, JSON delivery between Devices, a fake shared clock from 0. `host` defaults to the first Device, `pxPerMm` to 6.
+A whole Match in one process: `runMatch` on every Device over the in-process link, a headless screen per Device, JSON delivery between Devices, a fake shared clock from 0. `host` defaults to the first Device, `pxPerMm` to 6, `sound` (every Device's setting as the Match starts) to `true`.
 
 | Member | Semantics |
 |---|---|
@@ -470,6 +478,7 @@ A whole Match in one process: `runMatch` on every Device over the in-process lin
 | `drawn(deviceId)` | what that view drew in its last frame: every canvas call as `[name, ...args]` (`['fillStyle=', v]` for a property write), after the SDK's clear and world transform. Read it one frame after the state you expect it to show |
 | `setPaused(reason)` | the Host platform's pause (`null` resumes); time does not move |
 | `reload(deviceId)` | a Peer's page reloads mid-Match: its `runMatch` stops and a new one starts on a fresh screen, its view starting from the Host's answer to its `hello`; the Host does not pause. `drawn`, `state`, `latest`, `events` then read the new page. Throws for the Host |
+| `setSound(deviceId, on)` | that Device's person switches its sound: its view reads `on` as `ctx.sound`, and so does the view a `reload` starts there; time does not move |
 | `state(deviceId)` | the latest state that view applied |
 | `latest(deviceId)` | the same with its host time |
 | `result()` | the result once the host game ended the Match |

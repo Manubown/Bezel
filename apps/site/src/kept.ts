@@ -11,7 +11,7 @@ export interface Kept {
   sources: string[];
 }
 
-/** Read off the code: `device.ts`, `maker.ts`, `installer.ts`, `main.ts`, `lobby.ts`, `recorder.ts`. */
+/** Read off the code: `device.ts`, `maker.ts`, `sound.ts`, `installer.ts`, `main.ts`, `lobby.ts`, `recorder.ts`. */
 export const KEPT: Kept[] = [
   {
     what: 'A Device id',
@@ -28,6 +28,11 @@ export const KEPT: Kept[] = [
     what: 'Maker mode, on or off',
     detail: 'Only if the app was ever opened with ?maker in its address, as the makers do when they test. It stays until you delete it.',
     sources: ['maker.ts'],
+  },
+  {
+    what: 'Sound, on or off',
+    detail: 'Only once you switched the sound on the first phone’s sheet or on another phone’s top strip, so that the phone stays as you left it. It stays until you delete it.',
+    sources: ['sound.ts'],
   },
   {
     what: 'The offer to add the app to your home screen',

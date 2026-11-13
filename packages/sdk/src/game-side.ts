@@ -228,6 +228,8 @@ class ViewSide extends GameSide {
   private sender: Pick<Input, 'deviceId' | 'role'> | undefined;
   /** Each Controller's Holder, as the platform last said. */
   private readonly holders = new Map<DeviceId, PlayerId | null>();
+  /** This Device's sound setting, as the platform last said: what `ctx.sound` reads. */
+  private sound = true;
   /** The paint loop behind `draw`: it runs while not paused and not hidden, until closed. */
   private painter = { pause: (): void => {}, resume: (): void => {}, close: (): void => {} };
   private stopCapture = (): void => {};
@@ -254,6 +256,8 @@ class ViewSide extends GameSide {
     this.root = root;
     this.sender = { deviceId: self.deviceId, role: self.role };
     for (const { deviceId, playerId } of f.holders) this.holders.set(deviceId, playerId);
+    this.sound = f.sound;
+    const side = this;
 
     const tile = self.tile;
     const surface = tile && new Surface({ id: self.deviceId, x: tile.x, y: tile.y, w: tile.w, h: tile.h, rot: tile.rot }, self.pxPerMm);
@@ -268,6 +272,9 @@ class ViewSide extends GameSide {
         return win?.devicePixelRatio || 1;
       },
       root,
+      get sound() {
+        return side.sound;
+      },
       now: () => this.clock.now(),
       latest: () => this.latest,
       holder: (controller = self.deviceId) => this.holders.get(controller) ?? null,
@@ -305,7 +312,7 @@ class ViewSide extends GameSide {
         this.holders.set(deviceId, playerId);
         this.guard('onHolder', () => this.handlers.onHolder?.(deviceId, playerId));
       }
-    }
+    } else if (f.t === 'sound') this.sound = f.on;
   }
 
   protected stop(close: CloseFrame | undefined): void {

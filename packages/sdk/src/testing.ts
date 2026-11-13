@@ -14,6 +14,8 @@ export interface TestMatchOptions {
   host?: DeviceId;
   /** CSS px per mm on every Device; default 6. */
   pxPerMm?: number;
+  /** Every Device's sound setting as the Match starts (`ViewContext.sound`); default on. `setSound` changes one. */
+  sound?: boolean;
 }
 
 export interface TestMatch<S extends JsonValue = JsonValue> {
@@ -57,6 +59,12 @@ export interface TestMatch<S extends JsonValue = JsonValue> {
    * and `events` then read the new page. Throws for the Host.
    */
   reload(deviceId: DeviceId): Promise<void>;
+  /**
+   * The platform's `setSound` on `deviceId`, as when its person switches sound
+   * on or off: its running view reads it from `ctx.sound`, and so does the view
+   * a reload starts there. Time does not move.
+   */
+  setSound(deviceId: DeviceId, on: boolean): Promise<void>;
   /** The latest state `deviceId`'s view has applied. */
   state(deviceId: DeviceId): S | undefined;
   /** The same with its host time: the view's `latest()`. */
@@ -110,6 +118,8 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
   const link = linkInProcess(() => Promise.resolve({ default: game }), env);
 
   const devices = new Map<DeviceId, { handle: MatchHandle; events: MatchEvent[]; screen: HeadlessScreen; surface: Surface | undefined }>();
+  /** Each Device's sound setting: what its page would read from its storage at a reload. */
+  const sound = new Map(o.match.devices.map((d) => [d.deviceId, o.sound ?? true]));
   // Between Devices frames cross as JSON, in order, asynchronously: like the Transport.
   const deliver = (to: DeviceId, frame: NetFrame, from: DeviceId): void => {
     const wire = JSON.parse(JSON.stringify(frame)) as NetFrame;
@@ -134,6 +144,7 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
         },
         onEvent: (e) => events.push(e),
         ...(isHost && { authority: true }),
+        sound: sound.get(deviceId) ?? true,
       },
       env,
     );
@@ -203,6 +214,12 @@ export async function createTestMatch<S extends JsonValue = JsonValue>(o: TestMa
       device(deviceId).handle.stop('link-lost');
       views.delete(deviceId);
       start(o.match.devices.find((d) => d.deviceId === deviceId)!);
+      await settle();
+    },
+    async setSound(deviceId, on) {
+      const { handle } = device(deviceId);
+      sound.set(deviceId, on);
+      handle.setSound(on);
       await settle();
     },
     latest,

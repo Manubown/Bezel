@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { DeviceId, Game, MatchInfo, Player, Tile } from '@mgc/sdk';
 import { createTestMatch, type TestMatch } from '@mgc/sdk/test';
-import pong, { PONG, type PongState } from '../src';
+import pong, { PONG, toneOf, type PongState, type Tone } from '../src';
 
 /** Phones in a row, 70 × 150 mm, with a 4 mm bezel gap between neighbours; Ann seated at the first, Bo at the last. */
 function rowMatch(n: number): MatchInfo {
@@ -716,5 +716,60 @@ describe('Pong', () => {
     const held = await createTestMatch<PongState>({ game: only(rally({ x: 60, y: 70, vx: 150, vy: 0 }, { hold: [1] })), match: TWO });
     await held.tick(300);
     expect(trailOf(held, 'd1')).toEqual([]);
+  });
+});
+
+describe('Pong’s sound: which phone asks for which tone (spec outside-view D12)', () => {
+  /** Three phones in a row: Ann's 0–70, the middle one 74–144, Bo's 148–218; the paddles' faces at x 13.5 and 204.5. */
+  const THREE = rowMatch(3);
+  /** The tone each of the three phones asks for as its state goes from `prev` to `next`. */
+  const heard = (prev: PongState | undefined, next: PongState, sound = true): (Tone | undefined)[] => THREE.tiles.map((tile) => toneOf(prev, next, tile, sound));
+
+  it('sounds a bounce off the top or the bottom on the phone the ball is on, and on no other', () => {
+    expect(heard(rally({ x: 100, y: 5, vx: 120, vy: -90 }), rally({ x: 102, y: 4.5, vx: 120, vy: 90 }))).toEqual([undefined, 'wall', undefined]);
+    expect(heard(rally({ x: 190, y: 145, vx: 120, vy: 90 }), rally({ x: 192, y: 145.5, vx: 120, vy: -90 }))).toEqual([undefined, undefined, 'wall']);
+  });
+
+  it('sounds a return on the phone of the paddle that made it, and on no other', () => {
+    expect(heard(rally({ x: 15, y: 70, vx: -150, vy: 0 }), rally({ x: 14, y: 70, vx: 159, vy: 30 }))).toEqual(['hit', undefined, undefined]);
+    expect(heard(rally({ x: 203, y: 70, vx: 150, vy: 10 }), rally({ x: 204, y: 70, vx: -159, vy: -20 }))).toEqual([undefined, undefined, 'hit']);
+  });
+
+  it('sounds a bounce on both phones while the ball straddles the gap between them', () => {
+    expect(heard(rally({ x: 72, y: 5, vx: 120, vy: -90 }), rally({ x: 72, y: 4.5, vx: 120, vy: 90 }))).toEqual(['wall', 'wall', undefined]);
+  });
+
+  it('sounds a point and the win on every phone', () => {
+    const served = { x: 109, y: 75, vx: -150, vy: 0 };
+    expect(heard(rally({ x: 220, y: 70, vx: 150, vy: 0 }), rally(served, { score: [1, 0], wait: PONG.serveWait }))).toEqual(['goal', 'goal', 'goal']);
+    expect(heard(rally({ x: 220, y: 70, vx: 150, vy: 0 }, { score: [6, 4] }), rally({ x: 109, y: 75, vx: 0, vy: 0 }, { score: [7, 4] }))).toEqual(['win', 'win', 'win']);
+  });
+
+  it('asks for no tone with the sound off, nor without an earlier state, nor while the ball rests or play holds', () => {
+    const wall = [rally({ x: 100, y: 5, vx: 120, vy: -90 }), rally({ x: 102, y: 4.5, vx: 120, vy: 90 })] as const;
+    const hit = [rally({ x: 15, y: 70, vx: -150, vy: 0 }), rally({ x: 14, y: 70, vx: 159, vy: 30 })] as const;
+    const point = [rally({ x: 220, y: 70, vx: 150, vy: 0 }), rally({ x: 109, y: 75, vx: -150, vy: 0 }, { score: [1, 0] })] as const;
+    const win = [rally({ x: 220, y: 70, vx: 150, vy: 0 }, { score: [6, 4] }), rally({ x: 109, y: 75, vx: 0, vy: 0 }, { score: [7, 4] })] as const;
+    for (const [prev, next] of [wall, hit, point, win]) expect(heard(prev, next, false)).toEqual([undefined, undefined, undefined]);
+    expect(heard(undefined, wall[1])).toEqual([undefined, undefined, undefined]);
+    const resting = rally({ x: 109, y: 75, vx: -150, vy: 40 }, { wait: 0.5 });
+    expect(heard(resting, { ...resting, wait: 0.48 })).toEqual([undefined, undefined, undefined]);
+    const held = rally({ x: 15, y: 70, vx: -150, vy: 0 }, { hold: [0] });
+    expect(heard(held, { ...held, pads: [30, 75] })).toEqual([undefined, undefined, undefined]);
+  });
+
+  it('over a Match played to its end, sounds every return on its paddle’s phone, never the middle one, and every point and the win on all three', async () => {
+    const t = await createTestMatch<PongState>({ game: pong, match: THREE });
+    // Bo returns off his paddle's top half, so the ball meets the walls; Ann never returns.
+    const states = await play(t, [dodges, tracks(13)], 60_000, undefined, THREE);
+    expect(t.result()?.scores).toEqual({ 'p-ann': 0, 'p-bo': 7 });
+    const tones = states.slice(1).map((s, i) => heard(states[i], s));
+    const all = (tone: Tone) => tones.filter((phones) => phones.every((p) => p === tone)).length;
+    expect(all('goal')).toBe(6);
+    expect(all('win')).toBe(1);
+    const hits = tones.filter((phones) => phones.includes('hit'));
+    expect(hits.length).toBeGreaterThan(0);
+    for (const phones of hits) expect(phones).toEqual([undefined, undefined, 'hit']);
+    expect(tones.filter((phones) => phones.includes('wall')).length).toBeGreaterThan(0);
   });
 });

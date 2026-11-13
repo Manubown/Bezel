@@ -71,9 +71,12 @@ export type RejectOf = 'publish' | 'set-holder' | 'timer' | 'end';
 
 export type ViewDown =
   | Shared
-  | { v: 1; t: 'init'; side: 'view'; match: MatchInfo; self: Omit<Device, 'name'> & { pxPerMm: number }; holders: HolderEntry[]; clock: ClockWire }
+  /** `sound`: this Device's sound setting as the view starts (`ViewContext.sound`). */
+  | { v: 1; t: 'init'; side: 'view'; match: MatchInfo; self: Omit<Device, 'name'> & { pxPerMm: number }; holders: HolderEntry[]; clock: ClockWire; sound: boolean }
   /** `at` is the host time of `state`; `to` is set when the state was published to this Device alone. */
-  | { v: 1; t: 'state'; state: JsonValue; at: number; to?: DeviceId };
+  | { v: 1; t: 'state'; state: JsonValue; at: number; to?: DeviceId }
+  /** This Device's sound setting changed (`MatchHandle.setSound`); never between Devices. */
+  | { v: 1; t: 'sound'; on: boolean };
 
 /**
  * A game handler threw; `where` is `side.handler`. `fatal`: the game side

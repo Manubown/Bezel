@@ -1,6 +1,7 @@
 import { playerColour } from '@mgc/sdk';
 import type { LastMatch } from '../hud';
 import { describeClose, describeResult } from '../result';
+import type { SoundSetting } from '../sound';
 
 /** The last Match in words: its result, or why it closed without one; `player`, the Player its headline names. */
 export function describeLast(last: LastMatch): { headline: string; detail: string; player?: number } {
@@ -27,6 +28,26 @@ export function syncStats(c: { rtt?: number; offset?: number } | undefined): str
 /** A status dot: `ok` in, `wait` on its way (neutral), `warn` a weak or lost connection (the warning colour), `off` not there. */
 export function statusDot(state: 'ok' | 'wait' | 'warn' | 'off'): string {
   return `<svg class="dot dot-${state}" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4"/></svg>`;
+}
+
+/**
+ * The sound switch, one on the Host's sheet and one on a Peer's strip (spec outside-view D12): a chip,
+ * pressed while this phone plays sound, a speaker with its waves or crossed out. A tap switches this Device's setting.
+ */
+export function soundSwitch(sound: SoundSetting): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'chip sound';
+  const show = (on: boolean): void => {
+    button.setAttribute('aria-pressed', String(on));
+    button.innerHTML =
+      `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/>` +
+      `<path d="${on ? 'M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11' : 'M16 9.5l5 5M21 9.5l-5 5'}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Sound`;
+  };
+  show(sound.on);
+  button.addEventListener('click', () => sound.set(!sound.on));
+  sound.onChange(show);
+  return button;
 }
 
 /** Names and ids come off the network: never markup. */

@@ -58,6 +58,7 @@ it('counts each tap for the Player seated at that Tile and ends when one reaches
 | `match` | (required) | the frozen `MatchInfo` every Device runs |
 | `host` | `match.devices[0].deviceId` | the Device that hosts (the lobby puts the Host first) |
 | `pxPerMm` | `6` | CSS px per mm on every Device; each screen is `screenMm × pxPerMm` px at dpr 1 |
+| `sound` | `true` | every Device's sound setting as the Match starts: what each view reads as `ctx.sound` |
 
 It resolves once every Device's part has started, and throws `createTestMatch: host … is not a Device of the Match` or `createTestMatch: not started on …` otherwise.
 
@@ -70,13 +71,14 @@ It resolves once every Device's part has started, and throws `createTestMatch: h
 | `drawn(deviceId)` | the canvas calls of that view's last frame, `[name, ...args]` each (a property write as `['fillStyle=', v]`), after the SDK's own clear and transform. Views draw in the same frame batch as the host step, possibly before its publish lands: tick one more frame before reading |
 | `await setPaused(reason \| null)` | the Host platform's pause (`{ kind: 'device-lost', deviceId }` or `{ kind: 'platform', note? }`) or resume (`null`); the clock does not move. The host's and every view's `onResume(now, pausedMs)` get the paused time |
 | `await reload(deviceId)` | that Peer's page reloads mid-Match: its `runMatch` stops (its view gets `onEnd({ reason: 'link-lost' })`) and a new one starts on a fresh screen with nothing kept; the new view gets the current picture (Holders, its kept states, the pause while paused) from the Host's answer to its `hello`, then everything that set off lands. The Host does not pause. `drawn`, `state`, `latest` and `events` then read the new page. Throws for the Host |
+| `await setSound(deviceId, on)` | that Device's person switches its sound on or off: its running view reads `on` as `ctx.sound` at once, and so does the view a `reload` starts there; the clock does not move |
 | `state(deviceId)` | the latest state that Device's view applied, `undefined` before the first |
 | `latest(deviceId)` | the same with its host time: the view's `ctx.latest()` |
 | `result()` | the `MatchResult` once the host game called `end` |
 | `events(deviceId)` | every `MatchEvent` `runMatch` reported on that Device, in order: `started`, `paused`, `resumed`, `holders`, `ended`, `closed`, `view-closed`, `fault`, `log` |
 | `await stop()` | aborts the Match if it still runs |
 
-`state`, `latest`, `events` and `reload` throw for a Device that is not in the Match.
+`state`, `latest`, `events`, `reload` and `setSound` throw for a Device that is not in the Match.
 
 ## Scripting fingers
 

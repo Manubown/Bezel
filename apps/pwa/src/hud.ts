@@ -10,6 +10,7 @@ import type { Installer } from './installer';
 import type { Lobby } from './lobby';
 import type { PauseNotice } from './pause';
 import type { Recorder } from './recorder';
+import type { SoundSetting } from './sound';
 
 /** This Device's part in Matches; `main` keeps it current and calls `render`. */
 export interface Play {
@@ -56,6 +57,8 @@ export interface HudOptions {
    * Host's sheet row. A Peer's strip carries no row: its two lines are the phone's status.
    */
   install: Installer;
+  /** This Device's sound setting (`sound.ts`): a switch on the Host's sheet and on a Peer's strip. */
+  sound: SoundSetting;
 }
 
 export interface Hud {

@@ -126,6 +126,11 @@
       .chip { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; color: var(--fg-2); transition: background 120ms, color 120ms; }
       .chip[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); font-weight: 600; }
       .chip:disabled { opacity: 0.45; cursor: default; }
+      /* This phone's sound (sound.ts): a quiet chip, ivory with the speaker's waves while on, grey with the speaker crossed out while off. */
+      .chip.sound { gap: 8px; padding-left: 12px; }
+      .chip.sound[aria-pressed="true"] { background: none; border-color: var(--line); color: var(--fg); font-weight: 400; }
+      .chip.sound svg { flex: none; }
+      .sheet .sound { justify-self: start; }
       .players { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 28px 1fr auto auto; gap: 8px 10px; }
       /* One shared set of columns, so name fields line up whichever rows carry a seat or a Bot chip. */
       .players li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; }
@@ -162,7 +167,8 @@
       .strip .code { grid-row: 2; grid-column: 1; font-size: var(--text-s); color: var(--fg-2); }
       .strip .state { grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); font-size: var(--text-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .strip .export { grid-row: 1 / span 2; grid-column: 3; align-self: center; pointer-events: auto; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg-2); font-size: var(--text-s); }
+      .strip .sound { grid-row: 1 / span 2; grid-column: 3; align-self: center; pointer-events: auto; font-size: var(--text-s); }
+      .strip .export { grid-row: 1 / span 2; grid-column: 4; align-self: center; pointer-events: auto; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg-2); font-size: var(--text-s); }
 
       /* How the last Match closed (its result, or why it stopped), over the lobby on every phone that ran it: the first phone's with Play again and Change game, the others' until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */
       .result, .pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(86vw, 340px); padding: 24px 20px 18px; background: var(--raise); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-card); text-align: center; }

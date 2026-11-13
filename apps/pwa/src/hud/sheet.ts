@@ -12,7 +12,7 @@ import { otherTable, tableCode } from '../othertable';
 import { placementHint } from '../placement';
 import { fadeCorner } from './corner';
 import { offerHtml, wireOffer } from './install';
-import { describeLast, esc, inColour, statusDot, syncStats } from './shared';
+import { describeLast, esc, inColour, soundSwitch, statusDot, syncStats } from './shared';
 
 /** The site's privacy page (spec D18), beside the app at the public address; `scripts/pages.mjs` checks it is published. */
 const PRIVACY = new URL('privacy/', brand.address).href;
@@ -21,8 +21,8 @@ const PRIVACY = new URL('privacy/', brand.address).href;
  * The Host's bottom sheet, top to bottom the steps of getting a table going (spec D4): the QR with a sentence for the
  * other phones, the phones in the order they lie (roster, ◀ ▶), a card per Game, the arrangement when the Game names
  * more than one, Controllers when it takes them, Player slots, Start; then the game log, the install offer's row,
- * Export log (Maker mode), "Join a different table", folded, and the link to the privacy page (in a new tab: this page
- * holds the table). `onToggle`: the Host folded or unfolded it (the bar, `unfold`).
+ * Export log (Maker mode), this phone's sound switch, "Join a different table", folded, and the link to the privacy page
+ * (in a new tab: this page holds the table). `onToggle`: the Host folded or unfolded it (the bar, `unfold`).
  */
 export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () => void): Promise<Sheet> {
   const { session, lobby, code, games, play, maker } = o;
@@ -116,6 +116,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
   });
   // The session log records in both modes; its export and clear are a maker's.
   if (maker) wireDiagnostics(root, o.log);
+  // This phone's sound: the bar unfolds the sheet over a running Game, so it is at hand during a Match too.
+  root.querySelector('.other-table')!.before(soundSwitch(o.sound));
   // Joining a different table means leaving this one: the page reopens as a Peer of that Session. This table's own
   // code is refused in words (`otherTable`): the page stays, and so does every phone joined to it.
   const other = root.querySelector<HTMLDetailsElement>('.other-table')!;

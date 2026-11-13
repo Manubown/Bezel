@@ -138,6 +138,12 @@ export interface ViewContext<S extends JsonValue, M extends JsonValue> {
   readonly dpr: number;
   /** SDK-owned element the view may fill (DOM UIs); `mount` is handed the same element. */
   readonly root: HTMLElement;
+  /**
+   * Whether this Device plays sound: the setting its person chose on it, on by
+   * default. It can change while the Match runs: read it when a sound is due,
+   * and play nothing (no tone, no vibration) while it is false.
+   */
+  readonly sound: boolean;
   /** Shared clock, ms. */
   now(): number;
   /**

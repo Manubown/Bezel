@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PLAYER_COLOURS, Surface, defineGame, playerColour, type JsonValue, type Tile } from '../src';
 import type { CanvasOp, Matrix, RecordingContext2D } from '../src/headless';
-import { createTestMatch } from '../src/testing';
+import { createTestMatch, type TestMatch } from '../src/testing';
 import { matchFromTiles, matchOf, probeGame, settle, startMatch, step } from './harness';
 
 /** One fixed step at 50 Hz. */
@@ -210,6 +210,51 @@ describe('the Players’ colours (spec outside-view D10)', () => {
       ['Bo', '#2ec4b6'],
     ]);
     expect(inks('d0')).toEqual(inks('d1'));
+    await t.stop();
+  });
+});
+
+describe('the sound setting a view reads (spec outside-view D12)', () => {
+  /** Each view writes what it reads from `ctx.sound` on every frame. */
+  const game = defineGame<JsonValue, never>({
+    manifest: { id: 'probe.sound', name: 'Sound', version: '1.0.0', tiles: { min: 1, max: 4 }, controllers: { min: 0, max: 0 }, players: { min: 1, max: 4 }, host: '', view: '' },
+    host: () => ({}),
+    view: (ctx) => ({
+      draw({ ctx: g }) {
+        g.fillText(ctx.sound ? 'sound on' : 'sound off', 0, 0);
+      },
+    }),
+  });
+  /** What `deviceId`'s view read in its last frame. */
+  const heard = (t: TestMatch, deviceId: string): unknown => t.drawn(deviceId).find(([op]) => op === 'fillText')?.[1];
+
+  it('is on unless the platform says otherwise', async () => {
+    const t = await createTestMatch({ game, match: matchOf({ tiles: ['d0', 'd1'] }) });
+    await t.tick(40);
+    expect([heard(t, 'd0'), heard(t, 'd1')]).toEqual(['sound on', 'sound on']);
+    await t.stop();
+  });
+
+  it('is off on every Device the platform starts with it off', async () => {
+    const t = await createTestMatch({ game, match: matchOf({ tiles: ['d0', 'd1'] }), sound: false });
+    await t.tick(40);
+    expect([heard(t, 'd0'), heard(t, 'd1')]).toEqual(['sound off', 'sound off']);
+    await t.stop();
+  });
+
+  it('changes in the running view of the Device whose setting changed during a Match, and only there, and stays across a reload', async () => {
+    const t = await createTestMatch({ game, match: matchOf({ tiles: ['d0', 'd1'] }), sound: false });
+    await t.tick(40);
+    await t.setSound('d1', true);
+    await t.tick(20);
+    expect([heard(t, 'd0'), heard(t, 'd1')]).toEqual(['sound off', 'sound on']);
+    await t.setSound('d0', true);
+    await t.setSound('d1', false);
+    await t.tick(20);
+    expect([heard(t, 'd0'), heard(t, 'd1')]).toEqual(['sound on', 'sound off']);
+    await t.reload('d1');
+    await t.tick(40);
+    expect(heard(t, 'd1')).toBe('sound off');
     await t.stop();
   });
 });

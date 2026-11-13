@@ -4,14 +4,50 @@
 
 **Blocked by:** 09
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The SDK's view context gains a read-only sound preference; the platform sets it from the Device's setting and a change reaches a running view; a test at the SDK's game seam covers on, off and a change during a Match
-- [ ] The setting is kept on the Device across visits and shown as one control on the sheet and on the strip
-- [ ] Tones are synthesised (no audio files); the audio context is created on the Player's "touch to start" touch
-- [ ] A hit and a wall sound on the Tile the ball or puck is on and on no other; a goal and the win sound on every Tile; harness tests show which view asks for which tone for a given pair of states
-- [ ] With the setting off a view asks for no tone and no vibration
-- [ ] On Android a goal vibrates briefly; where vibration does not exist nothing fails
-- [ ] A view that never got a touch (a middle Tile nobody plays at) stays silent without an error
-- [ ] Left for phones, as boxes on ticket 17: an iPhone with the silent switch on and off; a three-phone row
-- [ ] The developer guide's concepts page shows how a Game plays a tone and honours the preference
+- [x] The SDK's view context gains a read-only sound preference; the platform sets it from the Device's setting and a change reaches a running view; a test at the SDK's game seam covers on, off and a change during a Match
+- [x] The setting is kept on the Device across visits and shown as one control on the sheet and on the strip
+- [x] Tones are synthesised (no audio files); the audio context is created on the Player's "touch to start" touch
+- [x] A hit and a wall sound on the Tile the ball or puck is on and on no other; a goal and the win sound on every Tile; harness tests show which view asks for which tone for a given pair of states
+- [x] With the setting off a view asks for no tone and no vibration
+- [x] On Android a goal vibrates briefly; where vibration does not exist nothing fails
+- [x] A view that never got a touch (a middle Tile nobody plays at) stays silent without an error
+- [x] Left for phones, as boxes on ticket 17: an iPhone with the silent switch on and off; a three-phone row
+- [x] The developer guide's concepts page shows how a Game plays a tone and honours the preference
+
+## Comments
+
+### 2026-11-13, agent (implementation)
+
+**Changed**
+- SDK (`packages/sdk`): `ViewContext.sound: boolean`, read-only and read live (a getter), the one field the view context gains. It reaches the view as a `sound` field of the view's `init` frame and a new local `ViewDown` frame `{ t: 'sound', on }`; `NetDown` is unchanged, nothing crosses between Devices. Platform side: `MatchOptions.sound?` (default `true`) and `MatchHandle.setSound(on)`; a view that opens later starts with the current setting. Harness: `TestMatchOptions.sound?` (every Device, default `true`) and `TestMatch.setSound(deviceId, on)`, which a `reload` of that Device keeps.
+- Platform (`apps/pwa`): `src/sound.ts` `soundSetting()`: on by default, nothing kept until switched, then `'on'`/`'off'` in `localStorage` `mgc.sound`; `onChange` for listeners. `main.ts` passes `sound.on` to `runMatch` and every change to the running Match's `handle.setSound`; the session log's `device` line gains `sound` and a `sound` line records each switch (`docs/guide/running-on-phones.md`). `hud/shared.ts` `soundSwitch`: one chip "Sound" with a speaker icon (waves while on, crossed out while off), `aria-pressed` like the Bot and Controller chips, quiet in both states. On the sheet it sits before "Join a different table"; on the strip at its right, with Maker mode's Log one column further right (`index.html`).
+- Pong and Air Hockey (view only, the host untouched): an exported pure `toneOf(prev, next, tile, sound)` and `Tone`; `onState` keeps the last state and asks `toneOf`; a module-local `speaker(root)` of about 40 lines per Game: the `AudioContext` made on the first `pointerdown`, `pointerup` or `touchend` on the view's root, resumed on every later touch while suspended, `navigator.audioSession.type = 'playback'` where it exists, one triangle oscillator per note under a fading gain, played only while the context runs, `navigator.vibrate(60)` on a goal and the win where it exists and only after a touch; `dispose` closes the context 1 s later so the win rings out. Notes: Pong's hit, wall and point are the arcade's 459, 226 and 490 Hz, its win three rising notes; Air Hockey 196 and 294 Hz, two rising notes for a goal, four for the win.
+- Privacy: `apps/site/src/kept.ts` "Sound, on or off" (sources `sound.ts`). The privacy page lists `KEPT`, so it shows the line without an edit; none of its sentences became false (the setting never leaves the phone).
+- Docs: `docs/guide/concepts.md` "Sound" (the tone from two states, the `onState` lines, the touch, the silent switch, vibration); `docs/guide/api.md` (`ViewContext.sound`, `MatchOptions.sound`, `MatchHandle.setSound`, the `ViewDown` row, `TestMatchOptions.sound`, `TestMatch.setSound`); `docs/guide/testing.md`; `docs/guide/README.md` row 3; `docs/sdk-design.md` (view context, `runMatch`, the view frames, the game-tests paragraph). `CHANGELOG.md`: an Added line.
+
+**Decisions**
+- Events from states, no per-event messages (ADR-0003). A view reads a hit, a wall, a goal and the win off the state before and the state just in; the Host sends nothing new. It works because every state reaches every view in order (`publish` is never coalesced; the channel is reliable and ordered), and each event leaves a mark no other step leaves. A goal is the score sum going up; the win the goal that reaches the Game's `win`. In Pong a hit is `vx` changing sign without a goal (only a paddle turns the ball across; a serve comes only with a goal) and a wall is `vy` changing sign; the existing bounce test reads the host the same way. In Air Hockey a struck puck ends its step exactly a puck and a paddle apart, so a hit is that contact beginning (once while a paddle keeps pushing), and a wall is either velocity component changing sign without contact; a serve after a crawl (`wait` rising) and anything while play holds are silent. A view that starts mid-Match has no previous state and plays nothing for its first.
+- "The Tile the ball is on": the ball's disc overlaps the Tile's screen, found through `Surface.worldToLocal`, so a turned Tile counts right. A ball straddling the 4 mm bezel gap sounds on both phones; a gap wider than the ball (7 mm in Pong, 10 mm in Air Hockey) would leave a bounce inside it silent.
+- Each Game carries its few lines of synth; the SDK exports none. That is the smaller surface: the SDK's public API grows by the one read-only field (and its platform and harness counterparts), while a synth export would be a second API to document, keep stable for every Game and stand in for in the headless harness, for about 40 lines. Each Game keeps its own sound and stays a standalone example to copy, as ticket 09 decided for the trail.
+- The touch: a browser lets audio start only from a user gesture, and for a touch that gesture is its end (`pointerup`/`touchend`; a touch's `pointerdown` does not count in Chrome, and an iPhone wants `touchend`). So the context is made at the touch's start and resumed at its end; tones play only while it runs, so none queue up in a suspended context and burst later. Vibration waits for a touch too: Chrome refuses `vibrate` before one.
+- The win is the last goal: it vibrates as well.
+- `MatchOptions.sound` is optional with `true` as default, so the SDK's own test harness (`packages/sdk/test/harness.ts`) and every other caller compile unchanged.
+- The strip's chip is outlined in both states, not filled while on as the Bot chip is, so it does not compete with the placement number at the top of a joined phone; the icon carries the state.
+- No `lsp` tool was available here: before changing the exported types I found every `runMatch` caller and every place that builds a view context by search (`apps/pwa/src/main.ts`, `packages/sdk/test/harness.ts`, `packages/sdk/src/testing.ts`, `packages/sdk/src/game-side.ts`) and let the workspace type check confirm the rest.
+
+**Verified**
+- Red first, then green, one slice at a time with `pnpm vitest run <file>`: `packages/sdk/test/game-seam.test.ts` (2 failed, `t.setSound is not a function` and `ctx.sound` undefined; then the SDK's 6 files, 48 passed), `games/pong` (6 failed, `toneOf is not a function`; then 29 passed), `games/air-hockey` (12 failed, both rotations; then 35 passed), `apps/pwa/test/sound.test.ts` (no module; then 3 passed). `apps/site/test/privacy.test.ts` failed once `sound.ts` wrote to `localStorage` and passed with the `kept.ts` line.
+- `pnpm typecheck && pnpm test`: type check clean; 42 files, 370 tests passed.
+- The site built from this worktree (Astro under Node 22.23.5): `astro check` 0 errors; `dist/privacy/index.html` lists "Sound, on or off. Only once you switched the sound on the first phone’s sheet or on another phone’s top strip, …".
+- Browser smoke, dev server on port 5210, headless Chrome at 390 × 844, one profile per tab. Headless Chrome plays no audible sound, so the wiring was read from the page: an init script given to each tab (the smoke's, not the app's) wrapped `AudioContext` to keep every context made, counted `OscillatorNode.prototype.start` calls and `navigator.vibrate` calls, and collected page errors.
+  - Pong, three phones in a row, Players at phones 1 and 3, nobody at phone 2. Before any touch on the game, after Start: no context on any phone. After one press on phone 1 and phone 3: one context each, `running`; phone 2 none. Phone 3 counted one oscillator at Bo's first return (a hit on his phone, none elsewhere). Then with phone 1's paddle out of the way, every point added one oscillator and one `vibrate` call on phones 1 and 3; the win added three oscillators and one `vibrate` on each (phone 1: 9 oscillators, 7 vibrations for 6 points and the win). One second after the Match ended both contexts read `closed`. Phone 2 through the whole Match: no context, 0 oscillators, 0 vibrations, no page error.
+  - Sound off during a Match: Play again, both pressed; on phone 1 the corner pill unfolded the sheet, its Sound chip switched to the crossed speaker, `aria-pressed="false"`, `localStorage` `mgc.sound` `off`. Over the next two points phone 3 counted 2 oscillators and 2 vibrations, phone 1 none. Switched back on in the same Match: phone 1 counted again (goals and vibrations). Phone 2 still none.
+  - The strip: phone 3's Sound chip at the strip's right, outlined; tapped off, it showed the crossed speaker and kept `off`; after a reload of that tab the chip was still off. The next Match started with phone 3 off: its context was made and ran on the touch, and through three of phone 1's goals it counted 0 oscillators and 0 vibrations while phone 1 counted both.
+  - Air Hockey, two phones end to end: no context before the touch, one `running` on each after; a stroke of phone 1's paddle through the puck counted oscillators on phone 1 only while the puck stayed there, on phone 2 once it crossed; Bo's own goal: phone 1 counted two oscillators (the goal's two notes) and one `vibrate`, phone 2 four (his stroke's among them) and one `vibrate`. No page error on any tab.
+
+**Not verified**
+- Sound itself: headless Chrome plays nothing audible; only the context's state and the oscillators the code starts were read.
+- On phones (ticket 17's boxes "Sound on an iPhone with the silent switch off and on; a three-phone row: the hit sounds on the phone the ball is on" and "Vibration on an Android phone", already on that ticket): whether `navigator.audioSession` keeps an iPhone's silent switch from muting the tones, whether a touch's end starts the audio on an iPhone and on Android as it does in Chrome on the desktop, how loud and how long the tones and the 60 ms buzz feel.
+- A bounce in Pong while the ball sits in a bezel gap wider than 7 mm: silent by the rule above; the lobby's templates use 4 mm.

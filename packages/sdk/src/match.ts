@@ -33,6 +33,8 @@ export interface MatchOptions {
   onEvent(e: MatchEvent): void;
   /** True on the Host: also runs the host side of the Game. */
   authority?: boolean;
+  /** This Device's sound setting as the Match starts (`ViewContext.sound`); default on. `MatchHandle.setSound` changes it. */
+  sound?: boolean;
 }
 
 /** Nothing a game does throws out of these: its errors arrive as `MatchEvent`s. */
@@ -56,6 +58,8 @@ export interface MatchHandle {
    * with this runtime still running.
    */
   hello(): void;
+  /** This Device's sound setting changed: its view reads the new one from `ViewContext.sound`, and a view that opens later starts with it. */
+  setSound(on: boolean): void;
   /** Closes this Device's part; on the Host, the Match on every Device. */
   stop(reason: 'aborted' | 'link-lost'): void;
 }
@@ -168,10 +172,11 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
   // page that started mid-Match holds nothing yet. Its input and messages go to
   // the host runtime: here on the Host, over the net on a Peer, paused or not.
   let viewOpened = false;
+  let sound = o.sound ?? true;
   const view: GameLink = new GameLink('view', () => o.link({ side: 'view', root: o.self.mount }), env, {
     open() {
       const self = { deviceId: me.deviceId, role: me.role, screenMm: me.screenMm, pxPerMm, ...(me.tile && { tile: me.tile }) };
-      view.post({ v: 1, t: 'init', side: 'view', match: o.match, self, holders: holderList(), clock: clockWire() });
+      view.post({ v: 1, t: 'init', side: 'view', match: o.match, self, holders: holderList(), clock: clockWire(), sound });
       for (const f of retainedFor(me.deviceId)) view.post(f);
       if (pausedBy) view.post(pausedBy);
       if (!o.authority) o.send(HELLO);
@@ -559,6 +564,11 @@ export function runMatchWith(o: MatchOptions, env: Env): MatchHandle {
     },
     hello() {
       if (!o.authority && !over) o.send(HELLO);
+    },
+    setSound(on) {
+      if (on === sound) return;
+      sound = on;
+      view.post({ v: 1, t: 'sound', on });
     },
     stop(reason) {
       close(reason, STOPPED[reason]);

@@ -16,6 +16,7 @@ The app for everyone ([`play/`](https://manubown.github.io/Bezel/play/)) is the 
 - After the first finished game, the result card offers to put the app on the home screen, where it opens full screen with no browser bars: an Install button on Android, the steps on an iPhone. Inside another app's browser, a banner says to open the page in Safari or Chrome.
 - A privacy page and an imprint on the site; the first phone's sheet links the privacy page.
 - Each player has a colour, the same on every phone: their paddle, their score and their name on the first phone's sheet, the pause card and the result card. In Pong and Air Hockey a player's own phone says "Touch here to start" and the other phones say "Waiting for Ana", and the ball and the puck leave a short trail that crosses from one phone to the next.
+- Sound in Pong and Air Hockey: a short tone on the phone where the ball or puck meets a paddle or a wall, and on every phone at a goal and at the win; an Android phone also buzzes at a goal. A phone plays nothing until someone touches it. A Sound switch on the first phone's sheet and at the top of the other phones turns it off for that phone, which remembers it. Whether an iPhone's silent switch mutes it has not been tried on phones yet.
 
 ### Changed
 

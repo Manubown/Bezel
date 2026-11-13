@@ -13,6 +13,7 @@ import { createRecorder } from './recorder';
 import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
 import { describeClose } from './result';
 import { drawPreview } from './scene';
+import { soundSetting } from './sound';
 import { parseTurnServers } from './turn';
 import { awake, keepAwake } from './wake';
 
@@ -70,6 +71,8 @@ async function start(): Promise<void> {
   const params = new URLSearchParams(location.search);
   // Maker mode (`?maker`, remembered on this Device; `?maker=no` switches it off) shows what players never see; the session log records either way.
   const maker = claimMakerMode(params);
+  // Whether this phone plays the Games' sounds: its person's setting, kept on the Device (spec outside-view D12).
+  const sound = soundSetting();
   const room = params.get('room')?.toUpperCase();
   const code = room ?? hostRoomCode();
   // The build's TURN relay (`VITE_MGC_TURN_SERVERS`, `turn.ts`): ICE prefers a direct pair, the relay is the fallback for
@@ -92,6 +95,7 @@ async function start(): Promise<void> {
     standalone: matchMedia('(display-mode: standalone)').matches,
     url: location.href,
     turn: turnServers.length > 0,
+    sound: sound.on,
     ...(turnSetting.problem !== undefined && { turnProblem: turnSetting.problem }),
   });
   rec.observe();
@@ -152,7 +156,12 @@ async function start(): Promise<void> {
     grace = undefined;
     graceExpired = false;
   };
-  const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted'), log: rec, maker, install });
+  const hud = await openHud(hudRoot, { session, lobby, code, games: GAMES.map((g) => g.manifest), play, abort: () => current?.handle.stop('aborted'), log: rec, maker, install, sound });
+  // A switch on the sheet or the strip reaches the running Match's view at once (`ctx.sound`).
+  sound.onChange((on) => {
+    rec.log('sound', { on });
+    current?.handle.setSound(on);
+  });
   /** At most one HUD render per animation frame for the game log: a game may log on every frame. */
   let logRender = 0;
   const renderLog = (): void => {
@@ -225,6 +234,7 @@ async function start(): Promise<void> {
         hud.render();
       },
       authority: session.role === 'host',
+      sound: sound.on,
     });
     current = {
       matchId: match.matchId,

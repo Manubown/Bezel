@@ -67,6 +67,27 @@ const lines = mine.length > 0 ? ['Touch here to start'] : waiting.map((p) => `Wa
 
 Both draw the paddles in their Players' colours, the scores in them at 70 % opacity or more (3:1 on the ground, `packages/look/test/look.test.ts`), and keep the ball or puck ivory with a short trail, so it never reads as a side's.
 
+## Sound
+
+A Game's view plays its own sound, synthesised with Web Audio (no audio files). Whether a Device plays sound is its person's setting, on by default, kept on the Device and switched on the Host's sheet or a Peer's strip; the view reads it as `ctx.sound`, live, since it can change during a Match. While it is `false`, play no tone and no vibration.
+
+The host publishes states, not events (ADR-0003), so a view reads what happened off two states in a row. Pong and Air Hockey keep that a pure function of the last state, the next, the view's Tile and the setting, so a test can ask which Tile sounds what (`toneOf` in `games/pong/src/index.ts` and `games/air-hockey/src/index.ts`): a point is the score going up, a return the ball turning across, a bounce it turning up or down, each of the last two on the Tile the ball is on, a point and the win on every Tile.
+
+```ts
+let last: PongState | undefined;
+const speak = speaker(ctx.root);
+return {
+  onState(s) {
+    const tone = toneOf(last, s, ctx.tile, ctx.sound); // undefined while ctx.sound is false
+    last = s;
+    if (tone) speak.play(tone);
+  },
+  dispose: () => speak.close(),
+};
+```
+
+A browser lets a page sound only from a touch on it, so `speaker` makes its `AudioContext` on the first touch of the view's `root` (the Player's "Touch here to start") and plays nothing before: a Tile nobody touches stays silent. It sets `navigator.audioSession.type = 'playback'` where that exists (an iPhone's silent switch mutes Web Audio otherwise, by developers' reports), plays each note as a triangle wave fading out, and on a goal calls `navigator.vibrate` where that exists (Android). Each Game carries its own few lines of it; the SDK has no synth.
+
 ## World, Tiles and the Surface
 
 The **World** is one coordinate space in millimetres shared by all Tiles (ADR-0005): x right, y down. Every `Tile` is a rectangle in it: `x, y` is where the screen's top-left corner lies, `w, h` its size, and `rot` turns the screen's own axes **clockwise, in radians, about that corner** (`packages/sdk/src/types.ts:14-18`, `packages/layout/src/types.ts:16-25`).
