@@ -1,7 +1,8 @@
 import brand from '../../../../brand.json';
 import type { Hud, HudOptions } from '../hud';
-import { HELP_AFTER_MS, describeJoin, joinAddress, type HelpCard } from '../join';
+import { HELP_AFTER_MS, describeJoin, type HelpCard } from '../join';
 import { placementHint } from '../placement';
+import { CODE_LENGTH, joinAddress, sessionCode } from '../sessioncode';
 import { esc, soundSwitch, statusDot, syncStats } from './shared';
 
 /**
@@ -80,7 +81,7 @@ function helpCard(code: string): (help: HelpCard | undefined) => void {
     <ul class="help-advice"></ul>
     <button type="button" class="help-retry">Try again</button>
     <form class="help-code">
-      <input name="room" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="4" value="${esc(code)}" placeholder="Code" aria-label="Table code" />
+      <input name="room" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="${CODE_LENGTH}" value="${esc(code)}" placeholder="Code" aria-label="Table code" />
       <button type="submit">Join</button>
     </form>`;
   document.body.append(card);
@@ -88,8 +89,8 @@ function helpCard(code: string): (help: HelpCard | undefined) => void {
   const form = card.querySelector<HTMLFormElement>('.help-code')!;
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const to = joinAddress(location.href, (form.elements.namedItem('room') as HTMLInputElement).value);
-    if (to) location.assign(to);
+    const typed = sessionCode((form.elements.namedItem('room') as HTMLInputElement).value);
+    if (typed !== '') location.assign(joinAddress(location.href, typed));
   });
   const head = card.querySelector('.help-head')!;
   const advice = card.querySelector('.help-advice')!;

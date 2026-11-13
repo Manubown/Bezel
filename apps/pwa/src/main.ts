@@ -9,7 +9,7 @@ import { openLobby, sessionLobbyStore } from './lobby';
 import { describePause, pauseOnDeviceLoss, type PauseNotice } from './pause';
 import { claimMakerMode } from './maker';
 import { drawMetronome, startCanvasLoop } from './metronome';
-import { CODE_LENGTH } from './sessioncode';
+import { CODE_LENGTH, sessionCode } from './sessioncode';
 import { createRecorder } from './recorder';
 import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
 import { describeClose } from './result';
@@ -74,7 +74,8 @@ async function start(): Promise<void> {
   const maker = claimMakerMode(params);
   // Whether this phone plays the Games' sounds: its person's setting, kept on the Device (spec outside-view D12).
   const sound = soundSetting();
-  const room = params.get('room')?.toUpperCase();
+  // A Peer's code as every code field reads it; an address whose code is empty opens a Session of its own.
+  const room = sessionCode(params.get('room') ?? '') || undefined;
   const code = room ?? hostRoomCode();
   // The build's TURN relay (`VITE_MGC_TURN_SERVERS`, `turn.ts`): ICE prefers a direct pair, the relay is the fallback for
   // networks where the direct path dies. `?noturn` leaves it out, for comparison runs; the QR carries the flag to every Peer.

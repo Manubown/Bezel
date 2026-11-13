@@ -8,7 +8,7 @@ import type { HudOptions, Play, Sheet } from '../hud';
 import { templatesOf } from '../lobby';
 import { look } from '../look';
 import { MAKER_FLAG } from '../maker';
-import { otherSession, sessionCode } from '../sessioncode';
+import { CODE_LENGTH, joinAddress, otherSession, sessionCode } from '../sessioncode';
 import { placementHint } from '../placement';
 import { fadeCorner } from './corner';
 import { offerHtml, wireOffer } from './install';
@@ -78,7 +78,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
       <details class="other-session">
         <summary>Join a different table</summary>
         <form class="enter" aria-label="Join a different table">
-          <input name="room" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="4" placeholder="Code" aria-label="Table code" />
+          <input name="room" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="${CODE_LENGTH}" placeholder="Code" aria-label="Table code" />
           <button type="submit">Join</button>
         </form>
         <p class="other-refusal" role="status"></p>
@@ -136,7 +136,8 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     const to = otherSession(roomInput.value, code);
     if (to === undefined) return;
     if ('refusal' in to) otherRefusal.textContent = to.refusal;
-    else location.assign(`?room=${to.code}`);
+    // With this page's flags as written (`maker`, `noturn`), as the help card's code field does.
+    else location.assign(joinAddress(location.href, to.code));
   });
   /** The Game Start starts: the lobby's pick, saved across a reload of the Host's page, if this phone offers it, else Pong (`firstPick`). */
   let game = firstPick(shown, lobby.picked)!;

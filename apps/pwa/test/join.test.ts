@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DROPS_FOR_ADVICE, Dropouts, HELP_AFTER_MS, describeDropping, describeJoin, joinAddress } from '../src/join';
+import { DROPS_FOR_ADVICE, Dropouts, HELP_AFTER_MS, describeDropping, describeJoin } from '../src/join';
 
 const BEFORE = 14999;
 const AFTER = 15000;
@@ -62,18 +62,6 @@ describe('What a joining phone says (spec D7)', () => {
       });
     }
     expect(describeJoin({ code: 'REZV', status: 'reconnecting', waited: BEFORE, wasIn: true })?.makers).toBe('reconnecting to the host · the connection dropped');
-  });
-});
-
-describe('The help card’s code field', () => {
-  it('opens the same address with the corrected code, in capitals, keeping the other flags', () => {
-    expect(joinAddress('https://manubown.github.io/Bezel/?room=REZW&maker', 'rezv')).toBe('https://manubown.github.io/Bezel/?room=REZV&maker');
-    expect(joinAddress('https://192.168.1.20:5173/?noturn&room=REZW', ' r-e z v ')).toBe('https://192.168.1.20:5173/?room=REZV&noturn');
-  });
-
-  it('does nothing without a code', () => {
-    expect(joinAddress('https://manubown.github.io/Bezel/?room=REZW', '')).toBeUndefined();
-    expect(joinAddress('https://manubown.github.io/Bezel/?room=REZW', ' - ')).toBeUndefined();
   });
 });
 

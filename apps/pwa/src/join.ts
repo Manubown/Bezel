@@ -72,20 +72,6 @@ export function describeJoin(j: Joining): JoinView | undefined {
   return { line: `Finding table ${code}…`, detail: 'keep the first phone’s screen on', makers, help };
 }
 
-/**
- * The address the help card's code field opens: `href` with its `room` replaced by `typed`, in capitals and without
- * anything but letters and digits; the page's other flags (`maker`, `noturn`) stay as they were written. Undefined
- * when nothing is left of `typed`.
- */
-export function joinAddress(href: string, typed: string): string | undefined {
-  const code = typed.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (code === '') return undefined;
-  const url = new URL(href);
-  const flags = url.search.slice(1).split('&').filter((p) => p !== '' && !/^room(=|$)/.test(p));
-  url.search = [`room=${code}`, ...flags].join('&');
-  return url.toString();
-}
-
 /** Connections of one phone in a row that ended without lasting, after which the Host shows its advice (spec D7). */
 export const DROPS_FOR_ADVICE = 3;
 

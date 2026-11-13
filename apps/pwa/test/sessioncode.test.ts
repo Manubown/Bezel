@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { otherSession } from '../src/sessioncode';
+import { joinAddress, otherSession, sessionCode } from '../src/sessioncode';
 
 describe('otherSession', () => {
   it("refuses the Session's own code with a sentence saying so", () => {
@@ -22,5 +22,29 @@ describe('otherSession', () => {
   it('does nothing when no letter or digit was typed', () => {
     expect(otherSession('', 'REZV')).toBeUndefined();
     expect(otherSession(' - ', 'REZV')).toBeUndefined();
+  });
+});
+
+describe('sessionCode', () => {
+  it('reads a typed code the way an address carries it: capitals, letters and digits only', () => {
+    expect(sessionCode('rezv')).toBe('REZV');
+    expect(sessionCode(' r-e z v ')).toBe('REZV');
+    expect(sessionCode(' - ')).toBe('');
+  });
+});
+
+describe('joinAddress', () => {
+  it('replaces the room of a Peer’s address and keeps every other flag as written', () => {
+    expect(joinAddress('https://manubown.github.io/Bezel/?room=REZW&maker', 'REZV')).toBe('https://manubown.github.io/Bezel/?room=REZV&maker');
+    expect(joinAddress('https://192.168.1.20:5173/?noturn&room=REZW', 'REZV')).toBe('https://192.168.1.20:5173/?room=REZV&noturn');
+  });
+
+  it('joins from the Host’s own address, which has no room, with the Host’s flags', () => {
+    expect(joinAddress('https://manubown.github.io/Bezel/play/?maker&noturn', 'KMPQ')).toBe('https://manubown.github.io/Bezel/play/?room=KMPQ&maker&noturn');
+    expect(joinAddress('https://manubown.github.io/Bezel/play/', 'KMPQ')).toBe('https://manubown.github.io/Bezel/play/?room=KMPQ');
+  });
+
+  it('takes the path a page links to as well as a whole address', () => {
+    expect(joinAddress('/Bezel/play/', 'REZV')).toBe('/Bezel/play/?room=REZV');
   });
 });
