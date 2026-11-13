@@ -3,7 +3,7 @@ import { Dropouts, describeDropping } from '../join';
 
 /**
  * The Host's advice line, once one Device's connection ended three times in a row without lasting (`Dropouts`),
- * until that phone's connection lasts; in Maker mode with the count. It heads the sheet (`sheet`, the HUD's root), so
+ * until that phone's connection lasts or it has stayed away 30 s (`STAYED_AWAY_MS`); in Maker mode with the count. It heads the sheet (`sheet`, the HUD's root), so
  * it shows above the bar folded or open and never covers it; not while a Match runs. Returns its render; it reads the
  * roster on every call, so call it on every change of it.
  */
@@ -15,7 +15,7 @@ export function dropoutAdvice(sheet: HTMLElement, o: Pick<HudOptions, 'session' 
   line.hidden = true;
   sheet.prepend(line);
   const dropouts = new Dropouts();
-  /** When the named phone's connection will have lasted: the line goes then without a change of the roster. */
+  /** When the named phone's connection will have lasted, or it will have stayed away: the line goes then without a change of the roster. */
   let due: number | undefined;
   const render = (): void => {
     const now = performance.now();
@@ -23,7 +23,7 @@ export function dropoutAdvice(sheet: HTMLElement, o: Pick<HudOptions, 'session' 
     dropouts.see(roster.flatMap((e) => (e.present ? [e.info.deviceId] : [])), now);
     const dropping = dropouts.dropping(now);
     clearTimeout(due);
-    due = dropping?.until === undefined ? undefined : window.setTimeout(render, dropping.until - now);
+    due = dropping ? window.setTimeout(render, dropping.until - now) : undefined;
     line.hidden = !dropping || play.running;
     if (!dropping) return;
     // Named as the roster names it (its row reads "disconnected" while it is away).

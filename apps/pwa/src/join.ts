@@ -78,47 +78,78 @@ export function describeJoin(j: Joining): JoinView | undefined {
 /** Connections of one phone in a row that ended without lasting, after which the Host shows its advice (spec D7). */
 export const DROPS_FOR_ADVICE = 3;
 
+/**
+ * How long (ms) a Device may stay away after its last connection ended and still count as trying: longer than a Peer
+ * that keeps trying is away, a few seconds between attempts or up to the transport's 20 s Relay probe. Away longer, it
+ * gave up: its count is forgotten and the Host's advice goes.
+ */
+export const STAYED_AWAY_MS = 30000;
+
 /** The Device the Host's advice names. */
 export interface Dropping {
   deviceId: DeviceId;
   /** Its connections in a row that ended without lasting. */
   drops: number;
-  /** While it is in the Session again: when that connection will have lasted, and the advice goes. */
-  until: number | undefined;
+  /**
+   * When the advice goes unless the roster changes first: while the Device is in the Session again, when that
+   * connection will have lasted; while it is away, when it will have stayed away `STAYED_AWAY_MS`.
+   */
+  until: number;
 }
 
 /**
  * The Host's count, per Device, of connections in a row that ended within `RELAY_STABLE_MS` of coming in: the
  * transport's measure of a connection that did not work (its own-address fail-safe and its relay escalation). The
  * transport's own count cannot serve: it counts every connection together, by the transport's ids, and stops at the
- * first. Fed the Devices in the Session at each change of the Host's roster; pure and timer-free, every call takes the
- * time (ms, any monotonic clock).
+ * first. A Device that stays away `STAYED_AWAY_MS` is forgotten. Fed the Devices in the Session at each change of the
+ * Host's roster; pure and timer-free, every call takes the time (ms, any monotonic clock).
  */
 export class Dropouts {
   /** When each Device in the Session came in. */
   private readonly since = new Map<DeviceId, number>();
+  /** When each Device with a count, away now, last lost its connection. */
+  private readonly left = new Map<DeviceId, number>();
   private readonly streak = new Map<DeviceId, number>();
 
   /** The Devices in the Session at `now`: one missing since the last call lost its connection, one new to it came in. */
   see(present: Iterable<DeviceId>, now: number): void {
+    this.forget(now);
     const here = new Set(present);
     for (const [id, at] of this.since) {
       if (here.has(id)) continue;
       this.since.delete(id);
+      this.left.set(id, now);
       this.streak.set(id, now - at >= RELAY_STABLE_MS ? 0 : (this.streak.get(id) ?? 0) + 1);
     }
-    for (const id of here) if (!this.since.has(id)) this.since.set(id, now);
+    for (const id of here) {
+      if (this.since.has(id)) continue;
+      this.since.set(id, now);
+      this.left.delete(id);
+    }
   }
 
-  /** A phone whose connection ended `DROPS_FOR_ADVICE` times in a row without lasting, unless the one it has now has lasted. */
+  /**
+   * A Device whose connection ended `DROPS_FOR_ADVICE` times in a row without lasting, unless the one it has now has
+   * lasted, or it has stayed away `STAYED_AWAY_MS`.
+   */
   dropping(now: number): Dropping | undefined {
+    this.forget(now);
     for (const [deviceId, drops] of this.streak) {
       if (drops < DROPS_FOR_ADVICE) continue;
       const at = this.since.get(deviceId);
       if (at !== undefined && now - at >= RELAY_STABLE_MS) continue;
-      return { deviceId, drops, until: at === undefined ? undefined : at + RELAY_STABLE_MS };
+      return { deviceId, drops, until: at === undefined ? this.left.get(deviceId)! + STAYED_AWAY_MS : at + RELAY_STABLE_MS };
     }
     return undefined;
+  }
+
+  /** The counts of the Devices that have stayed away `STAYED_AWAY_MS` since their connection last ended. */
+  private forget(now: number): void {
+    for (const [id, at] of this.left) {
+      if (now - at < STAYED_AWAY_MS) continue;
+      this.left.delete(id);
+      this.streak.delete(id);
+    }
   }
 }
 

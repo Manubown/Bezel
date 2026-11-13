@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DROPS_FOR_ADVICE, Dropouts, HELP_AFTER_MS, describeDropping, describeJoin } from '../src/join';
+import { DROPS_FOR_ADVICE, Dropouts, HELP_AFTER_MS, STAYED_AWAY_MS, describeDropping, describeJoin } from '../src/join';
 
 const BEFORE = 14999;
 const AFTER = 15000;
@@ -92,7 +92,19 @@ describe('The first phone’s advice when one phone keeps dropping (spec D7)', (
     let t = drops(d, [4000, 4000], 100);
     expect(d.dropping(t)).toBeUndefined();
     t = drops(d, [14999], t);
-    expect(d.dropping(t)).toEqual({ deviceId: 'p', drops: 3, until: undefined });
+    // Away since its last connection ended, 2 s ago: named until it has stayed away 30 s.
+    expect(d.dropping(t)).toEqual({ deviceId: 'p', drops: 3, until: t - 2000 + 30000 });
+  });
+
+  it('forgets a phone that stays away: 30 s after its last connection ended the line goes, and the count starts again', () => {
+    expect(STAYED_AWAY_MS).toBe(30000);
+    const d = new Dropouts();
+    const left = drops(d, [4000, 4000, 4000]) - 2000;
+    expect(d.dropping(left + 29999)).toMatchObject({ deviceId: 'p', drops: 3 });
+    expect(d.dropping(left + 30000)).toBeUndefined();
+    // Back much later, two more short connections are two in a row, not five.
+    drops(d, [4000, 4000], left + 60000);
+    expect(d.dropping(left + 72000)).toBeUndefined();
   });
 
   it('a connection that lasted 15 s starts the count again', () => {
