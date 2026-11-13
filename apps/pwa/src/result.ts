@@ -4,8 +4,10 @@ import type { CloseReason, MatchResult, Player, PlayerId } from '@mgc/sdk';
  * A Match result in Player names: who won, and the points. Two sides that both scored read in one line, the
  * winner's score first ("Ana wins 7–5", "Draw, 3–3"); more sides list everyone's points in finishing order as
  * the detail. The ranking decides the order; without one, the scores do, and equal top scores are a draw.
+ * `player`: the winner's place in `players`, the Match's Player list, so the card shows the headline in their
+ * colour (`playerColour`, spec outside-view D10); absent when the headline names nobody.
  */
-export function describeResult(players: readonly Player[], result: MatchResult): { headline: string; detail: string } {
+export function describeResult(players: readonly Player[], result: MatchResult): { headline: string; detail: string; player?: number } {
   const name = (id: PlayerId): string => players.find((p) => p.playerId === id)?.name ?? 'A player';
   const { scores, ranking } = result;
   const order = ranking ?? (scores ? Object.keys(scores).sort((a, b) => scores[b]! - scores[a]!) : []);
@@ -14,8 +16,10 @@ export function describeResult(players: readonly Player[], result: MatchResult):
   if (first === undefined) return { headline: 'Match over', detail: '' };
   const draw = !ranking && second !== undefined && scores?.[first] === scores?.[second];
   const headline = draw ? 'Draw' : `${name(first)} wins`;
-  if (scored.length === 2 && scored[0] === first) return { headline: `${headline}${draw ? ',' : ''} ${scores![first]}–${scores![scored[1]!]}`, detail: '' };
-  return { headline, detail: scored.map((id) => `${name(id)} ${scores![id]}`).join(' · ') };
+  const winner = draw ? -1 : players.findIndex((p) => p.playerId === first);
+  const named = winner >= 0 ? { player: winner } : {};
+  if (scored.length === 2 && scored[0] === first) return { headline: `${headline}${draw ? ',' : ''} ${scores![first]}–${scores![scored[1]!]}`, detail: '', ...named };
+  return { headline, detail: scored.map((id) => `${name(id)} ${scores![id]}`).join(' · '), ...named };
 }
 
 /** What every phone says about a close that has no result; `detail` (the runtime's words) unless the reason says it all. */

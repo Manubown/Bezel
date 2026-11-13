@@ -8,7 +8,7 @@ How to build, test, run and debug a Game for MobileGameConnect. The guide is ver
 |---|---|---|
 | 1 | [Getting started](getting-started.md) | clone, install, run the dev server, play Pong on phones, create your own Game with `pnpm new-game` |
 | 2 | [Your first Game](your-first-game.md) | walk through a whole Game, `games/tap-race`, hook by hook |
-| 3 | [Concepts](concepts.md) | learn the model: Session, Device, Tile, Controller, Player, Holder, World mm, the state stream, pause, timers, faults |
+| 3 | [Concepts](concepts.md) | learn the model: Session, Device, Tile, Controller, Player, Players' colours and the own Tile, Holder, World mm, the state stream, pause, timers, faults |
 | 4 | [Testing](testing.md) | test a Game in one process with `createTestMatch`, without phones |
 | 5 | [Running on phones](running-on-phones.md) | serve over HTTPS on the LAN, join, arrange Tiles, seat Players and bots, know what `pxPerMm` is |
 | 6 | [Troubleshooting](troubleshooting.md) | go from a symptom to its cause and fix |

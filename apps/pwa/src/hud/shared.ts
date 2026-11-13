@@ -1,9 +1,18 @@
+import { playerColour } from '@mgc/sdk';
 import type { LastMatch } from '../hud';
 import { describeClose, describeResult } from '../result';
 
-/** The last Match in words: its result, or why it closed without one. */
-export function describeLast(last: LastMatch): { headline: string; detail: string } {
+/** The last Match in words: its result, or why it closed without one; `player`, the Player its headline names. */
+export function describeLast(last: LastMatch): { headline: string; detail: string; player?: number } {
   return last.result ? describeResult(last.players, last.result) : describeClose(last.reason, last.detail);
+}
+
+/**
+ * A `style` attribute giving an element's text the colour of the Player at `position` in the Match's (or the lobby's)
+ * Player list, the colour the Games draw that Player in (spec outside-view D10); nothing without a Player.
+ */
+export function inColour(position: number | undefined): string {
+  return position === undefined || position < 0 ? '' : ` style="color: ${playerColour(position)}"`;
 }
 
 function ms(n: number | undefined): string {

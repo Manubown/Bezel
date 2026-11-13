@@ -48,6 +48,25 @@ For `'ends'`:
 - A Player id is issued once per Device id and kept across reloads and Matches (`apps/pwa/src/device.ts:59-71`).
 - Holders: every Controller starts with nobody holding it. The host game calls `ctx.setHolder(controller, playerId | null)`; input and messages from that Controller then carry the Holder as `playerId`, stamped when they reach the Host. See [Holders](#holders).
 
+## Players' colours and the own Tile
+
+Each Player has a colour, the same on every phone and in the platform's own screens (the sheet, the pause and the result card): the one of their place in `match.players`. Nothing on the wire says it; `MatchInfo` is identical on every Device, so the SDK exports the palette and the rule (`packages/sdk/src/palette.ts`):
+
+```ts
+import { PLAYER_COLOURS, playerColour } from '@mgc/sdk';
+// coral, teal, violet, lime: the night table's --player-1 … --player-4 (packages/look/tokens.css); past the fourth they repeat
+const colour = playerColour(ctx.match.players.indexOf(player));
+```
+
+A view knows its own Device (`ctx.deviceId`) and who sits where (`Player.deviceId`), so it can speak to the person at its phone. Pong and Air Hockey ask for a touch that way, each line in the waited-for Player's colour:
+
+```ts
+const mine = waiting.filter((p) => p.deviceId === ctx.deviceId);
+const lines = mine.length > 0 ? ['Touch here to start'] : waiting.map((p) => `Waiting for ${p.name}`);
+```
+
+Both draw the paddles in their Players' colours, the scores in them at 70 % opacity or more (3:1 on the ground, `packages/look/test/look.test.ts`), and keep the ball or puck ivory with a short trail, so it never reads as a side's.
+
 ## World, Tiles and the Surface
 
 The **World** is one coordinate space in millimetres shared by all Tiles (ADR-0005): x right, y down. Every `Tile` is a rectangle in it: `x, y` is where the screen's top-left corner lies, `w, h` its size, and `rot` turns the screen's own axes **clockwise, in radians, about that corner** (`packages/sdk/src/types.ts:14-18`, `packages/layout/src/types.ts:16-25`).

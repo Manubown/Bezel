@@ -15,10 +15,12 @@ The app for everyone ([`play/`](https://manubown.github.io/Bezel/play/)) is the 
 - At the end of a game every phone shows who won ("Ana wins 7–5", "Draw, 3–3"). The first phone can play again or change the game; the other phones say that the first phone starts the next one.
 - After the first finished game, the result card offers to put the app on the home screen, where it opens full screen with no browser bars: an Install button on Android, the steps on an iPhone. Inside another app's browser, a banner says to open the page in Safari or Chrome.
 - A privacy page and an imprint on the site; the first phone's sheet links the privacy page.
+- Each player has a colour, the same on every phone: their paddle, their score and their name on the first phone's sheet, the pause card and the result card. In Pong and Air Hockey a player's own phone says "Touch here to start" and the other phones say "Waiting for Ana", and the ball and the puck leave a short trail that crosses from one phone to the next.
 
 ### Changed
 
 - The night-table look: a near-black table, ivory text, coral and teal for the first two players, and a display face of its own, served with the app, for the name, game titles and scores. Every control on the first phone's sheet is at least 44 px high, and typing a code no longer makes an iPhone zoom in.
+- Scores in Pong and Air Hockey are brighter, and Air Hockey's message before the start no longer runs into the score when the phones lie in a row.
 - The first phone offers two games, Pong and Air Hockey, as cards that say how many play and how the phones lie; picking one lays the phones the way it needs. The other five games, the clock figures and the log export are in Maker mode (add `?maker` to the address).
 - The first phone's sheet reads as steps: the QR code ("Other phones: open the camera and scan this"), how to lay the phones, the game, the players, Start. "Join a different table" is folded at the bottom and refuses the table's own code, so the first phone cannot end its own table by mistake.
 

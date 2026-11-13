@@ -65,7 +65,7 @@ const FAR = [
 ];
 
 type Matrix = { a: number; b: number; c: number; d: number; e: number; f: number };
-type Call = { op: string; args: unknown[]; m: Matrix };
+type Call = { op: string; args: unknown[]; m: Matrix; font: string };
 const apply = (m: Matrix, p: Vec2): Vec2 => ({ x: m.a * p.x + m.c * p.y + m.e, y: m.b * p.x + m.d * p.y + m.f });
 /** Which way upright text drawn under `m` points on the screen, as a unit vector. */
 function upOf(m: Matrix): Vec2 {
@@ -94,7 +94,7 @@ function recorded(): { game: Game; frame(deviceId: DeviceId): Call[] } {
               if (typeof v !== 'function') return v;
               if (k !== 'arc' && k !== 'fillText') return v.bind(target);
               return (...args: unknown[]) => {
-                calls.push({ op: k, args, m: target.getTransform() });
+                calls.push({ op: k, args, m: target.getTransform(), font: String(target.font) });
                 return v.apply(target, args);
               };
             },
@@ -164,6 +164,54 @@ const annShoots = (t: TestMatch<AirHockeyState>, ann: Finger) => slide(t, ann, {
 const speed = (s: AirHockeyState): number => Math.hypot(s.puck.vx, s.puck.vy);
 const near = (s: AirHockeyState, side: 0 | 1): boolean => Math.hypot(s.puck.x - s.pads[side].x, s.puck.y - s.pads[side].y) <= REACH + 1e-6;
 
+/** The night table's first two Player colours (spec outside-view D10), and its ivory. */
+const CORAL = '#ff6b4a';
+const TEAL = '#2ec4b6';
+const IVORY = '#f2f0ea';
+
+/** Air Hockey whose host publishes `state` at the start and nothing after: every view draws from it. */
+const only = (state: AirHockeyState): Game => ({
+  ...airHockey,
+  host(ctx) {
+    ctx.publish(state);
+    return {};
+  },
+});
+/** A state mid-play: the puck at `puck`, both paddles home, no score, no rest, no hold; `more` overrides. */
+const playing = (puck: AirHockeyState['puck'], more: Partial<AirHockeyState> = {}): AirHockeyState => ({
+  puck,
+  pads: [
+    { x: 22, y: 75 },
+    { x: 122, y: 75 },
+  ],
+  score: [0, 0],
+  wait: 0,
+  hold: [],
+  ...more,
+});
+
+/** A canvas call of a view's last frame with the fill, stroke and opacity it was made with. */
+type Inked = { op: string; args: unknown[]; fill: unknown; stroke: unknown; alpha: number };
+function inked(t: TestMatch<AirHockeyState>, deviceId: DeviceId): Inked[] {
+  let pen = { fill: undefined as unknown, stroke: undefined as unknown, alpha: 1 };
+  const saved: (typeof pen)[] = [];
+  return t.drawn(deviceId).flatMap(([op, ...args]): Inked[] => {
+    if (op === 'save') saved.push({ ...pen });
+    else if (op === 'restore') pen = saved.pop() ?? pen;
+    else if (op === 'fillStyle=') pen.fill = args[0];
+    else if (op === 'strokeStyle=') pen.stroke = args[0];
+    else if (op === 'globalAlpha=') pen.alpha = args[0] as number;
+    else return [{ op, args, ...pen }];
+    return [];
+  });
+}
+/** The words `deviceId`'s view wrote in its last frame, but the scores and a bot's label, each with its colour. */
+const prompts = (t: TestMatch<AirHockeyState>, deviceId: DeviceId): [unknown, unknown][] =>
+  inked(t, deviceId).flatMap((c) => (c.op === 'fillText' && !/^(\d+|BOT)$/.test(String(c.args[0])) ? [[c.args[0], c.fill]] : []));
+/** The points of the lines `deviceId`'s view drew in its last frame but the table's own: the puck's trail. */
+const trailOf = (t: TestMatch<AirHockeyState>, deviceId: DeviceId) =>
+  inked(t, deviceId).flatMap((c) => ((c.op === 'moveTo' || c.op === 'lineTo') && c.stroke === IVORY ? [{ x: c.args[0] as number, y: c.args[1] as number }] : []));
+
 describe('Air Hockey', () => {
   it('declares 1–2 Tiles, no Controllers, 2 Players, bots, the column then the row template, 60 Hz, and imports nothing but the SDK', () => {
     const { tiles, controllers, players, templates, bots, tickHz } = airHockey.manifest;
@@ -191,7 +239,7 @@ describe('Air Hockey', () => {
     it('puts the paddle where the finger is on that phone’s screen, held to its Player’s half; the puck waits for both to touch', async () => {
       const rec = recorded();
       const t = await createTestMatch<AirHockeyState>({ game: rec.game, match: TWO });
-      // Before anyone touches: the puck rests at the centre, both paddles home, and every Tile asks both Players.
+      // Before anyone touches: the puck rests at the centre, both paddles home, and each Tile asks its own Player.
       await t.tick(2000);
       const idle = t.state('d1')!;
       expect(idle).toMatchObject({ puck: MID, hold: [0, 1], wait: AIR_HOCKEY.serveWait, pads: [{ x: 22, y: 75 }, { x: 122, y: 75 }] });
@@ -477,5 +525,108 @@ describe('Air Hockey', () => {
     ]);
     expect(s.hold).toEqual([]);
     await t.stop();
+  });
+
+  it('draws each side’s paddle, score and a bot’s label in its Player’s colour by their place in the Player list, the score at 70 % or more; the puck ivory', async () => {
+    // Bo is Player 1 and sits at the second phone, Ann Player 2 at the first: side 0 is Ann's, in teal.
+    const t = await createTestMatch<AirHockeyState>({ game: only(playing({ x: 50, y: 75, vx: 100, vy: 0 }, { score: [3, 5] })), match: rowMatch(0, [BO, ANN]) });
+    await t.tick(50);
+    for (const id of ['d0', 'd1']) {
+      const calls = inked(t, id);
+      /** The colour each disc of radius `r` was filled with, by its centre's x. */
+      const discs = (r: number) => calls.flatMap((c, k) => (c.op === 'arc' && c.args[2] === r ? [[c.args[0], calls.slice(k).find((n) => n.op === 'fill' || n.op === 'stroke')!.fill]] : []));
+      expect(discs(AIR_HOCKEY.paddle), id).toEqual([
+        [22, TEAL],
+        [122, CORAL],
+      ]);
+      const scores = calls.filter((c) => c.op === 'fillText' && /^\d+$/.test(String(c.args[0])));
+      expect(scores.map((c) => [c.args[0], c.fill]), id).toEqual([
+        ['3', TEAL],
+        ['5', CORAL],
+      ]);
+      for (const c of scores) expect(c.alpha).toBeGreaterThanOrEqual(0.7);
+      expect(discs(R).map(([, fill]) => fill), id).toEqual([IVORY]);
+    }
+
+    // Ann against a bot, Player 2: the bot's paddle and its label in teal.
+    const vsBot = await createTestMatch<AirHockeyState>({ game: only(playing({ x: 50, y: 75, vx: 100, vy: 0 })), match: rowMatch(0, [ANN, bot(1)]) });
+    await vsBot.tick(50);
+    expect(inked(vsBot, 'd1').find((c) => c.op === 'fillText' && c.args[0] === 'BOT')?.fill).toBe(TEAL);
+  });
+
+  it('asks on a waited-for Player’s own phone to touch it, and on the other phone waits for them by name, in their colour', async () => {
+    const both = await createTestMatch<AirHockeyState>({ game: only(playing({ ...MID, vx: 0, vy: 0 }, { hold: [0, 1], wait: AIR_HOCKEY.serveWait })), match: rowMatch(0) });
+    await both.tick(50);
+    expect(prompts(both, 'd0')).toEqual([['Touch here to start', CORAL]]);
+    expect(prompts(both, 'd1')).toEqual([['Touch here to start', TEAL]]);
+
+    // The same state on both phones, waiting for Bo alone: his phone asks him, Ann's names him.
+    const bo = await createTestMatch<AirHockeyState>({ game: only(playing({ ...MID, vx: 0, vy: 0 }, { hold: [1], wait: AIR_HOCKEY.serveWait })), match: rowMatch(0) });
+    await bo.tick(50);
+    expect(prompts(bo, 'd1')).toEqual([['Touch here to start', TEAL]]);
+    expect(prompts(bo, 'd0')).toEqual([['Waiting for Bo', TEAL]]);
+
+    // Ann against a bot: the bot's phone waits for her.
+    const vsBot = await createTestMatch<AirHockeyState>({ game: only(playing({ ...MID, vx: 0, vy: 0 }, { hold: [0], wait: AIR_HOCKEY.serveWait })), match: rowMatch(0, [ANN, bot(1)]) });
+    await vsBot.tick(50);
+    expect(prompts(vsBot, 'd0')).toEqual([['Touch here to start', CORAL]]);
+    expect(prompts(vsBot, 'd1')).toEqual([['Waiting for Ann', CORAL]]);
+
+    // Play runs: no prompt anywhere.
+    const running = await createTestMatch<AirHockeyState>({ game: only(playing({ x: 50, y: 75, vx: 100, vy: 0 })), match: rowMatch(0) });
+    await running.tick(50);
+    for (const id of ['d0', 'd1']) expect(prompts(running, id)).toEqual([]);
+  });
+
+  it('keeps each phone’s prompt on that phone and clear of its score, two 64 mm wide phones in a row', async () => {
+    // Two 64 × 139 mm phones side by side: a 132 mm table along x, each half (66 mm) about one phone.
+    const match = matchOf([placed('d0', { x: 32, y: 69.5 }, 64, 139, 0), placed('d1', { x: 100, y: 69.5 }, 64, 139, 0)], { x: 0, y: 0, w: 132, h: 139 }, [ANN, BO]);
+    const rec = recorded();
+    const t = await createTestMatch<AirHockeyState>({ game: rec.game, match });
+    await t.tick(STEP_MS * 3);
+    /** A text's height, mm: its font size. */
+    const size = (c: Call): number => Number(/([\d.]+)px/.exec(c.font)![1]);
+    for (const [id, side] of [
+      ['d0', 0],
+      ['d1', 1],
+    ] as const) {
+      const texts = rec.frame(id).filter((c) => c.op === 'fillText');
+      const score = texts.filter((c) => /^\d+$/.test(c.args[0] as string))[side]!;
+      const prompt = texts.find((c) => c.args[0] === 'Touch here to start')!;
+      expect(prompt, id).toBeDefined();
+      // Both upright for this phone's Player, and apart that way by more than half of each one's height.
+      const up = upOf(prompt.m);
+      expect(upOf(score.m).x).toBeCloseTo(up.x, 9);
+      expect(upOf(score.m).y).toBeCloseTo(up.y, 9);
+      const [s, p] = [apply(score.m, { x: 0, y: 0 }), apply(prompt.m, { x: 0, y: 0 })];
+      expect(Math.abs((p.x - s.x) * up.x + (p.y - s.y) * up.y) / PX, id).toBeGreaterThanOrEqual((size(score) + size(prompt)) / 2);
+      // Its whole height on this phone's screen, 64 mm across.
+      expect(p.x / PX - size(prompt) / 2, id).toBeGreaterThanOrEqual(0);
+      expect(p.x / PX + size(prompt) / 2, id).toBeLessThanOrEqual(64);
+    }
+    await t.stop();
+  });
+
+  it('trails the moving puck for a short while, ivory, from the phone it left across the gap onto the next; none behind a puck at rest', async () => {
+    // East at 150 mm/s from x 60: 100 ms on, the puck is 1 mm onto Bo's phone (74–144), 5 mm past Ann's (0–70).
+    const t = await createTestMatch<AirHockeyState>({ game: only(playing({ x: 60, y: 75, vx: 150, vy: 0 })), match: rowMatch(0) });
+    await t.tick(100);
+    const puck = t.drawn('d1').find((op) => op[0] === 'arc' && op[3] === R)!;
+    expect(puck[1]).toBeCloseTo(75, 6);
+    const trail = trailOf(t, 'd1');
+    const xs = trail.map((p) => p.x);
+    // From the puck back onto Ann's phone, along its way, and no further back than 150 ms of it.
+    expect(Math.max(...xs)).toBeCloseTo(75, 6);
+    expect(Math.min(...xs)).toBeLessThan(70);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(75 - 150 * 0.15);
+    for (const p of trail) expect(p.y).toBeCloseTo(75, 6);
+    // Ann's phone draws the same trail: it runs off her phone's edge as it runs onto Bo's.
+    expect(trailOf(t, 'd0')).toEqual(trail);
+
+    for (const still of [{ wait: AIR_HOCKEY.serveWait }, { hold: [1 as const] }]) {
+      const rests = await createTestMatch<AirHockeyState>({ game: only(playing({ ...MID, vx: 150, vy: 0 }, still)), match: rowMatch(0) });
+      await rests.tick(300);
+      expect(trailOf(rests, 'd1')).toEqual([]);
+    }
   });
 });

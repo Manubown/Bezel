@@ -45,7 +45,7 @@ A Peer's top strip goes "Finding table CODE…" → "Connecting…" → "Phone 2
 3. The arrangement follows the Game: Pong's manifest says `templates: ['row']`, so the phones lie in a row and the sheet offers no other.
 4. Players: P1 sits at the first phone, P2 at the last. With a single phone, press P2's **Bot** chip.
 5. Press **Start Pong**. If the lobby refuses, the reason shows under the button ([the messages](troubleshooting.md#start-is-refused)).
-6. Each human touches their own outer phone to start ("<name>, touch to start"), then drags to move their paddle. First to 7 wins; the result card shows on every phone.
+6. Each human touches their own outer phone to start (it says "Touch here to start"; the other phones say "Waiting for <name>"), then drags to move their paddle, drawn in their colour. First to 7 wins; the result card shows on every phone.
 
 No phones at hand: open the dev server in several browser windows on one computer, the Host at `https://localhost:5173/` and each Peer at `https://localhost:5173/?room=CODE`. Each tab gets its own Device id ([several tabs](running-on-phones.md#several-tabs-on-one-computer)).
 

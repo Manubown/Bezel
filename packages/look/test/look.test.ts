@@ -70,4 +70,13 @@ describe('the night table (tokens.css)', () => {
     expect(b, back).toBeDefined();
     expect(contrast(f!, b!)).toBeGreaterThanOrEqual(minimum);
   });
+
+  /** `fore` at `alpha` over the opaque `back`, as the screen shows it: each channel mixed in sRGB, as canvases blend. */
+  const over = (fore: string, back: string, alpha: number): string =>
+    `#${[1, 3, 5].map((i) => Math.round(alpha * parseInt(fore.slice(i, i + 2), 16) + (1 - alpha) * parseInt(back.slice(i, i + 2), 16)).toString(16).padStart(2, '0')).join('')}`;
+
+  it.each([1, 2, 3, 4])('Player %s’s colour at 70 %% over the ground reaches 3:1 (a score in a Game, large text: spec D11)', (n) => {
+    const [f, b] = [TOKENS[`--player-${n}`]!, TOKENS['--bg']!];
+    expect(contrast(over(f, b, 0.7), b)).toBeGreaterThanOrEqual(3);
+  });
 });

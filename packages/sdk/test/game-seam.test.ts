@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Surface, defineGame, type JsonValue, type Tile } from '../src';
+import { PLAYER_COLOURS, Surface, defineGame, playerColour, type JsonValue, type Tile } from '../src';
 import type { CanvasOp, Matrix, RecordingContext2D } from '../src/headless';
+import { createTestMatch } from '../src/testing';
 import { matchFromTiles, matchOf, probeGame, settle, startMatch, step } from './harness';
 
 /** One fixed step at 50 Hz. */
@@ -166,5 +168,48 @@ describe('what a game sees across the in-process link (Host Device alone)', () =
     screen.setHidden(false);
     for (let i = 0; i < 2; i++) await step(rig, STEP_MS);
     expect(rec.draws.get('d0')).toHaveLength(5);
+  });
+});
+
+describe('the Players’ colours (spec outside-view D10)', () => {
+  it('are the night table’s four Player colours, coral and teal first; a Player’s is the one of their position in the Match’s Player list', () => {
+    const tokens = readFileSync(new URL('../../look/tokens.css', import.meta.url), 'utf8');
+    const night = [1, 2, 3, 4].map((n) => new RegExp(`--player-${n}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(tokens)?.[1]);
+    expect(PLAYER_COLOURS).toEqual(night);
+    expect([0, 1, 2, 3, 4, 5].map(playerColour)).toEqual(['#ff6b4a', '#2ec4b6', night[2], night[3], '#ff6b4a', '#2ec4b6']);
+    expect(() => playerColour(-1)).toThrow(RangeError);
+    expect(() => playerColour(1.5)).toThrow(RangeError);
+  });
+
+  it('agree on every Device from the Match alone: each view finds a Player’s colour by their place in `match.players`', async () => {
+    /** Each view writes every Player's name in that Player's colour. */
+    const game = defineGame<JsonValue, never>({
+      manifest: { id: 'probe.colours', name: 'Colours', version: '1.0.0', tiles: { min: 1, max: 4 }, controllers: { min: 0, max: 0 }, players: { min: 1, max: 4 }, host: '', view: '' },
+      host: () => ({}),
+      view: (ctx) => ({
+        draw({ ctx: g }) {
+          ctx.match.players.forEach((p, k) => {
+            g.fillStyle = playerColour(k);
+            g.fillText(p.name, 0, 10 * k);
+          });
+        },
+      }),
+    });
+    const t = await createTestMatch({ game, match: matchOf({ tiles: ['d0', 'd1'] }) });
+    await t.tick(40);
+    /** The colour each name was written in on `deviceId`. */
+    const inks = (deviceId: string) => {
+      let ink: unknown;
+      return t.drawn(deviceId).flatMap(([op, arg]): [unknown, unknown][] => {
+        if (op === 'fillStyle=') ink = arg;
+        return op === 'fillText' ? [[arg, ink]] : [];
+      });
+    };
+    expect(inks('d1')).toEqual([
+      ['Ann', '#ff6b4a'],
+      ['Bo', '#2ec4b6'],
+    ]);
+    expect(inks('d0')).toEqual(inks('d1'));
+    await t.stop();
   });
 });

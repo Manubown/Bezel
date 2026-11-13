@@ -179,8 +179,6 @@ async function start(): Promise<void> {
     let result: MatchResult | undefined;
     /** The card's detail when this Device stopped the Match for a reason its runtime cannot name (`linkLostDetail`). */
     let said: string | undefined;
-    // Who sits where in the Match: a pause names the lost Device's Player.
-    const seated = new Map(match.players.flatMap((p) => (p.deviceId === undefined ? [] : [[p.deviceId, p.name] as const])));
     let unfollow = (): void => {};
     const handle = runMatch({
       link: inProcessLink(() => Promise.resolve({ default: game })),
@@ -200,7 +198,7 @@ async function start(): Promise<void> {
         if (line) play.log = [...play.log, line].slice(-LOG_LINES);
         if (e.t === 'ended') result = e.result;
         if (e.t === 'paused' || e.t === 'resumed') {
-          matchPause = e.t === 'paused' ? describePause(match, e.reason, seated, deviceId) : undefined;
+          matchPause = e.t === 'paused' ? describePause(match, e.reason, deviceId) : undefined;
           // While reconnecting, `RECONNECTING` stays up until the `hello` (`follow`).
           if (!rejoining) play.paused = matchPause;
           hud.render();
