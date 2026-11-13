@@ -45,6 +45,13 @@ describe('What a joining phone says (spec D7)', () => {
     }
   });
 
+  it('holds the help card back while a result card is on show, and shows it once that card is closed', () => {
+    // The 30 s grace of a Match ran out: the Match closed with "Connection lost", and the first phone is still not back.
+    const lost = { code: 'REZV', status: 'reconnecting', waited: 31000, wasIn: true } as const;
+    expect(describeJoin({ ...lost, resultCard: true })).toMatchObject({ line: 'Lost the table. Reconnecting…', help: undefined });
+    expect(describeJoin({ ...lost, resultCard: false })?.help?.headline).toBe('Still reconnecting to table REZV');
+  });
+
   it('in the table: nothing, before and after 15 s (the lobby speaks)', () => {
     for (const wasIn of [false, true]) {
       expect(describeJoin({ code: 'REZV', status: 'ready', waited: BEFORE, wasIn })).toBeUndefined();

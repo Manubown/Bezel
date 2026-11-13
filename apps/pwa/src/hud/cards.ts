@@ -8,9 +8,10 @@ import { describeLast, esc, inColour } from './shared';
  * Match runs. The Host's (`sheet` given) offers Play again (the lobby's `startAgain`, a refusal in words) and
  * Change game (the sheet unfolded), and is done once the sheet is unfolded; the Peers' say the first phone starts
  * the next game, until tapped. Below that, the install offer (`installOffer`'s card) on the first card it is due; once
- * that card closes the offer is dismissed and does not return to a card.
+ * that card closes the offer is dismissed and does not return to a card. `closed`: a tap closed a Peer's card, for the
+ * HUD to render again (the help card waits for the result card, `describeJoin`).
  */
-export function lastCard({ play, lobby, install, maker }: Pick<HudOptions, 'play' | 'lobby' | 'install' | 'maker'>, sheet: Sheet | undefined): () => void {
+export function lastCard({ play, lobby, install, maker }: Pick<HudOptions, 'play' | 'lobby' | 'install' | 'maker'>, sheet: Sheet | undefined, closed: () => void): LastCard {
   const card = document.createElement('section');
   card.className = sheet ? 'result' : 'result closes';
   card.hidden = true;
@@ -66,7 +67,7 @@ export function lastCard({ play, lobby, install, maker }: Pick<HudOptions, 'play
     const button = target.closest('button');
     if (!sheet) {
       dismissed = play.last;
-      render();
+      closed();
     } else if (button?.classList.contains('change')) sheet.unfold();
     else if (button?.classList.contains('again')) {
       try {
@@ -77,7 +78,18 @@ export function lastCard({ play, lobby, install, maker }: Pick<HudOptions, 'play
       }
     }
   });
-  return render;
+  return {
+    render,
+    get open() {
+      return !card.hidden;
+    },
+  };
+}
+
+/** The result card: its render, and whether it showed at the last one. */
+export interface LastCard {
+  render(): void;
+  readonly open: boolean;
 }
 
 /** Over a running Match on every Device: who a pause waits for, or (Host) that its own view stopped. */

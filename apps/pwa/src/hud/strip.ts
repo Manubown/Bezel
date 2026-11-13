@@ -1,5 +1,6 @@
 import brand from '../../../../brand.json';
 import type { Hud, HudOptions } from '../hud';
+import type { LastCard } from './cards';
 import { HELP_AFTER_MS, describeJoin, type HelpCard } from '../join';
 import { placementHint } from '../placement';
 import { CODE_LENGTH, joinAddress, sessionCode } from '../sessioncode';
@@ -8,9 +9,9 @@ import { esc, soundSwitch, statusDot, syncStats } from './shared';
 /**
  * A Peer's top strip: the code, where this phone is in joining (`describeJoin`) and in the lobby, this phone's sound
  * switch, and in Maker mode the makers' words, its clock and the session log's export; under it, after
- * `HELP_AFTER_MS` without getting in, the help card.
+ * `HELP_AFTER_MS` without getting in, the help card, once the result card (`card`) is closed.
  */
-export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
+export function peerStrip(root: HTMLElement, o: HudOptions, card: Pick<LastCard, 'open'>): Hud {
   const { session, lobby, code, play, maker } = o;
   root.className = 'strip';
   root.innerHTML =
@@ -34,9 +35,10 @@ export function peerStrip(root: HTMLElement, o: HudOptions): Hud {
     if (inside && !ready) since = now;
     inside = ready;
     wasIn ||= ready;
-    const joining = describeJoin({ code, status: session.status, waited: now - since, wasIn });
+    const joining = describeJoin({ code, status: session.status, waited: now - since, wasIn, resultCard: card.open });
     clearTimeout(due);
-    due = joining && !joining.help ? window.setTimeout(render, since + HELP_AFTER_MS - now) : undefined;
+    // The card's time has not come yet; a result card holding it back renders the HUD when it is closed.
+    due = joining && !joining.help && now - since < HELP_AFTER_MS ? window.setTimeout(render, since + HELP_AFTER_MS - now) : undefined;
     // Over a running Match the reconnect notice speaks; its grace ends in the lobby, where the card shows.
     help(play.running ? undefined : joining?.help);
     const me = session.self.deviceId;

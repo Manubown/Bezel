@@ -18,6 +18,8 @@ export interface Joining {
   waited: number;
   /** It was in its Session (`ready`) at least once since the page loaded. */
   wasIn: boolean;
+  /** A result card is on show over the lobby (a Match closed, "Connection lost" after the grace ran out, say); absent: none. */
+  resultCard?: boolean;
 }
 
 /** After `HELP_AFTER_MS` without getting in: what to check, in the order to check it. */
@@ -49,7 +51,8 @@ const MAKERS: Record<Exclude<SessionStatus, 'ready'>, string> = {
  * - Never in: "Finding table CODE…" until a first phone answers (`searching`), then "Connecting…", through every
  *   failed attempt (`syncing` and `reconnecting` alternate on a network whose direct path dies).
  * - Was in: "Lost the table. Reconnecting…" until it is in again, whatever the attempts in between.
- * - After `HELP_AFTER_MS` of either: the help card, its headline after the case, its advice the same.
+ * - After `HELP_AFTER_MS` of either: the help card, its headline after the case, its advice the same; while a result
+ *   card is on show, not yet: the help card waits until that card is closed, so the two never stand one over the other.
  */
 export function describeJoin(j: Joining): JoinView | undefined {
   const { code, status } = j;
@@ -57,7 +60,7 @@ export function describeJoin(j: Joining): JoinView | undefined {
   const found = status !== 'searching';
   const headline = j.wasIn ? `Still reconnecting to table ${code}` : found ? `Still connecting to table ${code}` : `Table ${code} not found yet`;
   const help: HelpCard | undefined =
-    j.waited < HELP_AFTER_MS
+    j.waited < HELP_AFTER_MS || j.resultCard === true
       ? undefined
       : {
           headline,

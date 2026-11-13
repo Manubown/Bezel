@@ -82,15 +82,16 @@ export interface Sheet extends Hud {
 export async function openHud(root: HTMLElement, o: HudOptions): Promise<Hud> {
   // Folding or unfolding the sheet by hand renders the card, which steps aside for an unfolded sheet.
   const sheet = o.session.role === 'host' ? await hostSheet(root, o, () => hud.render()) : undefined;
-  const panel = sheet ?? peerStrip(root, o);
-  const closeCard = lastCard(o, sheet);
+  const closeCard = lastCard(o, sheet, () => hud.render());
+  // A Peer's help card waits while the result card is on show: the card renders first.
+  const panel = sheet ?? peerStrip(root, o, closeCard);
   const pause = pauseCard(o.play);
   const advice = o.session.role === 'host' ? dropoutAdvice(root, o) : undefined;
   const banner = inAppBanner(root, o);
   const hud: Hud = {
     render() {
+      closeCard.render();
       panel.render();
-      closeCard();
       pause();
       advice?.();
       banner();
