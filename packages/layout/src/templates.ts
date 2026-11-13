@@ -30,9 +30,17 @@ const column: Placer = (sizes, gap) => {
   });
 };
 
-/** Near-square grid, row-major; each cell is the max size of its column/row. */
+/**
+ * How many columns the grid template lays `count` Devices in: a near-square grid, filled row by row. The one rule for
+ * it: the placer below, the placement sentence (`apps/pwa/src/placement.ts`), the site's drawings of a grid.
+ */
+export function gridColumns(count: number): number {
+  return Math.ceil(Math.sqrt(count));
+}
+
+/** Near-square grid (`gridColumns`), row-major; each cell is the max size of its column/row. */
 const grid: Placer = (sizes, gap) => {
-  const cols = Math.ceil(Math.sqrt(sizes.length));
+  const cols = gridColumns(sizes.length);
   const rows = Math.ceil(sizes.length / cols);
   const colW = new Array<number>(cols).fill(0);
   const rowH = new Array<number>(rows).fill(0);

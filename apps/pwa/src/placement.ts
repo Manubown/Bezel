@@ -1,4 +1,4 @@
-import type { Layout, TemplateId } from '@mgc/layout';
+import { gridColumns, type Layout, type TemplateId } from '@mgc/layout';
 
 /** Where Tile 1 lies: the end of the template the others are laid from. */
 const FIRST: Record<TemplateId, string> = { row: 'on the left', column: 'at the top', grid: 'top left' };
@@ -15,8 +15,8 @@ export function placementHint(layout: Layout, index: number): string {
     case 'column':
       return `below phone ${index}`;
     case 'grid': {
-      // The grid template's near-square row-major order (`@mgc/layout` templates.ts).
-      const cols = Math.ceil(Math.sqrt(layout.devices.length));
+      // The grid template's row-major order.
+      const cols = gridColumns(layout.devices.length);
       return index % cols === 0 ? `below phone ${index - cols + 1}` : `right of phone ${index}`;
     }
   }

@@ -1,4 +1,6 @@
 ---
+import { gridColumns } from '@mgc/layout';
+
 // A small drawing of phones on the table, in the outline of the home page's large one: how they lie (a template's
 // words in `TEMPLATE_WORDS`), and what they show: a QR code on the first phone, a camera scanning it on the last, the
 // Players' paddles at the two ends, the ball crossing the first gap. Decoration beside words that say the same.
@@ -21,7 +23,7 @@ const PAD = 2;
 /** CSS px per unit, the same for every drawing so a phone is one size everywhere: three in a row are 96 px wide. */
 const SCALE = 96 / (2 * PAD + 3 * W + 2 * GAP);
 
-const columns = template === 'row' ? phones : template === 'column' ? 1 : Math.min(phones, 2);
+const columns = template === 'row' ? phones : template === 'column' ? 1 : gridColumns(phones);
 const rows = Math.ceil(phones / columns);
 const at = Array.from({ length: phones }, (_, i) => ({ x: PAD + (i % columns) * (W + GAP), y: PAD + Math.floor(i / columns) * (H + GAP) }));
 const width = 2 * PAD + columns * W + (columns - 1) * GAP;

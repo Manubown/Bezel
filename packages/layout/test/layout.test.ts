@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Surface, buildLayout, isLayout, type DeviceSize } from '../src';
+import { Surface, buildLayout, gridColumns, isLayout, type DeviceSize } from '../src';
 
 const phone = (id: string, w = 70, h = 150): DeviceSize => ({ id, w, h });
 
@@ -27,6 +27,12 @@ describe('templates', () => {
     ]);
     const three = buildLayout('grid', ['a', 'b', 'c'].map((id) => phone(id)), 4);
     expect(three.devices[2]).toMatchObject({ x: 0, y: 154 });
+  });
+
+  it('grid has as many columns as gridColumns says, the near-square count', () => {
+    expect([1, 2, 3, 4, 5, 9, 10].map(gridColumns)).toEqual([1, 2, 2, 2, 3, 3, 4]);
+    const five = buildLayout('grid', ['a', 'b', 'c', 'd', 'e'].map((id) => phone(id)), 4);
+    expect(new Set(five.devices.map((d) => d.x)).size).toBe(3);
   });
 
   it('empty input yields an empty layout', () => {
