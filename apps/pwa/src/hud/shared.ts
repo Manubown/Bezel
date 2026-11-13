@@ -35,17 +35,19 @@ export function statusDot(state: 'ok' | 'wait' | 'warn' | 'off'): string {
 
 /**
  * The sound switch, one on the Host's sheet and one on a Peer's strip (spec outside-view D12): a chip,
- * pressed while this phone plays sound, a speaker with its waves or crossed out. A tap switches this Device's setting.
+ * pressed while this phone plays sound, a speaker with its waves or crossed out, and the word Sound (on the strip the
+ * speaker alone, `index.html`, so the status line beside it has the room). A tap switches this Device's setting.
  */
 export function soundSwitch(sound: SoundSetting): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'chip sound';
+  button.setAttribute('aria-label', 'Sound');
   const show = (on: boolean): void => {
     button.setAttribute('aria-pressed', String(on));
     button.innerHTML =
       `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/>` +
-      `<path d="${on ? 'M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11' : 'M16 9.5l5 5M21 9.5l-5 5'}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Sound`;
+      `<path d="${on ? 'M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11' : 'M16 9.5l5 5M21 9.5l-5 5'}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="chip-label">Sound</span>`;
   };
   show(sound.on);
   button.addEventListener('click', () => sound.set(!sound.on));

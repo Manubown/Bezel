@@ -162,12 +162,14 @@
       .log .log-fault .log-kind, .sheet .bar-log.log-fault { color: var(--warn); }
 
       /* Peer: one slim strip at the top, below the status bar. */
-      .strip { position: fixed; top: 0; left: 0; right: 0; display: grid; grid-template-columns: auto 1fr auto; column-gap: 14px; row-gap: 2px; align-items: baseline; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 16px; background: linear-gradient(var(--bg) 60%, transparent); pointer-events: none; }
+      .strip { position: fixed; top: 0; left: 0; right: 0; display: grid; grid-template-columns: auto 1fr auto; column-gap: 10px; row-gap: 2px; align-items: baseline; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 16px; background: linear-gradient(var(--bg) 60%, transparent); pointer-events: none; }
       .strip .brand { grid-row: 1; grid-column: 1; }
       .strip .code { grid-row: 2; grid-column: 1; font-size: var(--text-s); color: var(--fg-2); }
-      .strip .state { grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .strip .meta { grid-row: 2; grid-column: 2; color: var(--fg-2); font-size: var(--text-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .strip .sound { grid-row: 1 / span 2; grid-column: 3; align-self: center; pointer-events: auto; font-size: var(--text-s); }
+      /* The status line and the line under it wrap rather than lose words; the Sound chip beside them is the speaker alone. */
+      .strip .state { grid-row: 1; min-width: 0; overflow-wrap: anywhere; }
+      .strip .meta { grid-row: 2; grid-column: 2; min-width: 0; overflow-wrap: anywhere; color: var(--fg-2); font-size: var(--text-s); }
+      .strip .sound { grid-row: 1 / span 2; grid-column: 3; align-self: center; justify-content: center; width: var(--tap); padding: 0; pointer-events: auto; }
+      .strip .sound .chip-label { display: none; }
       .strip .export { grid-row: 1 / span 2; grid-column: 4; align-self: center; pointer-events: auto; min-height: var(--tap); padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg-2); font-size: var(--text-s); }
 
       /* How the last Match closed (its result, or why it stopped), over the lobby on every phone that ran it: the first phone's with Play again and Change game, the others' until tapped; and a running Match's notice (a pause, or the Host's own view stopped), which touches pass through. */

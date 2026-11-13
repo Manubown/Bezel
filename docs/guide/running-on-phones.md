@@ -29,9 +29,11 @@ A Peer's top strip says where it is (`apps/pwa/src/hud.ts:443-481`):
 | Connecting… | a Host answered and the shared clock is being measured, or an attempt failed and the phone tries again; it has not been in yet |
 | Lost the table. Reconnecting… | it had been in and lost the Host: the connection closed, the Host was silent for 5 s, or the clock did not sync within 4 s. It reconnects by itself ([reconnecting](troubleshooting.md#lost-the-table-reconnecting-on-a-peer)) |
 | You’re in · waiting for the first phone | in; the Host's lobby state has not arrived yet |
-| Phone N of M · <where it goes> · <Player> | a Tile, its place in the Tile order, and who sits there |
+| Phone N of M · <Player> | a Tile, its place in the Tile order, and the Player who sits there, in their colour; where it lies is the placement cue on the screen below |
 | Controller · hold this phone in hand | the Host marked it a Controller |
 | A match is on · you join the next one | a Match started without this phone; no joins mid-Match |
+
+The status line and the line under it wrap rather than lose words; at the strip's right is this phone's Sound switch, the speaker alone (the first phone's sheet labels it Sound).
 
 After 15 s without getting in (`HELP_AFTER_MS`, `apps/pwa/src/join.ts`), counted from the page's start or from the moment it lost its Session, a card over the lobby names the code ("Table CODE not found yet", "Still connecting to table CODE", "Still reconnecting to table CODE"), says to check the code on the first phone and keep that phone's screen on, and that an iPhone hotspot often fails, so to use the same Wi-Fi or mobile data on every phone. **Try again** reloads the page for the same code; the code field opens the same address with another code, keeping its other flags. The card goes by itself once the phone is in. Over a running Match the reconnect notice speaks instead; if the 30 s grace runs out, the Match's result card ("Connection lost") shows first, and the help card once that is tapped away.
 

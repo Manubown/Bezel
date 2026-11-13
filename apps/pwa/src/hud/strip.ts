@@ -2,13 +2,13 @@ import brand from '../../../../brand.json';
 import type { Hud, HudOptions } from '../hud';
 import type { LastCard } from './cards';
 import { HELP_AFTER_MS, describeJoin, type HelpCard } from '../join';
-import { placementHint } from '../placement';
 import { CODE_LENGTH, joinAddress, sessionCode } from '../sessioncode';
-import { esc, soundSwitch, statusDot, syncStats } from './shared';
+import { esc, inColour, soundSwitch, statusDot, syncStats } from './shared';
 
 /**
- * A Peer's top strip: the code, where this phone is in joining (`describeJoin`) and in the lobby, this phone's sound
- * switch, and in Maker mode the makers' words, its clock and the session log's export; under it, after
+ * A Peer's top strip: the code, where this phone is in joining (`describeJoin`) and in the lobby (its place, and the
+ * name of the Player at it in their colour: where it lies is the lobby preview's, large, on the canvas), this phone's
+ * sound switch, and in Maker mode the makers' words, its clock and the session log's export; under it, after
  * `HELP_AFTER_MS` without getting in, the help card, once the result card (`card`) is closed.
  */
 export function peerStrip(root: HTMLElement, o: HudOptions, card: Pick<LastCard, 'open'>): Hud {
@@ -57,9 +57,9 @@ export function peerStrip(root: HTMLElement, o: HudOptions, card: Pick<LastCard,
       state.innerHTML = `${statusDot('ok')} Controller`;
       meta.textContent = ['hold this phone in hand', clock].filter(Boolean).join(' · ');
     } else if (layout && index >= 0) {
-      const seated = lobby.players.find((p) => p.deviceId === me);
+      const seat = lobby.players.findIndex((p) => p.deviceId === me);
       state.innerHTML = `${statusDot('ok')} Phone ${index + 1} of ${layout.devices.length}`;
-      meta.textContent = [placementHint(layout, index), seated?.name, clock].filter(Boolean).join(' · ');
+      meta.innerHTML = [seat >= 0 && `<span${inColour(seat)}>${esc(lobby.players[seat]!.name)}</span>`, clock && esc(clock)].filter(Boolean).join(' · ');
     } else {
       state.innerHTML = `${statusDot('ok')} You’re in`;
       meta.textContent = [maker ? 'synced · waiting for arrangement' : 'waiting for the first phone', clock].filter(Boolean).join(' · ');
