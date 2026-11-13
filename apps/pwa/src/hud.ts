@@ -8,8 +8,8 @@ import { hostSheet } from './hud/sheet';
 import { peerStrip } from './hud/strip';
 import type { Installer } from './installer';
 import type { Lobby } from './lobby';
-import type { PauseNotice } from './pause';
 import type { Recorder } from './recorder';
+import type { Notice } from './result';
 import type { SoundSetting } from './sound';
 
 /** This Device's part in Matches; `main` keeps it current and calls `render`. */
@@ -17,9 +17,9 @@ export interface Play {
   /** A Match runs on this Device now: the screen is the Game's. */
   running: boolean;
   /** Set while the running Match is paused: who it waits for. */
-  paused: PauseNotice | undefined;
+  paused: Notice | undefined;
   /** Host: set once its own view of the running Match closed while the Match goes on. */
-  stopped: PauseNotice | undefined;
+  stopped: Notice | undefined;
   /** The last Match that ran on this Device. */
   last: LastMatch | undefined;
   /** The running (else the last) Match's faults, logs and close, oldest first. */

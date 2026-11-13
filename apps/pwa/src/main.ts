@@ -7,13 +7,13 @@ import { openHud, type Play } from './hud';
 import { INSTALLED_QUERY } from './install';
 import { watchInstall } from './installer';
 import { openLobby, sessionLobbyStore } from './lobby';
-import { describePause, pauseOnDeviceLoss, type PauseNotice } from './pause';
+import { describePause, pauseOnDeviceLoss } from './pause';
 import { claimMakerMode } from './maker';
 import { drawMetronome, startCanvasLoop } from './metronome';
 import { CODE_LENGTH, sessionCode } from './sessioncode';
 import { createRecorder } from './recorder';
 import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
-import { describeClose } from './result';
+import { describeClose, type Notice } from './result';
 import { drawPreview } from './scene';
 import { soundSetting } from './sound';
 import { parseTurnServers } from './turn';
@@ -148,7 +148,7 @@ async function start(): Promise<void> {
   /** A Device runs a Match once: after it closed here, it is not rejoined, unless it closed because the Session dropped. */
   let joined: string | undefined;
   /** The running Match's pause as its runtime last reported it. */
-  let matchPause: PauseNotice | undefined;
+  let matchPause: Notice | undefined;
   /** `current` rides out a reconnect (`rejoin.ts`): from its first `keep` until the `hello` or the close, and the grace timer runs as long. */
   let rejoining = false;
   let grace: number | undefined;

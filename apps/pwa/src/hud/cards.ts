@@ -1,5 +1,5 @@
 import type { HudOptions, LastMatch, Play, Sheet } from '../hud';
-import type { PauseNotice } from '../pause';
+import type { Notice } from '../result';
 import { offerHtml, wireOffer } from './install';
 import { describeLast, esc, inColour } from './shared';
 
@@ -87,7 +87,7 @@ export function pauseCard(play: Readonly<Play>): () => void {
   card.setAttribute('role', 'status');
   card.hidden = true;
   document.body.append(card);
-  let shown: PauseNotice | undefined;
+  let shown: Notice | undefined;
   return () => {
     const notice = play.running ? (play.paused ?? play.stopped) : undefined;
     card.hidden = !notice;

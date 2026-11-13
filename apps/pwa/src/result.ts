@@ -1,13 +1,23 @@
 import type { CloseReason, MatchResult, Player, PlayerId } from '@mgc/sdk';
 
 /**
+ * What a card over the lobby or the Game says: the result card (`describeResult`, `describeClose`), the pause card
+ * (`describePause`). `player`: the place in the Match's Player list of the Player the headline names, whose colour it
+ * is shown in (`playerColour`, spec outside-view D10); absent when it names nobody.
+ */
+export interface Notice {
+  headline: string;
+  detail: string;
+  player?: number;
+}
+
+/**
  * A Match result in Player names: who won, and the points. Two sides that both scored read in one line, the
  * winner's score first ("Ana wins 7–5", "Draw, 3–3"); more sides list everyone's points in finishing order as
  * the detail. The ranking decides the order; without one, the scores do, and equal top scores are a draw.
- * `player`: the winner's place in `players`, the Match's Player list, so the card shows the headline in their
- * colour (`playerColour`, spec outside-view D10); absent when the headline names nobody.
+ * `player` is the winner's place in `players`.
  */
-export function describeResult(players: readonly Player[], result: MatchResult): { headline: string; detail: string; player?: number } {
+export function describeResult(players: readonly Player[], result: MatchResult): Notice {
   const name = (id: PlayerId): string => players.find((p) => p.playerId === id)?.name ?? 'A player';
   const { scores, ranking } = result;
   const order = ranking ?? (scores ? Object.keys(scores).sort((a, b) => scores[b]! - scores[a]!) : []);
@@ -33,7 +43,7 @@ const CLOSED: Record<CloseReason, { headline: string; detail?: string }> = {
 };
 
 /** A Match that closed without a result: why, in words. */
-export function describeClose(reason: CloseReason, detail: string): { headline: string; detail: string } {
+export function describeClose(reason: CloseReason, detail: string): Notice {
   const said = CLOSED[reason];
   return { headline: said.headline, detail: said.detail ?? detail };
 }

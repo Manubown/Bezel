@@ -1,5 +1,6 @@
 import type { DeviceId, Session } from '@mgc/core';
 import type { MatchHandle, MatchInfo, PauseReason } from '@mgc/sdk';
+import type { Notice } from './result';
 
 /**
  * The Host's pause policy for a running Match: losing a Match Device pauses
@@ -34,19 +35,12 @@ export function pauseOnDeviceLoss(session: Session, match: MatchInfo, handle: Pi
   return () => offs.forEach((off) => off());
 }
 
-/** What the pause overlay says; `player`: the place in the Match's Player list of the Player the headline names, whose colour it is shown in. */
-export interface PauseNotice {
-  headline: string;
-  detail: string;
-  player?: number;
-}
-
 /**
  * The overlay for `reason` in `match` on the Device `self`. A lost Device is named by the Player
  * who sits at it, if any, else by its phone number in Layout order. The lost Device itself, back
  * before the Host resumes, reads that it is back.
  */
-export function describePause(match: MatchInfo, reason: PauseReason, self: DeviceId): PauseNotice {
+export function describePause(match: MatchInfo, reason: PauseReason, self: DeviceId): Notice {
   if (reason.kind === 'platform') return { headline: 'Paused', detail: reason.note ?? '' };
   if (reason.deviceId === self) return { headline: 'You’re back', detail: 'the match goes on in a moment' };
   const tile = match.tiles.findIndex((t) => t.deviceId === reason.deviceId);

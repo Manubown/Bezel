@@ -1,10 +1,10 @@
 import { playerColour } from '@mgc/sdk';
 import type { LastMatch } from '../hud';
-import { describeClose, describeResult } from '../result';
+import { describeClose, describeResult, type Notice } from '../result';
 import type { SoundSetting } from '../sound';
 
 /** The last Match in words: its result, or why it closed without one; `player`, the Player its headline names. */
-export function describeLast(last: LastMatch): { headline: string; detail: string; player?: number } {
+export function describeLast(last: LastMatch): Notice {
   return last.result ? describeResult(last.players, last.result) : describeClose(last.reason, last.detail);
 }
 
