@@ -43,7 +43,27 @@ Dependency rules. The arrows are the only ones the `package.json` dependencies a
 5. **Clock.** `ClockSync` samples the Host NTP-style, keeps the min-RTT samples, and `SharedClock.now()` is the Host's time on every phone (`packages/core/src/clock.ts`).
 6. **Lobby** (`apps/pwa/src/lobby.ts`). The Host's lobby decides, Peers mirror it over the `lobby` channel: which Devices are Tiles vs Controllers, the Tile order, the template (`row` / `column` / `grid` → `buildLayout()` in `@mgc/layout`), the picked Game, and who plays (seats: at the first and last Tile by default, or one Player per Controller when the Game's manifest says `seats: 'controllers'`). The Host's **Start** validates against the manifest and deep-freezes a `MatchInfo` (ids, seed, `tickHz`, Players, Devices, Tiles, bounds) that every Device receives verbatim.
 7. **Match.** Each Device calls `runMatch()` (`packages/sdk/src/match.ts`) with the frozen `MatchInfo`, a `Link` to the Game, and `send`/`deliver` wired to the Session's `match` channel. The Host also runs the Game's `host()`; every Device, the Host included, runs the Game's `view()`. `pauseOnDeviceLoss()` pauses the Match while a Device is gone and resumes when it is back. When the Match closes (ended, aborted, fault, link lost), the lobby reopens on every Device.
-8. **Log.** `recorder.ts` keeps an NDJSON session log in IndexedDB (connectivity, ICE, clock samples, roster, Match events, faults, wire bytes, fps); the HUD exports it. `docs/liveLogs/` holds the logs of the first live test.
+8. **Log.** `recorder.ts` keeps an NDJSON session log in IndexedDB (connectivity, ICE, clock samples, roster, Match events, faults, wire bytes, fps); the HUD exports it. `docs/liveLogs/` holds the logs of the live runs on phones (`docs/liveLogs/README.md`).
+
+The same path on two phones, from the Session to a running Match:
+
+```mermaid
+flowchart LR
+  subgraph host["Host phone"]
+    HS[Session · clock · roster] --> L["Lobby: Layout, roles, seats"]
+    L -->|Start freezes MatchInfo| M[Match runtime]
+    M --> GH[game.host]
+    M --> GV0[game.view]
+  end
+  subgraph peer["Peer phone"]
+    PS[Session · clock offset] --> PM[Match runtime] --> GV1[game.view]
+  end
+  HS <-->|WebRTC data channel| PS
+  GH -->|publish state| M -->|frames| PM
+  GV1 -->|input in world mm| PM -->|frames| M --> GH
+```
+
+The clock (step 5) gives every phone the Host's time to within a few milliseconds: an offset error of at most 2 ms between two browser tabs, rtt 5–8 ms between phones (`docs/PLAN.md` §6, M0).
 
 ## 3. Inside a Match: the SDK seam (`packages/sdk`)
 
@@ -82,6 +102,7 @@ A `Layout` is a set of `Tile`s `{ x, y, w, h, rot, deviceId }` in millimetres; `
 | a new Game-facing capability | `packages/sdk/src/{types,game,wire,match,game-side}.ts`, the test harness, `docs/sdk-design.md`, `docs/guide/api.md` |
 | a lobby rule (who may start, seats, templates) | `apps/pwa/src/lobby.ts` (+ `apps/pwa/test/lobby.test.ts`), the refusal messages quoted in `docs/guide/troubleshooting.md` |
 | the Host sheet or Peer strip | `apps/pwa/src/hud/sheet.ts`, `apps/pwa/src/hud/strip.ts` (the result and pause cards: `hud/cards.ts`; `hud.ts` opens them), `apps/pwa/index.html` |
+| the install offer and the in-app-browser banner | `apps/pwa/src/install.ts` (what to offer; `apps/pwa/test/install.test.ts`), `apps/pwa/src/installer.ts` (what the browser says, the prompt, the Device's count), `apps/pwa/src/hud/install.ts` |
 | the public name, pitch or address | `brand.json` at the workspace root, nothing else: the build fills in `apps/pwa/index.html` and writes the web manifest from it (`apps/pwa/brand.ts`), the sheet and the strip import it. The icons and the link-preview picture are SVG sources and PNGs in `apps/pwa/public/` |
 | the look (colours, type, the display face) | `packages/look/tokens.css`, once for the app and the site: every colour and face in `apps/pwa/index.html` is one of its tokens, and the canvas and the QR code read them through `apps/pwa/src/look.ts`. The contrast of every pair the screens use is checked in `packages/look/test/look.test.ts`. The ground (`--bg`) is also the manifest's and the browser bar's colour, and the icons and the preview picture are drawn on it: a new ground means rasterising them again |
 | connectivity, clock, roster | `packages/core/src/{trystero-transport,session,clock}.ts` |

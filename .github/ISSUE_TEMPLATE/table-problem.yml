@@ -1,0 +1,60 @@
+name: Something went wrong at the table
+description: The phones did not connect, a game misbehaved, or something looked wrong.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. One report per table, please; list every phone that was at it.
+        A security problem goes privately, not here: Security → Report a vulnerability.
+  - type: input
+    id: phones
+    attributes:
+      label: Phones and browsers
+      description: Every phone at the table, and which one was the first phone (the one that showed the QR code).
+      placeholder: "First phone: iPhone 13, Safari. Others: Pixel 7, Chrome; iPhone 12, Safari"
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: Which app
+      options:
+        - manubown.github.io/Bezel/play (the app for everyone)
+        - manubown.github.io/Bezel/next (the latest build)
+        - A dev server (pnpm dev)
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: network
+    attributes:
+      label: Network
+      options:
+        - The same Wi-Fi on every phone
+        - An iPhone's Personal Hotspot
+        - An Android phone's hotspot
+        - Mobile data on every phone
+        - A mix
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: game
+    attributes:
+      label: Game and arrangement
+      placeholder: "Pong, 3 phones in a row"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: What did each phone show? Did every phone get into the table, or did one stay at "Connecting…"?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Session logs (optional, very helpful)
+      description: |
+        Every phone keeps a log of what it saw. To get it off a phone, add `?maker` to the address (`&maker` if the address already has a `?`) and open it again: the first phone's sheet then has **Export log**, the other phones a **Log** button, and the log still holds everything from before. Drag the files here.
+        A log holds the kind of phone, its connection details, the table code and the names typed in; no IP address.

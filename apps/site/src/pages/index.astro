@@ -1,5 +1,6 @@
 ---
 import brand from '../../../../brand.json';
+import Footer from '../components/Footer.astro';
 
 // Before the page renders, the root forwards with its query: a join link (`?room=`) to the latest build, since the
 // first phone that showed it ran a build from when the app lived here; a launch from an icon installed from here to
@@ -26,5 +27,6 @@ const next = `${import.meta.env.BASE_URL}next/`;
       <p>{brand.pitch}</p>
       <p><a href={play}>Start a table</a></p>
     </main>
+    <Footer />
   </body>
 </html>

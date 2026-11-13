@@ -1,0 +1,3 @@
+# .scratch
+
+The makers' design notes and work logs; bugs and ideas from outside go to [GitHub Issues](https://github.com/Manubown/Bezel/issues/new/choose). One folder per piece of work, most with a `spec.md` (what was decided and why) and tickets in `issues/NN-<slug>.md` whose `Status:` line says where they stand; the Games built from the template add a `friction.md` of the problems met while building them, and `live-test-1/findings.md` analyses the runs on real phones. The makers and their coding agents work from here, by the conventions in [`docs/agents/issue-tracker.md`](../docs/agents/issue-tracker.md). A spec's status can lag behind the code, which is the source of truth.
