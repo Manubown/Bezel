@@ -1,23 +1,16 @@
 ---
 // What a phone gives away and to whom (spec D18), read off the code and the hosted build on 2026-11-13; the sources
 // are in `.scratch/outside-view/issues/14-privacy-and-imprint.md`. What the app keeps on the phone is `src/kept.ts`,
-// held to the app's code by `test/privacy.test.ts`.
+// held to the app's code by `test/privacy.test.ts`; the servers it talks to are `src/servers.ts`, the relays held to
+// the transport by `apps/pwa/test/signaling.test.ts`.
 import brand from '../../../../brand.json';
 import Detail from '../components/Detail.astro';
 import { KEPT } from '../kept';
 import Page from '../layouts/Page.astro';
+import { RELAY_HOST, SIGNALING_RELAYS, STUN } from '../servers';
 
 /** Where the site and the app are published, and so where the browser keeps the app's data. */
 const host = new URL(brand.address).host;
-/**
- * The signaling relays: Trystero's default Nostr relays for the app's id (`packages/core/src/trystero-transport.ts`
- * passes no relay list; `getRelays` in `@trystero-p2p/core` picks five of its 29 by the app id).
- */
-const RELAYS = ['relay.nostr.blockhenge.com', 'relay.flashapp.me', 'relay.nostrmap.net', 'relay.bullishbounty.com', 'relay.novospes.com'];
-/** Trystero's default STUN servers (`@trystero-p2p/core` `peer.mjs`), kept because the app passes its Relay as `turnConfig`. */
-const STUN = { google: ['stun.l.google.com', 'stun1.l.google.com', 'stun2.l.google.com'], cloudflare: 'stun.cloudflare.com' };
-/** The hosted build's Relay (`VITE_MGC_TURN_SERVERS` from the repository secret, `.github/workflows/pages.yml`). */
-const RELAY_HOST = 'standard.relay.metered.ca';
 ---
 
 <Page title="Privacy" description={`What ${brand.name} keeps on your phone, who your phone talks to while you play, and what each of them sees.`}>
@@ -48,7 +41,7 @@ const RELAY_HOST = 'standard.relay.metered.ca';
     <p>
       Phones find their table through five public relays of the Nostr network, run by people and companies that have nothing
       to do with {brand.name}:
-      {RELAYS.map((relay, i) => (<>{i > 0 && (i === RELAYS.length - 1 ? ' and ' : ', ')}<code>{relay}</code></>))}.
+      {SIGNALING_RELAYS.map((relay, i) => (<>{i > 0 && (i === SIGNALING_RELAYS.length - 1 ? ' and ' : ', ')}<code>{relay}</code></>))}.
       They are the ones the connection library {brand.name} is built on (Trystero) picks for it; {brand.name} does not pick its own.
       While the app is open, your phone stays connected to them. A relay sees:
     </p>
@@ -77,10 +70,11 @@ const RELAY_HOST = 'standard.relay.metered.ca';
 
     <h3>Metered, which runs the Relay</h3>
     <p>
-      When two phones cannot reach each other directly, as on some phone hotspots and mobile networks, their connection goes
-      through a Relay: <code>{RELAY_HOST}</code>, run by Metered (Next Path Software Consulting Inc., Canada) on the makers’
-      account. Each phone asks the Relay for a way through whenever it sets up a connection, so Metered sees your phone’s IP
-      address each time; the game passes through it only when the direct way does not work. Then Metered also sees when the
+      When the build carries a Relay, as the app published here does, two phones that cannot reach each other directly (as on
+      some phone hotspots and mobile networks) connect through it: <code>{RELAY_HOST}</code>, run by Metered (Next Path
+      Software Consulting Inc., Canada) on the makers’ account. Each phone then asks the Relay for a way through whenever it
+      sets up a connection, so Metered sees your phone’s IP address each time; the game passes through it only when the
+      direct way does not work. Then Metered also sees when the
       phones play and how much data passes. Everything that passes between the phones is encrypted, as every connection between
       browsers is, so the Relay cannot read the game. Metered says it keeps this connection data for 30 days (<a
         href="https://www.metered.ca/privacy">Metered’s privacy policy</a

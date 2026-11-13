@@ -15,11 +15,11 @@ import { createRecorder } from './recorder';
 import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
 import { describeClose, type Notice } from './result';
 import { drawPreview } from './scene';
+import { APP_ID } from './signaling';
 import { soundSetting, type AudioSessionLike } from './sound';
 import { parseTurnServers } from './turn';
 import { awake, keepAwake } from './wake';
 
-const APP_ID = 'mobilegameconnect';
 /** Match frames between Devices; the SDK never sees the channel. */
 const MATCH_CHANNEL = 'match';
 // No 0/O/1/I/L: codes stay readable when typed by hand.
