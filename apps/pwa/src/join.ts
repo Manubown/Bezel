@@ -3,8 +3,11 @@ import { RELAY_STABLE_MS, type DeviceId, type SessionStatus } from '@mgc/core';
 /** How long (ms) a phone tries to get in before it shows the help card (spec D7). */
 export const HELP_AFTER_MS = 15000;
 
-/** What usually helps when the connections of a table do not hold: the help card's advice and the first phone's. */
-const HOTSPOT = 'An iPhone hotspot often fails: use the same Wi-Fi on every phone, or mobile data on every phone.';
+/**
+ * What usually helps when the connections of a table do not hold: the help card's advice, the first phone's, and the
+ * site's known limits.
+ */
+export const HOTSPOT = 'An iPhone hotspot often fails: use the same Wi-Fi on every phone, or mobile data on every phone.';
 
 /** A Peer's page at one moment of joining its table. */
 export interface Joining {

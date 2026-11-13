@@ -1,0 +1,60 @@
+---
+// Every page of the site: the app's look (@mgc/look: its tokens, its display face fetched at once from this origin),
+// a link preview, the footer. A page's own first script (a forward) goes in the `first` slot, before anything the
+// browser would otherwise load; a page's own head elements go in `head`.
+import '@mgc/look/tokens.css';
+import '../styles/site.css';
+import { groundOf } from '@mgc/look';
+import tokens from '@mgc/look/tokens.css?raw';
+import face from '@mgc/look/fonts/unbounded-600.woff2?url';
+import touchIcon from '@mgc/pwa/public/apple-touch-icon.png?url&no-inline';
+import icon from '@mgc/pwa/public/icon.svg?url';
+import preview from '@mgc/pwa/public/preview.png?url';
+import brand from '../../../../brand.json';
+import Footer from '../components/Footer.astro';
+
+interface Props {
+  /** The page's own title; the home page has none and is titled with the name alone. */
+  title?: string;
+  /** One or two sentences: the search result's and the link preview's description. */
+  description: string;
+}
+
+const { title, description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <slot name="first" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title ? `${title} · ${brand.name}` : brand.name}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="theme-color" content={groundOf(tokens)} />
+    <link rel="icon" href={icon} type="image/svg+xml" />
+    <link rel="apple-touch-icon" href={touchIcon} />
+    <link rel="sitemap" href={`${import.meta.env.BASE_URL}sitemap.xml`} />
+    <!-- The display face, fetched at once so it is there for the first paint (tokens.css: `font-display: optional`). -->
+    <link rel="preload" href={face} as="font" type="font/woff2" crossorigin />
+    <!-- A shared link's preview: the app's picture, which holds no name, so brand.json stays the one place that spells it. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={brand.name} />
+    <meta property="og:title" content={title ?? brand.name} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL(preview, Astro.site).href} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <slot name="head" />
+  </head>
+  <body>
+    <slot />
+    <div class="column">
+      <Footer />
+    </div>
+  </body>
+</html>

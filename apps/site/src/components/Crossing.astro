@@ -1,0 +1,274 @@
+---
+// The home page's drawing (spec D17; the makers' clip replaces it later): two phones side by side, a Pong rally between
+// the coral Player's paddle and the teal Player's, the ball crossing the gap. As drawn it is a still, the ball halfway
+// across the gap as in the icon; the script sets it moving unless the visitor prefers reduced motion, offers Pause, and
+// stops it while it is off screen. Coordinates are the drawing's own units (its viewBox).
+---
+
+<figure class="crossing" data-crossing>
+  <svg viewBox="0 0 320 300" role="img" aria-labelledby="crossing-title">
+    <title id="crossing-title">Two phones lie side by side. One game of Pong runs across both screens, coral 3, teal 2, and the ball crosses the gap between them.</title>
+    <g class="phones">
+      <rect class="body" x="16" y="14" width="136" height="272" rx="26"></rect>
+      <rect class="screen" x="24" y="22" width="120" height="256" rx="19"></rect>
+      <rect class="body" x="168" y="14" width="136" height="272" rx="26"></rect>
+      <rect class="screen" x="176" y="22" width="120" height="256" rx="19"></rect>
+    </g>
+    <text class="score player-1" x="84" y="74" text-anchor="middle">3</text>
+    <text class="score player-2" x="236" y="74" text-anchor="middle">2</text>
+    <g transform="translate(0 208)">
+      <rect class="paddle player-1" x="36" y="-22" width="6" height="44" rx="3"></rect>
+    </g>
+    <g transform="translate(0 118)">
+      <rect class="paddle player-2" x="278" y="-22" width="6" height="44" rx="3"></rect>
+    </g>
+    <g transform="translate(160 150)">
+      <circle class="trail trail-4" r="3.6"></circle>
+      <circle class="trail trail-3" r="4.4"></circle>
+      <circle class="trail trail-2" r="5.2"></circle>
+      <circle class="trail trail-1" r="6"></circle>
+      <circle class="ball" r="7"></circle>
+    </g>
+  </svg>
+  <button class="motion" type="button" hidden data-motion>
+    <svg class="motion-icon" viewBox="0 0 12 12" aria-hidden="true">
+      <path class="pause-icon" d="M2.5 1.5h2.5v9H2.5zM7 1.5h2.5v9H7z"></path>
+      <path class="play-icon" d="M3 1.5l7 4.5-7 4.5z"></path>
+    </svg>
+    <span data-motion-word>Pause</span>
+  </button>
+</figure>
+
+<script>
+  // Moving, unless the visitor prefers reduced motion; Pause and Play by the button; stopped while off screen.
+  const figure = document.querySelector<HTMLElement>('[data-crossing]');
+  const button = figure?.querySelector<HTMLButtonElement>('[data-motion]');
+  const word = button?.querySelector<HTMLElement>('[data-motion-word]');
+  if (figure && button && word) {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+    let paused = false;
+    let seen = true;
+    const render = (): void => {
+      figure.toggleAttribute('data-moving', !reduce.matches);
+      figure.toggleAttribute('data-paused', paused || !seen);
+      button.hidden = reduce.matches;
+      button.toggleAttribute('data-held', paused);
+      button.setAttribute('aria-label', paused ? 'Play the drawing' : 'Pause the drawing');
+      word.textContent = paused ? 'Play' : 'Pause';
+    };
+    button.addEventListener('click', () => {
+      paused = !paused;
+      render();
+    });
+    reduce.addEventListener('change', render);
+    new IntersectionObserver(([entry]) => {
+      seen = entry?.isIntersecting ?? true;
+      render();
+    }).observe(figure);
+    render();
+  }
+</script>
+
+<style>
+  .crossing {
+    margin: 0;
+    display: grid;
+    justify-items: end;
+  }
+
+  .crossing > svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .phones {
+    filter: drop-shadow(var(--shadow-card));
+  }
+
+  .body {
+    fill: var(--raise);
+    stroke: var(--line);
+    stroke-width: 1.5;
+  }
+
+  .screen {
+    fill: var(--bg);
+  }
+
+  /* The scores, as Pong draws them (spec D11): the display face, in the Player's colour at 80 %. */
+  .score {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 600;
+    opacity: 0.8;
+  }
+
+  .player-1 {
+    fill: var(--player-1);
+  }
+
+  .player-2 {
+    fill: var(--player-2);
+  }
+
+  .ball,
+  .trail {
+    fill: var(--fg);
+  }
+
+  /* The still: a short trail behind the ball, the way it came, from the coral paddle. */
+  .trail-1 {
+    opacity: 0.36;
+    transform: translate(-5.7px, 3px);
+  }
+
+  .trail-2 {
+    opacity: 0.22;
+    transform: translate(-11.5px, 6.1px);
+  }
+
+  .trail-3 {
+    opacity: 0.13;
+    transform: translate(-17.2px, 9.1px);
+  }
+
+  .trail-4 {
+    opacity: 0.07;
+    transform: translate(-23px, 12.2px);
+  }
+
+  /*
+   * The rally, 3.6 s: from the gap to the teal paddle, down off the bottom wall to the coral paddle, back through the
+   * gap on the same straight line. The ball's speed across the phones is constant, so each leg's share of the time is
+   * its share of the width (111, 165, 57 and 111 of 444). The trail is the ball's path a little earlier.
+   */
+  [data-moving] .ball,
+  [data-moving] .trail {
+    animation: rally 3.6s linear infinite backwards;
+  }
+
+  [data-moving] .trail-1 {
+    animation-delay: 50ms;
+  }
+
+  [data-moving] .trail-2 {
+    animation-delay: 100ms;
+  }
+
+  [data-moving] .trail-3 {
+    animation-delay: 150ms;
+  }
+
+  [data-moving] .trail-4 {
+    animation-delay: 200ms;
+  }
+
+  [data-moving] .player-1 {
+    animation: coral 3.6s ease-in-out infinite;
+  }
+
+  [data-moving] .player-2 {
+    animation: teal 3.6s ease-in-out infinite;
+  }
+
+  /* As specific as the rules above that set the animation (whose shorthand resets the play state), and after them. */
+  .crossing[data-paused] * {
+    animation-play-state: paused;
+  }
+
+  @keyframes rally {
+    0% {
+      transform: translate(0, 0);
+    }
+    25% {
+      transform: translate(111px, -59px);
+    }
+    62.16% {
+      transform: translate(-54px, 121px);
+    }
+    75% {
+      transform: translate(-111px, 59px);
+    }
+    100% {
+      transform: translate(0, 0);
+    }
+  }
+
+  /* Each paddle is where the ball arrives when it arrives: the teal one at 25 %, the coral one at 75 %. */
+  @keyframes coral {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    30% {
+      transform: translate(0, -38px);
+    }
+    55% {
+      transform: translate(0, -48px);
+    }
+    75% {
+      transform: translate(0, 1px);
+    }
+  }
+
+  @keyframes teal {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    25% {
+      transform: translate(0, -27px);
+    }
+    50% {
+      transform: translate(0, 12px);
+    }
+    80% {
+      transform: translate(0, 42px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .crossing * {
+      animation: none !important;
+    }
+  }
+
+  .motion {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--tap);
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--fg-2);
+    font-size: var(--text-s);
+    cursor: pointer;
+  }
+
+  .motion:hover {
+    color: var(--fg);
+  }
+
+  .motion:active {
+    border-color: var(--fg-2);
+  }
+
+  .motion-icon {
+    width: 12px;
+    height: 12px;
+    fill: currentColor;
+  }
+
+  .play-icon,
+  .motion[data-held] .pause-icon {
+    display: none;
+  }
+
+  .motion[data-held] .play-icon {
+    display: inline;
+  }
+</style>

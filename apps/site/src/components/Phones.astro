@@ -1,0 +1,102 @@
+---
+// A small drawing of phones on the table, in the outline of the home page's large one: how they lie (an arrangement's
+// words in `ARRANGEMENT`), and what they show: a QR code on the first phone, a camera scanning it on the last, the
+// Players' paddles at the two ends, the ball crossing the first gap. Decoration beside words that say the same.
+interface Props {
+  arrangement: 'row' | 'column' | 'grid';
+  phones: number;
+  qr?: boolean;
+  scan?: boolean;
+  ends?: boolean;
+  ball?: boolean;
+}
+
+const { arrangement, phones, qr = false, scan = false, ends = false, ball = false } = Astro.props;
+
+/** A phone, upright, and the gap between two, in the drawing's units. */
+const W = 22;
+const H = 40;
+const GAP = 6;
+const PAD = 2;
+/** CSS px per unit, the same for every drawing so a phone is one size everywhere: three in a row are 96 px wide. */
+const SCALE = 96 / (2 * PAD + 3 * W + 2 * GAP);
+
+const columns = arrangement === 'row' ? phones : arrangement === 'column' ? 1 : Math.min(phones, 2);
+const rows = Math.ceil(phones / columns);
+const at = Array.from({ length: phones }, (_, i) => ({ x: PAD + (i % columns) * (W + GAP), y: PAD + Math.floor(i / columns) * (H + GAP) }));
+const width = 2 * PAD + columns * W + (columns - 1) * GAP;
+const height = 2 * PAD + rows * H + (rows - 1) * GAP;
+const first = at[0]!;
+const last = at.at(-1)!;
+const across = arrangement !== 'column';
+/** Three corner squares and a dot: a QR code at this size, centred on (`cx`, `cy`). */
+const code = (cx: number, cy: number) => [
+  [cx - 4.5, cy - 4.5],
+  [cx + 1.5, cy - 4.5],
+  [cx - 4.5, cy + 1.5],
+  [cx + 2, cy + 2, 2],
+];
+---
+
+<svg class="phones" viewBox={`0 0 ${width} ${height}`} width={width * SCALE} height={height * SCALE} aria-hidden="true">
+  {at.map(({ x, y }) => <rect class="phone" x={x} y={y} width={W} height={H} rx="4" />)}
+  {qr && code(first.x + W / 2, first.y + H / 2).map(([x, y, s = 3]) => <rect class="ink" x={x} y={y} width={s} height={s} />)}
+  {
+    scan && (
+      <>
+        <path class="finder" d={`M${last.x + 5} ${last.y + 14}v-3h3 M${last.x + W - 8} ${last.y + 11}h3v3 M${last.x + W - 5} ${last.y + H - 14}v3h-3 M${last.x + 8} ${last.y + H - 11}h-3v-3`} />
+        {code(last.x + W / 2, last.y + H / 2).map(([x, y, s = 3]) => <rect class="ink faint" x={x} y={y} width={s} height={s} />)}
+      </>
+    )
+  }
+  {
+    ends &&
+      (across ? (
+        <>
+          <rect class="player-1" x={first.x + 3} y={first.y + H / 2 - 6} width="2" height="12" rx="1" />
+          <rect class="player-2" x={last.x + W - 5} y={last.y + H / 2 - 6} width="2" height="12" rx="1" />
+        </>
+      ) : (
+        <>
+          <rect class="player-1" x={first.x + W / 2 - 6} y={first.y + 3} width="12" height="2" rx="1" />
+          <rect class="player-2" x={last.x + W / 2 - 6} y={last.y + H - 5} width="12" height="2" rx="1" />
+        </>
+      ))
+  }
+  {ball && phones > 1 && <circle class="ink" cx={across ? first.x + W + GAP / 2 : first.x + W / 2} cy={across ? first.y + H / 2 : first.y + H + GAP / 2} r="2.6" />}
+</svg>
+
+<style>
+  .phones {
+    display: block;
+    overflow: visible;
+  }
+
+  .phone {
+    fill: var(--raise);
+    stroke: var(--line);
+    stroke-width: 1.2;
+  }
+
+  .ink {
+    fill: var(--fg);
+  }
+
+  .faint {
+    opacity: 0.6;
+  }
+
+  .finder {
+    fill: none;
+    stroke: var(--fg-2);
+    stroke-width: 1.2;
+  }
+
+  .player-1 {
+    fill: var(--player-1);
+  }
+
+  .player-2 {
+    fill: var(--player-2);
+  }
+</style>

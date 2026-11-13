@@ -1,6 +1,9 @@
 /** What "Join a different table" on the first phone does with a typed code: open that table, or say why not. */
 export type OtherTable = { code: string } | { refusal: string };
 
+/** How many letters or digits a table code has: the first phone makes its code this long (`main.ts`). */
+export const CODE_LENGTH = 4;
+
 /** A typed table code as an address carries it: in capitals, letters and digits only. */
 export function tableCode(typed: string): string {
   return typed.toUpperCase().replace(/[^A-Z0-9]/g, '');
