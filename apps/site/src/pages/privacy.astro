@@ -40,7 +40,7 @@ const host = new URL(brand.address).host;
     <h3>Five public signaling relays, where phones find each other</h3>
     <p>
       Phones find their table through five public relays of the Nostr network, run by people and companies that have nothing
-      to do with {brand.name}:
+      to do with {brand.name}:{' '}
       {SIGNALING_RELAYS.map((relay, i) => (<>{i > 0 && (i === SIGNALING_RELAYS.length - 1 ? ' and ' : ', ')}<code>{relay}</code></>))}.
       They are the ones the connection library {brand.name} is built on (Trystero) picks for it; {brand.name} does not pick its own.
       While the app is open, your phone stays connected to them. A relay sees:
@@ -63,8 +63,8 @@ const host = new URL(brand.address).host;
 
     <h3>Google and Cloudflare, which tell a phone its address</h3>
     <p>
-      Before two phones connect, each one asks an address server (STUN) where its traffic reaches the internet from:
-      {STUN.google.map((server, i) => (<>{i > 0 && ', '}<code>{server}</code></>))} (Google) and <code>{STUN.cloudflare}</code>
+      Before two phones connect, each one asks an address server (STUN) where its traffic reaches the internet from:{' '}
+      {STUN.google.map((server, i) => (<>{i > 0 && ', '}<code>{server}</code></>))} (Google) and <code>{STUN.cloudflare}</code>{' '}
       (Cloudflare). They come with the same library. They see your phone’s IP address each time it sets up a connection, and nothing else.
     </p>
 
