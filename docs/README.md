@@ -9,6 +9,6 @@
 | [`adr/`](adr/) | the five binding decisions: PWA runtime, host-authoritative star, state stream not lockstep, sandboxed data seam, world millimetres | before contradicting one |
 | [`PLAN.md`](PLAN.md) | research, prior art, transport facts, milestones M0–M5 with what each proved | you want the history or the roadmap |
 | [`agents/`](agents/) | conventions for coding agents: the in-repo issue tracker, triage labels, domain docs | you file or pick up a ticket |
-| [`liveLogs/`](liveLogs/) | the NDJSON session logs the phones exported during live test 1 (2026-11-07); analysed in `.scratch/live-test-1/findings.md` | you want a real log to look at or to compare against |
+| [`liveLogs/`](liveLogs/) | the NDJSON session logs the phones exported during the makers' live runs 1–6 (2026-11-07 to 2026-11-10); [`liveLogs/README.md`](liveLogs/README.md) says which run each file comes from, `.scratch/live-test-1/findings.md` analyses them | you want a real log to look at or to compare against |
 
 Terms are defined once, in [`../GLOSSARY.md`](../GLOSSARY.md). Specs, tickets and friction logs live in [`../.scratch/`](../.scratch/) by feature.

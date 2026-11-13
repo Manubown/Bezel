@@ -65,6 +65,6 @@ console.log(`Created games/${slug} (@mgc/${slug}, manifest id mgc.${slug}, "${na
 Next:
   pnpm install --no-frozen-lockfile  # links @mgc/sdk into the new package (the lockfile gains an entry)
   pnpm test games/${slug}           # its test runs over createTestMatch
-  pnpm dev                          # the Host's game list shows "${name}"
+  pnpm dev                          # the Host's Game cards show "${name}" in Maker mode (?maker on its address)
 
 Edit games/${slug}/src/index.ts; docs/guide/your-first-game.md walks through it.`);
