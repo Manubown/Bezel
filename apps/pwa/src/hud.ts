@@ -1,5 +1,5 @@
 import type { Session } from '@mgc/core';
-import type { CloseReason, Manifest, MatchResult, Player } from '@mgc/sdk';
+import type { Manifest, MatchResult, Player } from '@mgc/sdk';
 import type { LogLine } from './gamelog';
 import { dropoutAdvice } from './hud/advice';
 import { lastCard, pauseCard } from './hud/cards';
@@ -9,7 +9,7 @@ import { peerStrip } from './hud/strip';
 import type { Installer } from './installer';
 import type { Lobby } from './lobby';
 import type { Recorder } from './recorder';
-import type { Notice } from './result';
+import type { Close, Notice } from './result';
 import type { SoundSetting } from './sound';
 
 /** This Device's part in Matches; `main` keeps it current and calls `render`. */
@@ -26,10 +26,8 @@ export interface Play {
   log: readonly LogLine[];
 }
 
-export interface LastMatch {
-  /** Why it closed, and the runtime's words for it. */
-  reason: CloseReason;
-  detail: string;
+/** The last Match that ran on this Device: how it closed (`Close`: why, the runtime's words, the platform's), its Players. */
+export interface LastMatch extends Close {
   players: readonly Player[];
   /** Set when the Game ended it. */
   result?: MatchResult;

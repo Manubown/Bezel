@@ -267,7 +267,7 @@ export type CloseReason = 'ended' | 'aborted' | 'version' | 'protocol' | 'fault'
 | `Player` | a participant. `deviceId`: the Device that seats them (never on a bot). `bot`: the host game plays them; only with manifest `bots` |
 | `Device` | one phone in the Match; `tile` present iff `role === 'tile'`; `screenMm` its own screen |
 | `MatchInfo` | frozen at Start, identical everywhere. `seed`: for the Game's randomness. `tiles`: Layout (Tile) order. `bounds`: box around every Tile |
-| `MatchResult` | what `end` reports; the result card names `ranking[0]` the winner, else sorts by `scores` ("Draw" on equal top scores, "Match over" with neither), and reads two sides that both scored in one line ("Ana wins 7–5", "Draw, 3–3"): omit `ranking` for a draw |
+| `MatchResult` | what `end` reports; the result card names `ranking[0]` the winner, else sorts by `scores` ("Draw" on equal top scores, "Game over" with neither), and reads two sides that both scored in one line ("Ana wins 7–5", "Draw, 3–3"): omit `ranking` for a draw |
 | `Sender` | who sent an input or message, stamped by the Host; `playerId` is a Controller's Holder when it has one |
 | `Input` | one pointer sample. `t`: shared time at capture, not monotone across Devices. `world`: world mm on a Tile, the Controller's screen mm (origin top-left) on a Controller |
 | `PauseReason` | why the Match paused; `apps/pwa` pauses with `device-lost` |

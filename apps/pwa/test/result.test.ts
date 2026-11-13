@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { logLineOf } from '../src/gamelog';
-import { describeClose, describeResult } from '../src/result';
+import { HOST_RESTARTED, describeClose, describeResult } from '../src/result';
 
 const PLAYERS = [
   { playerId: 'p-ann', name: 'Ann' },
@@ -23,19 +23,34 @@ describe('the result overlay text', () => {
     expect(describeResult(TRIO, { scores: { 'p-ann': 4, 'p-bo': 7, 'p-cy': 1 }, ranking: ['p-bo', 'p-ann', 'p-cy'] })).toEqual({ headline: 'Bo wins', detail: 'Bo 7 · Ann 4 · Cy 1', player: 1 });
   });
 
-  it('reads a result without scores by its ranking alone, and one without either as the Match being over', () => {
+  it('reads a result without scores by its ranking alone, and one without either as the game being over', () => {
     expect(describeResult(PLAYERS, { ranking: ['p-bo', 'p-ann'] })).toEqual({ headline: 'Bo wins', detail: '', player: 1 });
-    expect(describeResult(PLAYERS, {})).toEqual({ headline: 'Match over', detail: '' });
+    expect(describeResult(PLAYERS, {})).toEqual({ headline: 'Game over', detail: '' });
   });
 });
 
 describe('the close overlay text and the Host’s game log', () => {
-  it('names why a Match closed without a result, with the runtime’s detail unless the reason says it all', () => {
-    expect(describeClose('fault', 'host.tick: boom')).toEqual({ headline: 'The game crashed', detail: 'host.tick: boom' });
-    expect(describeClose('version', 'host link: the game speaks wire v2, the platform v1').headline).toBe('Game version mismatch');
-    expect(describeClose('protocol', 'view link: unexpected ready').headline).toBe('The game broke the protocol');
-    expect(describeClose('link-lost', 'view link: no ready within 5 s')).toEqual({ headline: 'Connection lost', detail: 'view link: no ready within 5 s' });
-    expect(describeClose('aborted', 'stopped by the platform')).toEqual({ headline: 'Game ended on the first phone', detail: '' });
+  it('names why a Match closed without a result in the words players read, for every reason', () => {
+    expect(describeClose({ reason: 'ended', detail: 'the game ended' }, false)).toEqual({ headline: 'Game over', detail: '' });
+    expect(describeClose({ reason: 'aborted', detail: 'stopped by the platform' }, false)).toEqual({ headline: 'Game ended on the first phone', detail: '' });
+    expect(describeClose({ reason: 'fault', detail: 'host.tick: boom' }, false)).toEqual({ headline: 'The game crashed', detail: '' });
+    expect(describeClose({ reason: 'version', detail: 'host link: the game speaks wire v2, the platform v1' }, false)).toEqual({ headline: 'The game does not fit this version of the app', detail: '' });
+    expect(describeClose({ reason: 'protocol', detail: 'view link: unexpected ready' }, false)).toEqual({ headline: 'The game stopped with an error', detail: '' });
+    expect(describeClose({ reason: 'link-lost', detail: 'view link: no ready within 5 s' }, false)).toEqual({ headline: 'Connection lost', detail: '' });
+  });
+
+  it('says that the first phone restarted when it came back without the game, the reason the runtime could not name', () => {
+    expect(HOST_RESTARTED).toBe('The first phone restarted');
+    expect(describeClose({ reason: 'link-lost', detail: 'the platform lost the connection', said: HOST_RESTARTED }, false)).toEqual({ headline: 'Connection lost', detail: 'The first phone restarted' });
+  });
+
+  it('adds the runtime’s own words in Maker mode only', () => {
+    expect(describeClose({ reason: 'fault', detail: 'host.tick: boom' }, true)).toEqual({ headline: 'The game crashed', detail: 'host.tick: boom' });
+    expect(describeClose({ reason: 'link-lost', detail: 'the platform lost the connection', said: HOST_RESTARTED }, true)).toEqual({
+      headline: 'Connection lost',
+      detail: 'The first phone restarted · the platform lost the connection',
+    });
+    expect(describeClose({ reason: 'aborted', detail: 'stopped by the platform' }, true)).toEqual({ headline: 'Game ended on the first phone', detail: 'stopped by the platform' });
   });
 
   it('turns faults, logs and closes into log lines, and nothing else', () => {

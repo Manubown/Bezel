@@ -346,7 +346,7 @@ class HostLobby extends LobbyBase implements Lobby {
   }
 
   start(game: Manifest): MatchInfo {
-    if (this.frozen) throw new Error('A Match is already running');
+    if (this.frozen) throw new Error('A game is already running');
     // Starting a Game picks it: the phones lie in a template it names before anything is checked.
     this.setGame(game);
     const present = this.session.roster().filter((e) => e.present);
@@ -377,7 +377,7 @@ class HostLobby extends LobbyBase implements Lobby {
 
   startAgain(): MatchInfo {
     if (!this.last) throw new Error('No game to play again');
-    if (this.frozen) throw new Error('A Match is already running');
+    if (this.frozen) throw new Error('A game is already running');
     const { match, game } = this.last;
     const present = this.session.roster().filter((e) => e.present);
     const gone = match.devices.find((d) => !present.some((e) => e.info.deviceId === d.deviceId));
@@ -508,17 +508,17 @@ class HostLobby extends LobbyBase implements Lobby {
     this.reached = peers;
   }
 
-  /** Why `game` cannot start on the present Devices, or undefined if it can. */
+  /** Why `game` cannot start on the present Devices, in the words players read (spec D5), or undefined if it can. */
   private refusal(game: Manifest, present: readonly RosterEntry[], tiles: readonly DeviceRect[]): string | undefined {
-    if (!game.bots && this.players.some((p) => p.bot)) return `${game.name} does not support bots`;
+    if (!game.bots && this.players.some((p) => p.bot)) return `${game.name} cannot be played with a bot`;
     const controllers = present.filter((e) => this.assigned(e.info.deviceId) === 'controller').length;
-    const count = outside(game.tiles, tiles.length, 'Tile', 'present') ?? outside(game.controllers, controllers, 'Controller', 'present');
+    const count = outside(game.tiles, tiles.length, TILES) ?? outside(game.controllers, controllers, CONTROLLERS);
     if (count !== undefined) return `${game.name} needs ${count}`;
     const min = game.minTileMm;
     const small = min ? tiles.findIndex((t) => t.w < min.w || t.h < min.h) : -1;
     if (min && small >= 0) {
       const t = tiles[small]!;
-      return `Phone ${small + 1} is ${mm(t.w)} × ${mm(t.h)} mm; ${game.name} needs Tiles of at least ${mm(min.w)} × ${mm(min.h)} mm`;
+      return `Phone ${small + 1}’s screen is ${mm(t.w)} × ${mm(t.h)} mm; ${game.name} needs screens of at least ${mm(min.w)} × ${mm(min.h)} mm`;
     }
     const joining = present.find((e) => !e.sync.synced || !this.seatIds.has(e.info.deviceId));
     if (joining) {
@@ -526,8 +526,8 @@ class HostLobby extends LobbyBase implements Lobby {
       return `${i >= 0 ? `Phone ${i + 1}` : joining.info.name} is still joining`;
     }
     const ids = new Set(this.players.map((p) => p.playerId));
-    if (ids.size !== this.players.length) return 'Two Players have the same id';
-    const players = outside(game.players, this.players.length, 'Player', 'seated');
+    if (ids.size !== this.players.length) return 'Two phones have the same Player id: clear this site’s data on one of them';
+    const players = outside(game.players, this.players.length, PLAYERS);
     return players === undefined ? undefined : `${game.name} needs ${players}`;
   }
 }
@@ -560,10 +560,10 @@ class PeerLobby extends LobbyBase implements Lobby {
   setBot(): void {}
   setPlayers(): void {}
   start(): MatchInfo {
-    throw new Error('Only the Host starts a Match');
+    throw new Error('Only the first phone starts a game');
   }
   startAgain(): MatchInfo {
-    throw new Error('Only the Host starts a Match');
+    throw new Error('Only the first phone starts a game');
   }
   close(): void {}
 
@@ -604,11 +604,17 @@ function mm(n: number): string {
   return String(Math.round(n * 10) / 10);
 }
 
-/** `undefined` when `n` is in `range`, else what the Game needs and what there is. */
-function outside(range: Range, n: number, noun: string, have: string): string | undefined {
+/** What a refusal counts, one and many, in the words players read: a Tile is a phone on the table, a Controller one in hand. */
+type Noun = readonly [one: string, many: string];
+const TILES: Noun = ['phone on the table', 'phones on the table'];
+const CONTROLLERS: Noun = ['phone in hand', 'phones in hand'];
+const PLAYERS: Noun = ['player', 'players'];
+
+/** `undefined` when `n` is in `range`, else what the Game needs and what there is ("2 phones on the table; there is 1"). */
+function outside(range: Range, n: number, [one, many]: Noun): string | undefined {
   if (n >= range.min && n <= range.max) return undefined;
-  const need = range.min === range.max ? (range.min === 0 ? `no ${noun}s` : `${range.min} ${noun}${range.min === 1 ? '' : 's'}`) : `${range.min}–${range.max} ${noun}s`;
-  return `${need}; ${n} ${have}`;
+  const need = range.min === range.max ? (range.min === 0 ? `no ${many}` : `${range.min} ${range.min === 1 ? one : many}`) : `${range.min}–${range.max} ${many}`;
+  return `${need}; ${n === 0 ? 'there are none' : n === 1 ? 'there is 1' : `there are ${n}`}`;
 }
 
 function deepFreeze<T>(v: T): T {

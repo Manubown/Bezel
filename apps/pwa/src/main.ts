@@ -143,8 +143,8 @@ async function start(): Promise<void> {
   });
 
   const play: Play = { running: false, paused: undefined, stopped: undefined, last: undefined, log: [] };
-  /** The Match running on this Device: `host` is the Session's Host when it began; `stop` closes it, `detail` replacing the runtime's words on the card. */
-  let current: { matchId: string; handle: MatchHandle; host: DeviceId | undefined; stop(reason: 'aborted' | 'link-lost', detail?: string): void } | undefined;
+  /** The Match running on this Device: `host` is the Session's Host when it began; `stop` closes it, `said` the platform's sentence for players on the card (`Close.said`). */
+  let current: { matchId: string; handle: MatchHandle; host: DeviceId | undefined; stop(reason: 'aborted' | 'link-lost', said?: string): void } | undefined;
   /** A Device runs a Match once: after it closed here, it is not rejoined, unless it closed because the Session dropped. */
   let joined: string | undefined;
   /** The running Match's pause as its runtime last reported it. */
@@ -188,7 +188,7 @@ async function start(): Promise<void> {
     play.log = [];
     gameLayer.hidden = false;
     let result: MatchResult | undefined;
-    /** The card's detail when this Device stopped the Match for a reason its runtime cannot name (`linkLostDetail`). */
+    /** The platform's sentence for players when this Device stopped the Match for a reason its runtime cannot name (`linkLostDetail`). */
     let said: string | undefined;
     let unfollow = (): void => {};
     const handle = runMatch({
@@ -215,7 +215,7 @@ async function start(): Promise<void> {
           hud.render();
         }
         if (e.t === 'view-closed') {
-          play.stopped = { headline: 'The game stopped on this phone', detail: `${describeClose(e.reason, e.detail).headline} · the match goes on for the others` };
+          play.stopped = { headline: 'The game stopped on this phone', detail: `${describeClose(e, maker).headline} · the game goes on for the others` };
           hud.render();
         }
         if (e.t !== 'closed' || current?.matchId !== match.matchId) {
@@ -229,7 +229,7 @@ async function start(): Promise<void> {
         play.paused = undefined;
         matchPause = undefined;
         play.stopped = undefined;
-        play.last = { reason: e.reason, detail: said ?? e.detail, players: match.players, ...(result && { result }) };
+        play.last = { reason: e.reason, detail: e.detail, ...(said !== undefined && { said }), players: match.players, ...(result && { result }) };
         // Finished: its Game ended it. The Device's first one brings the install offer (`installOffer`).
         if (e.reason === 'ended') install.matchFinished();
         gameLayer.hidden = true;
@@ -243,8 +243,8 @@ async function start(): Promise<void> {
       matchId: match.matchId,
       handle,
       host: host(),
-      stop: (reason, detail) => {
-        said = detail;
+      stop: (reason, why) => {
+        said = why;
         handle.stop(reason);
       },
     };

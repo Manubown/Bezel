@@ -246,7 +246,7 @@ export async function hostSheet(root: HTMLElement, o: HudOptions, onToggle: () =
     start.textContent = `Start ${game.name}`;
     start.hidden = match !== undefined;
     end.hidden = !play.running;
-    const described = play.last && describeLast(play.last);
+    const described = play.last && describeLast(play.last, maker);
     const lastLine = described && [described.headline, described.detail].filter(Boolean).join(' · ');
     reason.textContent = refusal || (lastLine && !match ? `Last match: ${lastLine}` : '');
     // A refusal is a warning; the last Match is news.

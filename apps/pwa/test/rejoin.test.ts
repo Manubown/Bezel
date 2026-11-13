@@ -55,10 +55,10 @@ describe('rejoin: what a Peer does about its Match on a Session or lobby change 
     expect(decideRejoin(peer({ rejoining: true }))).toBe('hello');
   });
 
-  it('ready again and the lobby names no Match: stop with link-lost, "The host phone restarted" when it is the Host the Match began under', () => {
+  it('ready again and the lobby names no Match: stop with link-lost, "The first phone restarted" when it is the Host the Match began under', () => {
     const restarted = peer({ rejoining: true, lobbyMatchId: undefined });
     expect(decideRejoin(restarted)).toBe('stop-link-lost');
-    expect(linkLostDetail(restarted)).toBe('The host phone restarted');
+    expect(linkLostDetail(restarted)).toBe('The first phone restarted');
     // Another Host under this code: the runtime's own words.
     const other = peer({ rejoining: true, lobbyMatchId: undefined, hostId: 'd9' });
     expect(decideRejoin(other)).toBe('stop-link-lost');

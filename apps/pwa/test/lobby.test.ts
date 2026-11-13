@@ -72,8 +72,8 @@ describe('Lobby over a Session on MemoryHub', () => {
     const { host, lobby, join } = table(['d1']);
     expect(host.layout?.devices.map((d) => d.id)).toEqual(['d0', 'd1']);
 
-    expect(() => host.start({ ...DUEL, tiles: { min: 3, max: 4 } })).toThrow('Duel needs 3–4 Tiles; 2 present');
-    expect(() => host.start({ ...DUEL, minTileMm: { w: 70, h: 100 } })).toThrow('Phone 1 is 65 × 140 mm; Duel needs Tiles of at least 70 × 100 mm');
+    expect(() => host.start({ ...DUEL, tiles: { min: 3, max: 4 } })).toThrow('Duel needs 3–4 phones on the table; there are 2');
+    expect(() => host.start({ ...DUEL, minTileMm: { w: 70, h: 100 } })).toThrow('Phone 1’s screen is 65 × 140 mm; Duel needs screens of at least 70 × 100 mm');
     // A third phone that has not finished syncing cannot be put in a Match yet.
     join('d2');
     vi.advanceTimersByTime(50);
@@ -108,7 +108,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect(match.bounds).toEqual({ x: 0, y: 0, w: 203, h: 140 });
     expect(match.tickHz).toBe(60);
     expect(Object.isFrozen(match) && Object.isFrozen(match.devices[0]!.tile) && Object.isFrozen(match.players)).toBe(true);
-    expect(() => host.start(DUEL)).toThrow('A Match is already running');
+    expect(() => host.start(DUEL)).toThrow('A game is already running');
 
     vi.advanceTimersByTime(100);
     const received = peer.match;
@@ -141,7 +141,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     peer.close(); // a Peer cannot
     vi.advanceTimersByTime(100);
     expect(host.match).toBeDefined();
-    expect(() => peer.start(DUEL)).toThrow('Only the Host starts a Match');
+    expect(() => peer.start(DUEL)).toThrow('Only the first phone starts a game');
 
     host.close();
     host.setTemplate('column');
@@ -198,14 +198,14 @@ describe('Lobby over a Session on MemoryHub', () => {
     const peer = lobby('d1');
     const BOTS: Manifest = { ...DUEL, id: 'test.bots', bots: true };
     expect(() => host.startAgain()).toThrow('No game to play again');
-    expect(() => peer.startAgain()).toThrow('Only the Host starts a Match');
+    expect(() => peer.startAgain()).toThrow('Only the first phone starts a game');
     host.setGame(BOTS);
     host.setTemplate('column');
     host.setBot(1, true);
     host.setPlayers(host.players.map((p, i) => ({ ...p, name: ['Ann', 'Robo'][i]! })));
     const first = host.start(BOTS);
     expect(host.layout?.template).toBe('column');
-    expect(() => host.startAgain()).toThrow('A Match is already running');
+    expect(() => host.startAgain()).toThrow('A game is already running');
     // d2 drops during the Match and is back before it ends: the lobby built its Layout and Players afresh meanwhile.
     hub.disconnect('peer-of-d2');
     vi.advanceTimersByTime(100);
@@ -268,7 +268,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     // The default Players sit at the outer Tiles, which are now d0 and d1.
     expect(host.players.map((p) => p.playerId)).toEqual([seat('d0'), seat('d1')]);
 
-    expect(() => host.start({ ...DUEL, controllers: { min: 2, max: 2 } })).toThrow('Duel needs 2 Controllers; 1 present');
+    expect(() => host.start({ ...DUEL, controllers: { min: 2, max: 2 } })).toThrow('Duel needs 2 phones in hand; there is 1');
     const match = host.start({ ...DUEL, id: 'test.pass', controllers: { min: 1, max: 1 } });
     expect(match.tiles.map((t) => t.deviceId)).toEqual(['d0', 'd1']);
     expect(match.devices.map((d) => [d.deviceId, d.role])).toEqual([
@@ -319,7 +319,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     expect([host.seats, peer.seats]).toEqual(['controllers', 'controllers']);
     // Nobody is a Controller yet: no Players, and Start says so.
     expect(host.players).toEqual([]);
-    expect(() => host.start(QUIZ)).toThrow('Quiz needs 1 Tile; 4 present');
+    expect(() => host.start(QUIZ)).toThrow('Quiz needs 1 phone on the table; there are 4');
     host.setRole('d1', 'controller');
     host.setRole('d2', 'controller');
     host.setRole('d3', 'controller');
@@ -487,7 +487,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     const { host, lobby } = table(['d1', 'd2']);
     const peer = lobby('d1');
     host.setBot(0, true);
-    expect(() => host.start(DUEL)).toThrow('Duel does not support bots');
+    expect(() => host.start(DUEL)).toThrow('Duel cannot be played with a bot');
     expect(host.match).toBeUndefined();
 
     const match = host.start({ ...DUEL, bots: true });
@@ -512,7 +512,7 @@ describe('Lobby over a Session on MemoryHub', () => {
     // A bot counts toward the Player range: one Tile needs one to make two Players.
     const solo = table([]).host;
     const oneTile = { ...DUEL, tiles: { min: 1, max: 4 }, bots: true };
-    expect(() => solo.start(oneTile)).toThrow('Duel needs 2 Players; 1 seated');
+    expect(() => solo.start(oneTile)).toThrow('Duel needs 2 players; there is 1');
     solo.setBot(1, true);
     expect(solo.start(oneTile).players.map((p) => p.playerId)).toEqual([seat('d0'), 'bot:1']);
   });

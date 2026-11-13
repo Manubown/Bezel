@@ -3,9 +3,12 @@ import type { LastMatch } from '../hud';
 import { describeClose, describeResult, type Notice } from '../result';
 import type { SoundSetting } from '../sound';
 
-/** The last Match in words: its result, or why it closed without one; `player`, the Player its headline names. */
-export function describeLast(last: LastMatch): Notice {
-  return last.result ? describeResult(last.players, last.result) : describeClose(last.reason, last.detail);
+/**
+ * The last Match in words: its result, or why it closed without one (the runtime's words in Maker mode, `maker`);
+ * `player`, the Player its headline names.
+ */
+export function describeLast(last: LastMatch, maker: boolean): Notice {
+  return last.result ? describeResult(last.players, last.result) : describeClose(last, maker);
 }
 
 /**

@@ -60,14 +60,14 @@ The reason shows under the Start button. Never the arrangement: Start picks the 
 
 | Message | Cause | Fix |
 |---|---|---|
-| `<Game> does not support bots` | a Bot chip is pressed and the manifest has no `bots: true` | release the Bot chip, or add `bots: true` and play the bots in the host |
-| `<Game> needs 1–4 Tiles; 5 present` | `manifest.tiles` (Controllers are not Tiles) | add or remove phones, or mark some as Controllers |
-| `<Game> needs 1 Controller; 0 present` / `needs 1 Controller; 2 present` | `manifest.controllers`; a Game that takes no Controllers puts every phone on the table when it is picked | press or release Controller chips |
-| `Phone 2 is 61.3 × 120 mm; <Game> needs Tiles of at least 65 × 120 mm` | `manifest.minTileMm`; sizes come from the `pxPerMm` guess | use a bigger phone, or lower `minTileMm` |
+| `<Game> cannot be played with a bot` | a Bot chip is pressed and the manifest has no `bots: true` | release the Bot chip, or add `bots: true` and play the bots in the host |
+| `<Game> needs 1–4 phones on the table; there are 5` | `manifest.tiles` (Controllers are not Tiles) | add or remove phones, or mark some as Controllers |
+| `<Game> needs 1 phone in hand; there are none` / `needs 1 phone in hand; there are 2` | `manifest.controllers`; a Game that takes no Controllers puts every phone on the table when it is picked | press or release Controller chips |
+| `Phone 2’s screen is 61.3 × 120 mm; <Game> needs screens of at least 65 × 120 mm` | `manifest.minTileMm`; sizes come from the `pxPerMm` guess | use a bigger phone, or lower `minTileMm` |
 | `Phone 2 is still joining` | a phone has not synced its clock or said who sits there yet | wait for its sync dot in the roster |
-| `Two Players have the same id` | two phones reported one Player id; each phone's Player id is stored in its browser (`apps/pwa/src/device.ts:59-71`) | clear the site data on one of them, so it gets new ids |
-| `<Game> needs 2 Players; 1 seated` | `manifest.players` counts the seated Players, bots included: with `seats: 'ends'` only the first and the last Tile seat anyone and an empty slot counts for nobody; with `seats: 'controllers'` each Controller phone that has said who holds it seats one ([seats](concepts.md#seats-and-bots)) | `'ends'`: add a phone at the end, or press a Bot chip (if the Game has bots); `'controllers'`: press another phone's chip under "Players’ phones" |
-| `A Match is already running` (`apps/pwa/src/lobby.ts:318`) | | End match first |
+| `Two phones have the same Player id: clear this site’s data on one of them` | two phones reported one Player id; each phone's Player id is stored in its browser (`apps/pwa/src/device.ts:59-71`) | clear the site data on one of them, so it gets new ids |
+| `<Game> needs 2 players; there is 1` | `manifest.players` counts the seated Players, bots included: with `seats: 'ends'` only the first and the last Tile seat anyone and an empty slot counts for nobody; with `seats: 'controllers'` each Controller phone that has said who holds it seats one ([seats](concepts.md#seats-and-bots)) | `'ends'`: add a phone at the end, or press a Bot chip (if the Game has bots); `'controllers'`: press another phone's chip under "Players’ phones" |
+| `A game is already running` (`apps/pwa/src/lobby.ts:318`) | | End match first |
 
 Numbers in the table are examples; the message names the Game and the real counts.
 
@@ -87,7 +87,7 @@ Numbers in the table are examples; the message names the Game and the real count
 
 - **What it means:** this phone had the Host and lost it: the connection closed, the Host was silent for 5 s (`LOST_MS`; the 1 Hz clock pings are the heartbeat), or a re-attach did not sync its clock within 4 s (`SYNC_TIMEOUT_MS`, `packages/core/src/session.ts`). The phone drops its connections and looks for the Host again by itself. In the lobby its strip says so, and after 15 s a card: "Still reconnecting to table CODE", what to check, **Try again** and the code; during a Match a card over the Game does: "Lost the table. Reconnecting… · the match goes on when the connection is back".
 - **During a Match:** the phone keeps its part of the Match, its Game view and state, for 30 s (`REJOIN_GRACE_MS`, `apps/pwa/src/rejoin.ts:5-6`). Back with the same Host within that time, and the Host's lobby still names the Match, it says `hello` and the Host replays the current state and its pause to it: the Match goes on, no lobby, no result card (`apps/pwa/src/rejoin.ts:37-60`, `apps/pwa/src/main.ts:236-270`). Meanwhile the Host has lost the phone too: within 5 s it pauses the Match on every other phone ("Waiting for phone 2 · It lost its connection · the match goes on when it is back") and resumes once the phone is back and synced; the returning phone reads "You’re back · the match goes on in a moment" until that resume. In the browser smoke a dropped connection was back and playing within 1.7 s.
-- **When it gives up:** after 30 s without the Host, the phone stops its part: "Connection lost", then the lobby. The Host keeps waiting until End match, and the phone rejoins the same Match by itself once its connection is back (its part starts afresh from the Host's state). If the Host is back without the Match, the card reads "Connection lost · The host phone restarted": its page reloaded ([the host phone reloaded](#the-host-phone-reloaded)), or it ended the Match while this phone was away, which a returning phone cannot tell apart. If the Host has started another Match meanwhile, the card reads "Connection lost".
+- **When it gives up:** after 30 s without the Host, the phone stops its part: "Connection lost", then the lobby. The Host keeps waiting until End match, and the phone rejoins the same Match by itself once its connection is back (its part starts afresh from the Host's state). If the Host is back without the Match, the card reads "Connection lost · The first phone restarted": its page reloaded ([the host phone reloaded](#the-host-phone-reloaded)), or it ended the Match while this phone was away, which a returning phone cannot tell apart. If the Host has started another Match meanwhile, the card reads "Connection lost".
 - **Fix:** keep every phone awake and on one network ([wake lock](running-on-phones.md#screen-wake-lock)). If it does not come back, reload the phone's page (its address keeps `?room=CODE`). Its log has the cause: a `peer-leave` (the connection closed) or `link` lines going `weak` before the `roster` line with `status: "reconnecting"` (silence).
 
 ### The Host's roster says "weak connection" for a phone
@@ -99,7 +99,7 @@ Numbers in the table are examples; the message names the Game and the real count
 
 - **Cause:** the fault ladder closed a side (`packages/sdk/src/match.ts:92-93`, `packages/sdk/src/game-side.ts:18`):
 
-| Detail on the card / in the log | Why |
+| Detail on the card (in Maker mode) / in the log | Why |
 |---|---|
 | `4 faults within 5 s, the last host.tick: <message>` | more than 3 handler throws within 5 s on one side |
 | `host.factory: <message>`, `view.factory: <message>` | a factory threw or returned no handlers |
@@ -164,7 +164,7 @@ A host side that closes ends the Match everywhere ("The game crashed"). A Peer's
 ### The host phone reloaded
 
 - **What comes back:** the room code, so the Peers find the Host again within a few seconds (`apps/pwa/src/main.ts:22-23`), and the lobby as the Host set it: arrangement, Tile order, Controllers, the picked Game, the Bot chips. The Host's page keeps them per room code in that tab's `sessionStorage` (`mgc.lobby.<CODE>`, `apps/pwa/src/lobby.ts:85-126`). Each phone takes its old place when it is back, a phone that does not come back leaves no gap, a new phone joins at the end. Moving a phone with ◀ ▶ before all are back gives up the places of the missing ones.
-- **What does not:** the running Match: its host game lived in the Host's page. Every Peer shows "Lost the table. Reconnecting…" until it finds the reloaded Host (2 s in the browser smoke), then its Match ends with "Connection lost · The host phone restarted" (`apps/pwa/src/rejoin.ts:62-68`); press Start again.
+- **What does not:** the running Match: its host game lived in the Host's page. Every Peer shows "Lost the table. Reconnecting…" until it finds the reloaded Host (2 s in the browser smoke), then its Match ends with "Connection lost · The first phone restarted" (`apps/pwa/src/rejoin.ts:62-68`); press Start again.
 - **Fix:** keep the Host's page from reloading: install the app ("Add to Home Screen"), which has no pull-to-refresh, and keep the Host's screen on. A new tab, or a closed and reopened one, is a new Host with a new code and an empty lobby (`sessionStorage` lives per tab).
 
 ### Every phone reloads and the Match is gone when someone saves a file

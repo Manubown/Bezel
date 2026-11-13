@@ -10,7 +10,7 @@ import { describeLast, esc, inColour } from './shared';
  * the next game, until tapped. Below that, the install offer (`installOffer`'s card) on the first card it is due; once
  * that card closes the offer is dismissed and does not return to a card.
  */
-export function lastCard({ play, lobby, install }: Pick<HudOptions, 'play' | 'lobby' | 'install'>, sheet: Sheet | undefined): () => void {
+export function lastCard({ play, lobby, install, maker }: Pick<HudOptions, 'play' | 'lobby' | 'install' | 'maker'>, sheet: Sheet | undefined): () => void {
   const card = document.createElement('section');
   card.className = sheet ? 'result' : 'result closes';
   card.hidden = true;
@@ -38,7 +38,7 @@ export function lastCard({ play, lobby, install }: Pick<HudOptions, 'play' | 'lo
     if (last !== shown) {
       shown = last;
       refusal = '';
-      const { headline, detail, player } = describeLast(last);
+      const { headline, detail, player } = describeLast(last, maker);
       const offer = install.offer().card;
       offering = offer !== undefined;
       card.innerHTML =
