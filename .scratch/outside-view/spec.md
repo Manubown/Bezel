@@ -1,6 +1,6 @@
 # Outside view: what a stranger meets in the app, on the site and on GitHub
 
-Status: ready-for-agent
+Status: resolved (2026-11-13: tickets 01–16 resolved on the branch `outside-view`, reviewed in `review.md` with every finding fixed or decided against; 17, the makers' go-public steps, is ready-for-human and comes before the merge to `master`)
 Created: 2026-11-12
 Sources: `docs/strategy/app-design-audit.md` (findings F1–F19, work list 1–10), `docs/strategy/github-and-landing-site.md` (§1–§3), `docs/strategy/README.md`, `docs/strategy/competition-and-audience.md` §1.2, a two-profile browser session against BIGBOARD.GAMES on 2026-11-12 (its first screen, join, connection pill, install prompts and UI strings; no phones, no hotspot), the makers' decisions of 2026-11-12 (grilling round 1, twelve questions, all answered "yes").
 
