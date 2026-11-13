@@ -15,7 +15,7 @@ import { createRecorder } from './recorder';
 import { RECONNECTING, REJOIN_GRACE_MS, decideRejoin, linkLostDetail, type Rejoin } from './rejoin';
 import { describeClose, type Notice } from './result';
 import { drawPreview } from './scene';
-import { soundSetting } from './sound';
+import { soundSetting, type AudioSessionLike } from './sound';
 import { parseTurnServers } from './turn';
 import { awake, keepAwake } from './wake';
 
@@ -73,8 +73,9 @@ async function start(): Promise<void> {
   const params = new URLSearchParams(location.search);
   // Maker mode (`?maker`, remembered on this Device; `?maker=no` switches it off) shows what players never see; the session log records either way.
   const maker = claimMakerMode(params);
-  // Whether this phone plays the Games' sounds: its person's setting, kept on the Device (spec outside-view D12).
-  const sound = soundSetting();
+  // Whether this phone plays the Games' sounds: its person's setting, kept on the Device (spec outside-view D12); while
+  // it is on, the page plays as media through an iPhone's silent switch.
+  const sound = soundSetting((navigator as Navigator & { audioSession?: AudioSessionLike }).audioSession);
   // A Peer's code as every code field reads it; an address whose code is empty opens a Session of its own.
   const room = sessionCode(params.get('room') ?? '') || undefined;
   const code = room ?? hostRoomCode();

@@ -24,6 +24,24 @@ describe('the Device’s sound setting (spec outside-view D12)', () => {
     expect(soundSetting().on).toBe(true);
   });
 
+  it('lets the page play as media, through an iPhone’s silent switch, only while it is on: the audio session is playback then, the browser’s own auto while off', () => {
+    const session = { type: 'auto' };
+    const sound = soundSetting(session);
+    expect(session.type).toBe('playback');
+    sound.set(false);
+    expect(session.type).toBe('auto');
+    sound.set(true);
+    expect(session.type).toBe('playback');
+  });
+
+  it('leaves the audio session alone on a Device whose sound is off from the start, and does without one where the browser has none', () => {
+    kept.set('mgc.sound', 'off');
+    const session = { type: 'auto' };
+    soundSetting(session);
+    expect(session.type).toBe('auto');
+    expect(() => soundSetting(undefined).set(true)).not.toThrow();
+  });
+
   it('tells each listener of a change, and of nothing else', () => {
     const sound = soundSetting();
     const heard: boolean[] = [];

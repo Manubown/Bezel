@@ -198,9 +198,6 @@ function speaker(root: HTMLElement): { play(tone: Tone): void; close(): void } {
   const wake = (): void => {
     touched = true;
     if (!audio && typeof win?.AudioContext === 'function') {
-      // An iPhone's silent switch mutes Web Audio unless the page says it plays media (developer reports; a phone decides).
-      const session = (win.navigator as Navigator & { audioSession?: { type: string } }).audioSession;
-      if (session) session.type = 'playback';
       try {
         audio = new win.AudioContext();
       } catch {

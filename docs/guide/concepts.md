@@ -86,7 +86,7 @@ return {
 };
 ```
 
-A browser lets a page sound only from a touch on it, so `speaker` makes its `AudioContext` on the first touch of the view's `root` (the Player's "Touch here to start") and plays nothing before: a Tile nobody touches stays silent. It sets `navigator.audioSession.type = 'playback'` where that exists (an iPhone's silent switch mutes Web Audio otherwise, by developers' reports), plays each note as a triangle wave fading out, and on a goal calls `navigator.vibrate` where that exists (Android). Each Game carries its own few lines of it; the SDK has no synth.
+A browser lets a page sound only from a touch on it, so `speaker` makes its `AudioContext` on the first touch of the view's `root` (the Player's "Touch here to start") and plays nothing before: a Tile nobody touches stays silent. It plays each note as a triangle wave fading out, and on a goal calls `navigator.vibrate` where that exists (Android). Each Game carries its own few lines of it; the SDK has no synth. A Game leaves the page's audio session alone: the platform sets it to `'playback'` while this phone's Sound is on, and back to `'auto'` when it is switched off (`apps/pwa/src/sound.ts`; an iPhone's silent switch mutes Web Audio otherwise, by developers' reports).
 
 ## World, Tiles and the Surface
 
